@@ -5,8 +5,8 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  distDir: "out",
-  assetPrefix: "./",
+  assetPrefix: "./", // bu çok kritik
+  distDir: "out", // export edilen dosyalar buraya
 };
 
 export default nextConfig;

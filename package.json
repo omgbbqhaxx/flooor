@@ -5,9 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "gh": "npm run build && gh-pages -d out"
+    "postbuild": "touch out/.nojekyll",
+    "gh": "next build"
   },
   "dependencies": {
     "@coinbase/onchainkit": "latest",
