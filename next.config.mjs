@@ -6,7 +6,7 @@ const nextConfig = {
     unoptimized: true,
   },
   distDir: "out",
-  assetPrefix: "./", // ✅ kritik satır
+  assetPrefix: "./",
 };
 
 export default nextConfig;

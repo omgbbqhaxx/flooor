@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   ConnectWallet,
@@ -6,46 +6,44 @@ import {
   WalletDropdown,
   WalletDropdownLink,
   WalletDropdownDisconnect,
-} from '@coinbase/onchainkit/wallet';
+} from "@coinbase/onchainkit/wallet";
 import {
-  Address,
   Avatar,
   Name,
-  Identity,
+  Address,
   EthBalance,
-} from '@coinbase/onchainkit/identity';
-import ArrowSvg from './svg/ArrowSvg';
-import ImageSvg from './svg/Image';
-import OnchainkitSvg from './svg/OnchainKit';
+  Identity,
+} from "@coinbase/onchainkit/identity";
+//import { Transaction } from "@coinbase/onchainkit/transaction";
 
-const components = [
-  {
-    name: 'Transaction',
-    url: 'https://onchainkit.xyz/transaction/transaction',
-  },
-  { name: 'Swap', url: 'https://onchainkit.xyz/swap/swap' },
-  { name: 'Checkout', url: 'https://onchainkit.xyz/checkout/checkout' },
-  { name: 'Wallet', url: 'https://onchainkit.xyz/wallet/wallet' },
-  { name: 'Identity', url: 'https://onchainkit.xyz/identity/identity' },
-];
+import Logo from "@/app/svg/Logo";
 
-const templates = [
-  { name: 'NFT', url: 'https://github.com/coinbase/onchain-app-template' },
-  { name: 'Commerce', url: 'https://github.com/coinbase/onchain-commerce-template'},
-  { name: 'Fund', url: 'https://github.com/fakepixels/fund-component' },
-];
+export default function Page() {
+  //const calls = []; // to be populated with buyFloor call later
 
-export default function App() {
   return (
-    <div className="flex flex-col min-h-screen font-sans dark:bg-background dark:text-white bg-white text-black">
-      <header className="pt-4 pr-4">
-        <div className="flex justify-end">
-          <div className="wallet-container">
+    <div className="bg-black text-white min-h-screen font-sans">
+      <header className="px-8 py-4">
+        <div className="flex items-center justify-center space-x-6">
+          {/* Sadece logo ve navbar'ı saran kutu */}
+          <div className="flex items-center space-x-6 bg-gray-800/80 border-2  border-gray-400 rounded-2xl shadow-lg px-6 py-0.1 backdrop-blur">
+            <Logo className="mt-2 h-12 w-auto" />
+            <nav className="space-x-4 text-sm">
+              <a href="#" className="hover:underline">
+                Project
+              </a>
+              <a href="#" className="hover:underline">
+                Rewards
+              </a>
+              <a href="#" className="hover:underline">
+                FAQ
+              </a>
+            </nav>
+          </div>
+          {/* Sağdaki cüzdan/buton kısmı çerçevenin dışında */}
+          <div>
             <Wallet>
-              <ConnectWallet>
-                <Avatar className="h-6 w-6" />
-                <Name />
-              </ConnectWallet>
+              <ConnectWallet className="px-6 py-3 border-2 border-gray-400 rounded-full  hover:bg-sky-400 hover:text-black transition" />
               <WalletDropdown>
                 <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
                   <Avatar />
@@ -68,65 +66,26 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-grow flex items-center justify-center">
-        <div className="max-w-4xl w-full p-4">
-          <div className="w-1/3 mx-auto mb-6">
-            <ImageSvg />
+      <main className="flex flex-col items-center mt-20 space-y-16">
+        <h1 className="text-5xl font-extrabold text-center">
+          Royalties to the community.
+        </h1>
+
+        <div className="flex flex-col md:flex-row items-center md:space-x-8 space-y-8 md:space-y-0">
+          <div className="bg-blue-500 rounded-lg w-48 h-48 flex items-center justify-center px-2">
+            <span className="text-xl font-bold text-center">
+              Stake your nft. <br></br> Earn royalties.<br></br> From sales.
+            </span>
           </div>
-          <div className="flex justify-center mb-6">
-            <a target="_blank" rel="_template" href="https://onchainkit.xyz">
-              <OnchainkitSvg className="dark:text-white text-black" />
-            </a>
+          <div className="bg-yellow-500 rounded-full w-48 h-48 flex items-center justify-center">
+            <span className="text-xl font-bold text-center">
+              No Listing.<br></br> Just offer or sell.
+            </span>
           </div>
-          <p className="text-center mb-6">
-            Get started by editing
-            <code className="p-1 ml-1 rounded dark:bg-gray-800 bg-gray-200">app/page.tsx</code>.
-          </p>
-          <div className="flex flex-col items-center">
-            <div className="max-w-2xl w-full">
-              <div className="flex flex-col md:flex-row justify-between mt-4">
-                <div className="md:w-1/2 mb-4 md:mb-0 flex flex-col items-center">
-                  <p className="font-semibold mb-2 text-center">
-                    Explore components
-                  </p>
-                  <ul className="list-disc pl-5 space-y-2 inline-block text-left">
-                    {components.map((component, index) => (
-                      <li key={index}>
-                        <a
-                          href={component.url}
-                          className="hover:underline inline-flex items-center dark:text-white text-black"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {component.name}
-                          <ArrowSvg />
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="md:w-1/2 flex flex-col items-center">
-                  <p className="font-semibold mb-2 text-center">
-                    Explore templates
-                  </p>
-                  <ul className="list-disc pl-5 space-y-2 inline-block text-left">
-                    {templates.map((template, index) => (
-                      <li key={index}>
-                        <a
-                          href={template.url}
-                          className="hover:underline inline-flex items-center dark:text-white text-black"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {template.name}
-                          <ArrowSvg/>
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </div>
+          <div className="bg-green-600 rounded-lg w-48 h-48 flex items-center justify-center px-2">
+            <span className="text-xl font-bold text-center">
+              Price incrases follow the phi curve<br></br> not people’s choices
+            </span>
           </div>
         </div>
       </main>
