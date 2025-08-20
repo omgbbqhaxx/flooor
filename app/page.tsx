@@ -29,8 +29,11 @@ export default function Page() {
           <div className="flex items-center space-x-6 bg-gray-800/80 border-2  border-gray-400 rounded-2xl shadow-lg px-6 py-0.1 backdrop-blur">
             <Logo className="mt-2 h-12 w-auto" />
             <nav className="space-x-4 text-sm">
-              <a href="#" className="hover:underline">
-                Project
+              <a
+                href="#"
+                className="hover:underline font-oldschool tabular-nums"
+              >
+                Ξ 3,621
               </a>
             </nav>
           </div>

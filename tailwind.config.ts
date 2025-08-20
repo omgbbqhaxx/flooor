@@ -9,7 +9,8 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['DM Sans', 'sans-serif'],
+        sans: ["DM Sans", "sans-serif"],
+        oldschool: ["var(--font-oldschool)", "sans-serif"],
       },
       colors: {
         background: "var(--background)",
