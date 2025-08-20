@@ -32,12 +32,6 @@ export default function Page() {
               <a href="#" className="hover:underline">
                 Project
               </a>
-              <a href="#" className="hover:underline">
-                Rewards
-              </a>
-              <a href="#" className="hover:underline">
-                FAQ
-              </a>
             </nav>
           </div>
           {/* Sağdaki cüzdan/buton kısmı çerçevenin dışında */}
