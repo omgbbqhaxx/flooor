@@ -6,8 +6,18 @@ import localFont from "next/font/local";
 const oldschoolGrotesk = localFont({
   src: [
     {
+      path: "./fonts/oldschool-grotesk-font/OldschoolGrotesk-NormalLight.otf",
+      weight: "300",
+      style: "normal",
+    },
+    {
       path: "./fonts/oldschool-grotesk-font/OldschoolGrotesk-NormalRegular.otf",
       weight: "400",
+      style: "normal",
+    },
+    {
+      path: "./fonts/oldschool-grotesk-font/OldschoolGrotesk-NormalMedium.otf",
+      weight: "500",
       style: "normal",
     },
     {
@@ -15,9 +25,15 @@ const oldschoolGrotesk = localFont({
       weight: "700",
       style: "normal",
     },
+    {
+      path: "./fonts/oldschool-grotesk-font/OldschoolGrotesk-NormalExtraBold.otf",
+      weight: "800",
+      style: "normal",
+    },
   ],
   variable: "--font-oldschool",
   display: "swap",
+  preload: true,
 });
 import { Providers } from "./providers";
 
@@ -37,7 +53,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={oldschoolGrotesk.variable}>
-      <body className="bg-background dark">
+      <body className={`${oldschoolGrotesk.className} bg-background dark`}>
         <Providers>{children}</Providers>
       </body>
     </html>
