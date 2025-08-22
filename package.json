@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "postbuild": "touch out/.nojekyll",
-    "gh": "next build"
+    "gh": "gh-pages -d out -b gh-pages",
+    "deploy": "npm run build && gh-pages -d out -b gh-pages"
   },
   "dependencies": {
     "@coinbase/onchainkit": "latest",
