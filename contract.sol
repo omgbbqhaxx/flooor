@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 interface IERC721Like {
     function ownerOf(uint256 tokenId) external view returns (address);
+    function balanceOf(address owner) external view returns (uint256);
 }
 
 contract flooordotfun {
@@ -14,13 +15,17 @@ contract flooordotfun {
     IERC721Like private constant nft = IERC721Like(collectionId);
 
 
-    modifier onlyNFTOwnerRead(uint256 tokenId, address useraddr) {
-        require(nft.ownerOf(tokenId) == useraddr, "Not NFT owner");
+     modifier onlyNFTOwnerRead(uint256 tokenId, address useraddr) {
+        require(nft.ownerOf(tokenId) == useraddr, "Not owner of tokenId");
+        require(nft.balanceOf(useraddr) == 1, "Must hold exactly 1 NFT");
         _;
     }
 
+    // WRITE: çağıran adres o tokenId'nin sahibi OLMALI
+    // ve koleksiyondan TAM 1 adet NFT tutmalı
     modifier onlyNFTOwnerWrite(uint256 tokenId) {
-        require(nft.ownerOf(tokenId) == msg.sender, "Not NFT owner");
+        require(nft.ownerOf(tokenId) == msg.sender, "Not owner of tokenId");
+        require(nft.balanceOf(msg.sender) == 1, "Must hold exactly 1 NFT");
         _;
     }
     
