@@ -14,13 +14,18 @@ contract flooordotfun {
     IERC721Like private constant nft = IERC721Like(collectionId);
 
 
-    modifier onlyNFTOwner(uint256 tokenId) {
+    modifier onlyNFTOwnerRead(uint256 tokenId, address useraddr) {
+        require(nft.ownerOf(tokenId) == useraddr, "Not NFT owner");
+        _;
+    }
+
+    modifier onlyNFTOwnerWrite(uint256 tokenId) {
         require(nft.ownerOf(tokenId) == msg.sender, "Not NFT owner");
         _;
     }
     
 
-    function signorclaim(uint256 tokenId) public view onlyNFTOwner(tokenId) returns (uint256 secondsLeft, bool isSignPhase, string memory phaseName, uint256 btt, uint256 tid) {
+    function signorclaim(uint256 tokenId, address useraddr) public view onlyNFTOwnerRead(tokenId, useraddr) returns (uint256 secondsLeft, bool isSignPhase, string memory phaseName, uint256 btt, uint256 tid) {
         uint256 modTime = block.timestamp % rBLOCKS; 
         if (modTime < sDURTION) {
             return (sDURTION - modTime, false, "sign", block.timestamp, tokenId);
