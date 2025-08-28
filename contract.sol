@@ -9,6 +9,11 @@ interface IERC721Like {
     function balanceOf(address owner) external view returns (uint256);
 }
 
+interface IERC20Minimal {
+    function transfer(address to, uint256 amount) external returns (bool);
+    function balanceOf(address account) external view returns (uint256);
+}
+
 interface IWETH {
     function deposit() external payable;
     function transfer(address to, uint256 amount) external returns (bool);
@@ -29,6 +34,9 @@ contract flooordotfun {
     uint256 public activebidAM;
     address public activeBidder;
     uint8 public minBidIncrementPercentage = 2;
+    uint256 public poolAccrued;                   
+
+
     constructor(address _weth) { owner = payable(msg.sender);WETH = _weth; }
     event BidPlaced(address indexed bidder, uint256 amount, address indexed refunded, uint256 refundAmount);
     event SaleSettled(address indexed seller, address indexed buyer, uint256 indexed tokenId, uint256 amount);
@@ -99,41 +107,82 @@ contract flooordotfun {
     emit BidPlaced(msg.sender, msg.value, prevBidder, prevAmt);
 }
 
-
-function setMinBidIncrementPercentage(uint8 p) external onlyOwner {
-    require(p <= 50, "too high"); 
-    minBidIncrementPercentage = p;
-}
+fallback() external payable { revert("Use receive()"); }
 
 function sellToHighest(uint256 tokenId) external nonReentrant onlyNFTOwnerWrite(tokenId) {
-    // Geçerli bir en yüksek teklif olmalı
+    // 1) Geçerli en yüksek teklif var mı?
     require(activeBidder != address(0) && activebidAM >= minbidAM, "No active bid");
 
-    // Bu kontratın token'ı transfer edebilmesi icin approval gerekli
+    // 2) Bu kontrata transfer izni verilmiş olmalı
     bool approved = (
         nft.getApproved(tokenId) == address(this) ||
         nft.isApprovedForAll(msg.sender, address(this))
     );
     require(approved, "Approve token to contract first");
 
-    // Cache
-    uint256 price = activebidAM;
-    address buyer = activeBidder;
+    // 3) Cache
+    uint256 price  = activebidAM;
+    address buyer  = activeBidder;
     address seller = msg.sender;
 
-    // 1) NFT'yi aliciya gonder (external call)
-    //    safeTransferFrom, alici kontratsa onERC721Received cagirtir
+    // ---- Fee dağılımı (sabitlerle, sadece bu fonksiyon içinde) ----
+    // Toplam royalty: %5
+    uint256 fee = (price * 500) / 10_000;          // 5% = 500 bps
+    // Platform: royalty'nin %10'u -> toplam satışın %0.5'i
+    uint256 platformCut = fee / 10;                // 10% of fee
+    // Community havuzu: kalan %90 -> toplam satışın %4.5'i
+    uint256 poolCut = fee - platformCut;           // 90% of fee
+    // Satıcıya gidecek: %95
+    uint256 sellerPayout = price - fee;
+
+    // 4) NFT'yi alıcıya gönder (revert ederse her şey geri alınır)
     nft.safeTransferFrom(seller, buyer, tokenId);
 
-    // 2) Auction state'i sifirla (CEI: effects -> interactions)
+    // 5) Auction state'i sıfırla
     activebidAM  = 0;
     activeBidder = address(0);
 
-    // 3) Saticiya odeme (ETH, basarisizsa WETH fallback)
-    _safeTransferETHWithFallback(seller, price);
+    // 6) Ödemeler
+    _safeTransferETHWithFallback(seller, sellerPayout); // %95 satıcı
+    if (platformCut > 0) {
+        _safeTransferETHWithFallback(owner, platformCut); // %0.5 platform -> anında owner'a
+    }
 
+    // 7) Community havuzunda biriktir (%4.5)
+    poolAccrued += poolCut;
+
+    // (İstersen burada SaleSettled gibi bir event emit edebilirsin)
     emit SaleSettled(seller, buyer, tokenId, price);
 }
+
+
+function setMinBidIncrementPercentage(uint8 p) external onlyOwner {
+    require(p <= 50, "too high"); 
+    minBidIncrementPercentage = p;
+}
+
+
+function sweepERC20(address token, uint256 amt) external onlyOwner nonReentrant {
+    require(token != address(0), "zero token");
+    require(amt > 0, "zero amount");
+
+    // Yeterli bakiye var mi?
+    uint256 bal = IERC20Minimal(token).balanceOf(address(this));
+    require(bal >= amt, "insufficient token balance");
+
+    // Eski token uyumlulugu: low-level call + opsiyonel bool decode
+    (bool ok, bytes memory data) =
+        token.call(abi.encodeWithSelector(IERC20Minimal.transfer.selector, owner, amt));
+
+    // ok == true VE (hic veri donmedi YA DA decode(true))
+    require(ok && (data.length == 0 || abi.decode(data, (bool))), "sweep fail");
+}
+
+function sweepETH(uint256 amt) external onlyOwner {
+    (bool ok, ) = owner.call{value: amt}(""); require(ok,"sweep fail");
+}
+
+
 
 
 
