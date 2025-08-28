@@ -2,6 +2,9 @@
 pragma solidity ^0.8.24;
 
 interface IERC721Like {
+    function safeTransferFrom(address from, address to, uint256 tokenId) external;
+    function getApproved(uint256 tokenId) external view returns (address);
+    function isApprovedForAll(address owner, address operator) external view returns (bool);
     function ownerOf(uint256 tokenId) external view returns (address);
     function balanceOf(address owner) external view returns (uint256);
 }
@@ -28,6 +31,8 @@ contract flooordotfun {
     uint8 public minBidIncrementPercentage = 2;
     constructor(address _weth) { owner = payable(msg.sender);WETH = _weth; }
     event BidPlaced(address indexed bidder, uint256 amount, address indexed refunded, uint256 refundAmount);
+    event SaleSettled(address indexed seller, address indexed buyer, uint256 indexed tokenId, uint256 amount);
+
 
     modifier nonReentrant() { 
         require(!locked, "Reentrancy"); 
@@ -98,6 +103,36 @@ contract flooordotfun {
 function setMinBidIncrementPercentage(uint8 p) external onlyOwner {
     require(p <= 50, "too high"); 
     minBidIncrementPercentage = p;
+}
+
+function sellToHighest(uint256 tokenId) external nonReentrant onlyNFTOwnerWrite(tokenId) {
+    // Geçerli bir en yüksek teklif olmalı
+    require(activeBidder != address(0) && activebidAM >= minbidAM, "No active bid");
+
+    // Bu kontratın token'ı transfer edebilmesi icin approval gerekli
+    bool approved = (
+        nft.getApproved(tokenId) == address(this) ||
+        nft.isApprovedForAll(msg.sender, address(this))
+    );
+    require(approved, "Approve token to contract first");
+
+    // Cache
+    uint256 price = activebidAM;
+    address buyer = activeBidder;
+    address seller = msg.sender;
+
+    // 1) NFT'yi aliciya gonder (external call)
+    //    safeTransferFrom, alici kontratsa onERC721Received cagirtir
+    nft.safeTransferFrom(seller, buyer, tokenId);
+
+    // 2) Auction state'i sifirla (CEI: effects -> interactions)
+    activebidAM  = 0;
+    activeBidder = address(0);
+
+    // 3) Saticiya odeme (ETH, basarisizsa WETH fallback)
+    _safeTransferETHWithFallback(seller, price);
+
+    emit SaleSettled(seller, buyer, tokenId, price);
 }
 
 
