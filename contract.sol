@@ -34,12 +34,24 @@ contract flooordotfun {
     uint256 public activebidAM;
     address public activeBidder;
     uint8 public minBidIncrementPercentage = 2;
-    uint256 public poolAccrued;                   
+    uint256 public poolAccrued;
+
+    // == sign/claim için minimal state ==
+    mapping(bytes32 => bool) private _signed;      // ("A",epochStart,addr) ve ("T",epochStart,tokenId)
+    mapping(bytes32 => bool) private _claimed;     // ("C",epochStart,addr)
+    mapping(uint256 => uint256) public partCount;  // epochStart => kaç kişi signed
+    mapping(uint256 => uint256) public poolSnap;   // epochStart => bu epoch'ta dağıtılacak havuz
+    mapping(uint256 => uint256) public claimedCount; // epochStart => kaç kişi claim etti
+    mapping(bytes32 => uint256) private _signedTokenOf; // ("A",epochStart,addr) -> tokenId
+    uint256 private lastEpochRoll;
+                
 
 
     constructor(address _weth) { owner = payable(msg.sender);WETH = _weth; }
     event BidPlaced(address indexed bidder, uint256 amount, address indexed refunded, uint256 refundAmount);
     event SaleSettled(address indexed seller, address indexed buyer, uint256 indexed tokenId, uint256 amount);
+    event Staked(address indexed user, uint256 indexed tokenId, uint256 epochStart);
+    event Claimed(address indexed user, uint256 epochStart, uint256 share);
 
 
     modifier nonReentrant() { 
@@ -74,14 +86,65 @@ contract flooordotfun {
     }
 
 
-    function canClaim(uint256 tokenId, address useraddr) public view onlyNFTOwnerRead(tokenId, useraddr) returns (uint256 secondsLeft, bool canClaimNow, string memory phaseName, uint256 btt, uint256 tid) {
-        uint256 modTime = block.timestamp % rBLOCKS; 
-        if (modTime < sDURATION) {
-            return (sDURATION - modTime, false, "sign", block.timestamp, tokenId);
-        } else {
-            return (rBLOCKS - modTime, true, "claim", block.timestamp, tokenId);
+    function signOrClaim(uint256 tokenId) external nonReentrant onlyNFTOwnerWrite(tokenId) {
+    uint256 modTime    = block.timestamp % rBLOCKS;
+    uint256 epochStart = block.timestamp - modTime;
+
+    // === epoch rollover + leftover DEVİR ===
+    // Yeni bir sign fazına ilk girişte: önceki epoch'un dağıtılmayan bakiyesini poolAccrued'a iade et
+    if (modTime < sDURATION && epochStart > lastEpochRoll) {
+        if (lastEpochRoll != 0 && poolSnap[lastEpochRoll] > 0 && partCount[lastEpochRoll] > 0) {
+            uint256 perShare    = poolSnap[lastEpochRoll] / partCount[lastEpochRoll];
+            uint256 distributed = perShare * claimedCount[lastEpochRoll];
+            uint256 leftover    = poolSnap[lastEpochRoll] - distributed;
+            if (leftover > 0) {
+                poolAccrued += leftover; // bir sonraki epoch'lara devret
+            }
         }
+        lastEpochRoll = epochStart; // bu sign fazını işaretle
     }
+
+    // === tek mapping ile iki kısıt için anahtarlar ===
+    bytes32 kAddr = keccak256(abi.encodePacked("A", epochStart, msg.sender));
+    bytes32 kTok  = keccak256(abi.encodePacked("T", epochStart, tokenId));
+    bytes32 kClm  = keccak256(abi.encodePacked("C", epochStart, msg.sender));
+
+    if (modTime < sDURATION) {
+        // -------- SIGN --------
+        require(!_signed[kAddr], "already signed");
+        require(!_signed[kTok],  "token used");
+
+        _signed[kAddr] = true;   // adres bu epoch'ta kayitli
+        _signed[kTok]  = true;   // token bu epoch'ta kullanildi
+        _signedTokenOf[kAddr] = tokenId;
+        unchecked { partCount[epochStart] += 1; }
+
+        emit Staked(msg.sender, tokenId, epochStart);
+        return;
+    }
+
+    // -------- CLAIM --------
+    // İlk claimer snapshot alır: o anda havuzda ne varsa bu epoch'a kilitlenir
+    if (poolSnap[epochStart] == 0 && poolAccrued > 0 && partCount[epochStart] > 0) {
+        poolSnap[epochStart] = poolAccrued;
+        poolAccrued = 0;
+    }
+
+    require(_signed[kAddr], "not signed");
+    require(!_claimed[kClm], "already claimed");
+    require(_signedTokenOf[kAddr] == tokenId, "wrong token for claim");
+    uint256 n = partCount[epochStart];
+    require(n > 0, "no participants");
+
+    uint256 share = poolSnap[epochStart] / n;
+    require(share > 0, "zero share");
+
+    _claimed[kClm] = true;
+    claimedCount[epochStart] += 1;
+
+    _safeTransferETHWithFallback(msg.sender, share);
+    emit Claimed(msg.sender, epochStart, share);
+}
 
     receive() external payable nonReentrant {
     require(msg.sender != owner, "Owner cannot bid");
