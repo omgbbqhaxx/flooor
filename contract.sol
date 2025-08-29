@@ -26,8 +26,8 @@ contract flooordotfun {
     bool private locked;
     address public immutable WETH;
     modifier onlyOwner(){ require(msg.sender==owner,"owner"); _; }
-    uint256 public  constant rBLOCKS   = 2 minutes; 
-    uint256 public constant sDURATION = 1 minutes;
+    uint256 public  constant rBLOCKS   = 15 minutes; 
+    uint256 public constant sDURATION = 5 minutes;
     address public constant collectionId = 0x8f634c49BAC5b027FCa8482222421A4adC3F54ec;
     IERC721Like private constant nft = IERC721Like(collectionId);
     uint256 public minbidAM  =  10**8;
@@ -246,8 +246,26 @@ function sweepETH(uint256 amt) external onlyOwner {
 }
 
 
+function currentEpochStart() public view returns (uint256) {
+    uint256 modTime = block.timestamp % rBLOCKS;
+    return block.timestamp - modTime;
+}
 
+function currentEpochId() public view returns (uint256) {
+    return currentEpochStart() / rBLOCKS;
+}
 
+function nextMinBid() external view returns (uint256) {
+    return activebidAM == 0 ? minbidAM : activebidAM + (activebidAM * minBidIncrementPercentage) / 100;
+}
+
+function isSignPhase() public view returns (bool) { return (block.timestamp % rBLOCKS) < sDURATION; }
+
+function epochShare(uint256 epochStart) public view returns (uint256) { uint256 n=partCount[epochStart]; return n==0?0:poolSnap[epochStart]/n; }
+
+function mySignedToken(uint256 epochStart,address user) public view returns (uint256) { bytes32 k=keccak256(abi.encodePacked("A",epochStart,user)); return _signedTokenOf[k]; }
+
+ 
 
  
 }
