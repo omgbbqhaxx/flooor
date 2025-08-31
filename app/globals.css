@@ -3,13 +3,13 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #d1d5da;
+  --foreground: #e1d6d4;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #191919;
+    --background: #d1d5da;
     --foreground: #ededed;
   }
 }
@@ -19,14 +19,13 @@ body {
   background: var(--background);
   font-family: var(--font-oldschool), Arial, Helvetica, sans-serif;
   min-height: 100vh;
-  background: hsl(0 0% 2%);
   position: relative;
   isolation: isolate;
 }
 
 body::before {
-  --line: hsl(0 0% 95% / 0.15);
-  --size: 60px;
+  --line: #000;
+  --size: 1710px;
   content: "";
   height: 100vh;
   width: 100vw;
@@ -39,17 +38,14 @@ body::before {
       )
       50% 50% / var(--size) var(--size),
     linear-gradient(var(--line) 1px, transparent 1px var(--size)) 50% 50% /
-      var(--size) var(--size),
-    /* green dots */
-      radial-gradient(circle at 3px 3px, #00ff00 2px, transparent 0) 0 0 / 20px
-      20px;
+      var(--size) var(--size);
   mask: linear-gradient(-15deg, transparent 30%, white);
   -webkit-mask: linear-gradient(-15deg, transparent 30%, white);
   top: 0;
   left: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.8; /* yeşil noktaların parlaklığı için */
+  opacity: 0.8;
 }
 
 @layer utilities {
