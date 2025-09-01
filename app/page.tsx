@@ -139,7 +139,7 @@ export default function Page() {
 
               <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
                 <button className="px-8 py-3 bg-black text-white rounded-full font-oldschool font-bold hover:bg-gray-800 transition-colors">
-                  Sign
+                  Daily sign
                 </button>
                 <button className="px-8 py-3 border-2 border-black text-black rounded-full font-oldschool font-bold hover:bg-black hover:text-white transition-colors">
                   Docs
