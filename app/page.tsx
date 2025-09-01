@@ -78,14 +78,12 @@ export default function Page() {
                 </span>{" "}
                 | &nbsp;
                 <span className="font-oldschool text-gray-400 text-sm">
-                  Today’s Booty{" "}
+                  Today’s loot{" "}
                   <span className="font-oldschool font-bold text-black text-sm">
                     {" "}
                     &nbsp;&nbsp;Ξ 0,621{" "}
                   </span>
                 </span>
-                <br></br> Sepolio testnet &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; |
-                VRNouns
               </p>
 
               <h1 className="text-4xl lg:text-5xl font-extrabold text-black font-oldschool leading-tight">
