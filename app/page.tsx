@@ -27,11 +27,11 @@ export default function Page() {
         <header className="py-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-6">
-              <Logo className="h-24 w-auto mt-3" />
+              <Logo className="h-24 w-auto mt-1" />
 
               <div className="border-2 border-gray-400 rounded-lg px-4 py-2 flex items-center justify-center -mt-2">
                 <span className="font-oldschool text-gray-400 text-sm">
-                  Daily Treasury{" "}
+                  Today’s Booty{" "}
                   <span className="font-oldschool font-bold text-black text-sm">
                     {" "}
                     &nbsp;&nbsp;&nbsp;Ξ 0,621{" "}
@@ -81,7 +81,8 @@ export default function Page() {
             {/* İçerik - Sağ tarafta */}
             <div className="flex flex-col space-y-6 lg:max-w-md">
               <p className="text-lg text-gray-600 font-oldschool leading-relaxed">
-                August 30, 2025 | Sepolio testnet | VRNouns
+                1077 Crew<br></br> Sepolio testnet
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | VRNouns
               </p>
 
               <h1 className="text-4xl lg:text-5xl font-extrabold text-black font-oldschool leading-tight">
@@ -137,7 +138,7 @@ export default function Page() {
 
               <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
                 <button className="px-8 py-3 bg-black text-white rounded-full font-oldschool font-bold hover:bg-gray-800 transition-colors">
-                  daily sign.
+                  Roll Call
                 </button>
                 <button className="px-8 py-3 border-2 border-black text-black rounded-full font-oldschool font-bold hover:bg-black hover:text-white transition-colors">
                   Docs
