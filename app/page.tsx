@@ -28,16 +28,6 @@ export default function Page() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-6">
               <Logo className="h-24 w-auto mt-1" />
-
-              <div className="border-2 border-gray-400 rounded-lg px-4 py-2 flex items-center justify-center -mt-2">
-                <span className="font-oldschool text-gray-400 text-sm">
-                  Today’s Booty{" "}
-                  <span className="font-oldschool font-bold text-black text-sm">
-                    {" "}
-                    &nbsp;&nbsp;&nbsp;Ξ 0,621{" "}
-                  </span>
-                </span>
-              </div>
             </div>
 
             {/* Sağdaki cüzdan/buton kısmı çerçevenin dışında */}
@@ -80,9 +70,22 @@ export default function Page() {
 
             {/* İçerik - Sağ tarafta */}
             <div className="flex flex-col space-y-6 lg:max-w-md">
-              <p className="text-lg text-gray-600 font-oldschool leading-relaxed">
-                1077 Crew<br></br> Sepolio testnet
-                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | VRNouns
+              <p className="text-lg text-gray-400 text-sm font-oldschool leading-relaxed">
+                Today's signers :{" "}
+                <span className="font-oldschool font-bold text-black text-sm">
+                  {" "}
+                  543{" "}
+                </span>{" "}
+                | &nbsp;
+                <span className="font-oldschool text-gray-400 text-sm">
+                  Today’s Booty{" "}
+                  <span className="font-oldschool font-bold text-black text-sm">
+                    {" "}
+                    &nbsp;&nbsp;Ξ 0,621{" "}
+                  </span>
+                </span>
+                <br></br> Sepolio testnet &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; |
+                VRNouns
               </p>
 
               <h1 className="text-4xl lg:text-5xl font-extrabold text-black font-oldschool leading-tight">
@@ -138,7 +141,7 @@ export default function Page() {
 
               <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
                 <button className="px-8 py-3 bg-black text-white rounded-full font-oldschool font-bold hover:bg-gray-800 transition-colors">
-                  Roll Call
+                  Sign
                 </button>
                 <button className="px-8 py-3 border-2 border-black text-black rounded-full font-oldschool font-bold hover:bg-black hover:text-white transition-colors">
                   Docs
