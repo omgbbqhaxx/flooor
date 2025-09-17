@@ -85,7 +85,7 @@ export default function Page() {
               </p>
 
               <h1 className="text-4xl lg:text-5xl font-extrabold text-black font-oldschool leading-tight">
-                Block 1117
+                Lot 17
               </h1>
 
               {/* 3x2 Grid Layout */}
@@ -139,9 +139,14 @@ export default function Page() {
                 <button className="px-8 py-3 bg-black text-white rounded-full font-oldschool font-bold hover:bg-gray-800 transition-colors">
                   Daily sign
                 </button>
-                <button className="px-8 py-3 border-2 border-black text-black rounded-full font-oldschool font-bold hover:bg-black hover:text-white transition-colors">
+                <a
+                  href="https://vrnouns.gitbook.io/flooor/documentation/documentation-en"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-8 py-3 border-2 border-black text-black rounded-full font-oldschool font-bold hover:bg-black hover:text-white transition-colors inline-block text-center"
+                >
                   Docs
-                </button>
+                </a>
               </div>
             </div>
           </div>
@@ -195,7 +200,9 @@ export default function Page() {
 
               <div className="flex items-center space-x-6 text-sm text-gray-400">
                 <a
-                  href="#"
+                  href="https://vrnouns.gitbook.io/flooor/documentation/documentation-en"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="hover:text-white transition-colors font-oldschool font-bold"
                 >
                   Docs
