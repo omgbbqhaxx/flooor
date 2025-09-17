@@ -208,19 +208,14 @@ export default function Page() {
                   Docs
                 </a>
                 <a
-                  href="#"
+                  href="https://github.com/omgbbqhaxx/flooor"
                   className="hover:text-white transition-colors font-oldschool font-bold"
                 >
                   GitHub
                 </a>
+
                 <a
-                  href="#"
-                  className="hover:text-white transition-colors font-oldschool font-bold"
-                >
-                  Discord
-                </a>
-                <a
-                  href="#"
+                  href="https://x.com/vrnouns"
                   className="hover:text-white transition-colors font-oldschool font-bold"
                 >
                   Twitter
