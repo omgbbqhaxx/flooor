@@ -71,17 +71,15 @@ export default function Page() {
             {/* İçerik - Sağ tarafta */}
             <div className="flex flex-col space-y-6 lg:max-w-md">
               <p className="text-lg text-gray-400 text-sm font-oldschool leading-relaxed">
-                Today's signers :{" "}
+                Todays signers: &nbsp;
                 <span className="font-oldschool font-bold text-black text-sm">
-                  {" "}
-                  543{" "}
+                  543 &nbsp;
                 </span>{" "}
-                | &nbsp;
+                |
                 <span className="font-oldschool text-gray-400 text-sm">
-                  Today’s loot{" "}
+                  &nbsp;Todays loot &nbsp;
                   <span className="font-oldschool font-bold text-black text-sm">
-                    {" "}
-                    &nbsp;&nbsp;Ξ 0,621{" "}
+                    Ξ 0,621
                   </span>
                 </span>
               </p>
@@ -163,8 +161,8 @@ export default function Page() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 justify-items-center">
                 <div className="bg-blue-500 rounded-lg w-48 h-48 flex items-center justify-center px-2">
                   <span className="text-xl font-bold font-oldschool text-center">
-                    Stake your nft. <br></br> Earn royalties.<br></br> From
-                    sales.
+                    Light stake (sign) with your nft. <br></br> Earn royalties.
+                    <br></br> From sales.
                   </span>
                 </div>
 
@@ -175,8 +173,8 @@ export default function Page() {
                 </div>
                 <div className="bg-green-600 rounded-lg w-48 h-48 flex items-center justify-center px-2">
                   <span className="text-xl font-bold font-oldschool text-center">
-                    Price incrases follow the phi curve<br></br> not people’s
-                    choices
+                    Democratic distribution<br></br> with quadratic
+                    calculations.
                   </span>
                 </div>
               </div>
