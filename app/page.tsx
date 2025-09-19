@@ -17,9 +17,34 @@ import {
 //import { Transaction } from "@coinbase/onchainkit/transaction";
 
 import Logo from "@/app/svg/Logo";
+import { useState, useCallback } from "react";
 
 export default function Page() {
   //const calls = []; // to be populated with buyFloor call later
+  const [bidInput, setBidInput] = useState("");
+
+  const handleBidInputChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      let nextValue = event.target.value;
+      // Convert commas to dots
+      nextValue = nextValue.replace(/,/g, ".");
+      // Remove all characters except digits and dots
+      nextValue = nextValue.replace(/[^0-9.]/g, "");
+      // Keep only the first dot
+      const firstDotIndex = nextValue.indexOf(".");
+      if (firstDotIndex !== -1) {
+        nextValue =
+          nextValue.slice(0, firstDotIndex + 1) +
+          nextValue.slice(firstDotIndex + 1).replace(/\./g, "");
+      }
+      // If it starts with a dot, prefix 0
+      if (nextValue.startsWith(".")) {
+        nextValue = `0${nextValue}`;
+      }
+      setBidInput(nextValue);
+    },
+    []
+  );
 
   return (
     <div className="text-white min-h-screen">
@@ -124,15 +149,22 @@ export default function Page() {
               </div>
 
               <div className="mt-8 text-left">
-                <p className="text-sm text-gray-600 font-oldschool mb-2">
-                  Send ETH directly to contract for offer.
-                </p>
-                <p
-                  className="text-xs font-mono break-all"
-                  style={{ color: "#000" }}
-                >
-                  0x08e07Bb838149CA3CEfae752238aE89621d3771f
-                </p>
+                <div className="flex items-center space-x-3">
+                  <div className="flex-1">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="Ξ 0.00"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg font-oldschool text-lg bg-white text-black placeholder-gray-400 caret-black focus:border-black focus:outline-none transition-colors"
+                      value={bidInput}
+                      onChange={handleBidInputChange}
+                    />
+                  </div>
+
+                  <button className="px-6 py-3 bg-black text-white rounded-lg font-oldschool font-bold hover:bg-gray-800 transition-colors whitespace-nowrap">
+                    Bid
+                  </button>
+                </div>
               </div>
 
               <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
@@ -219,6 +251,13 @@ export default function Page() {
                   className="hover:text-white transition-colors font-oldschool font-bold"
                 >
                   Twitter
+                </a>
+
+                <a
+                  href="https://sepolia.etherscan.io/address/0x08e07bb838149ca3cefae752238ae89621d3771f#readContract"
+                  className="hover:text-white transition-colors font-oldschool font-bold"
+                >
+                  Contract
                 </a>
               </div>
             </div>
