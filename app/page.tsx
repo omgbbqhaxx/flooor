@@ -96,7 +96,7 @@ export default function Page() {
             {/* İçerik - Sağ tarafta */}
             <div className="flex flex-col space-y-6 lg:max-w-md">
               <p className="text-lg text-gray-400 text-sm font-oldschool leading-relaxed">
-                Todays signers: &nbsp;
+                Daily signers: &nbsp;
                 <span className="font-oldschool font-bold text-black text-sm">
                   14 &nbsp;
                 </span>{" "}
@@ -104,7 +104,15 @@ export default function Page() {
                 <span className="font-oldschool text-gray-400 text-sm">
                   &nbsp;Daily vault &nbsp;
                   <span className="font-oldschool font-bold text-black text-sm">
-                    Ξ 0,621
+                    Ξ 0,621&nbsp;
+                  </span>
+                </span>
+                |
+                <span className="font-oldschool text-gray-400 text-sm">
+                  &nbsp; <b style={{ color: "#353533" }}>Yield per nft</b>{" "}
+                  &nbsp;
+                  <span className="font-oldschool font-bold text-black text-sm">
+                    Ξ 0,044
                   </span>
                 </span>
               </p>
@@ -129,7 +137,7 @@ export default function Page() {
                 {/* Alt satır - İçerikler */}
                 <div className="text-center flex items-center justify-center">
                   <p className="text-2xl font-oldschool text-black font-bold">
-                    Ξ 0.80
+                    Ξ 0.0060
                   </p>
                 </div>
                 <div className="text-center flex items-center justify-center">
@@ -194,8 +202,8 @@ export default function Page() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 justify-items-center">
                 <div className="bg-blue-500 rounded-lg w-48 h-48 flex items-center justify-center px-2">
                   <span className="text-xl font-bold font-oldschool text-center">
-                    Light stake (sign) with your nft. <br></br> %5 royalties to
-                    do community.<br></br>
+                    Light stake (sign) with your nft. <br></br> %5 of all
+                    royalties are shared with the stakers.<br></br>
                   </span>
                 </div>
 
