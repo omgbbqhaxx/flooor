@@ -98,20 +98,16 @@ export default function Page() {
               <p className="text-lg text-gray-400 text-sm font-oldschool leading-relaxed">
                 Todays signers: &nbsp;
                 <span className="font-oldschool font-bold text-black text-sm">
-                  543 &nbsp;
+                  14 &nbsp;
                 </span>{" "}
                 |
                 <span className="font-oldschool text-gray-400 text-sm">
-                  &nbsp;Todays loot &nbsp;
+                  &nbsp;Daily vault &nbsp;
                   <span className="font-oldschool font-bold text-black text-sm">
                     Ξ 0,621
                   </span>
                 </span>
               </p>
-
-              <h1 className="text-4xl lg:text-5xl font-extrabold text-black font-oldschool leading-tight">
-                Lot 17
-              </h1>
 
               {/* 3x2 Grid Layout */}
               <div className="grid grid-cols-3 gap-4 w-full">
@@ -198,20 +194,20 @@ export default function Page() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 justify-items-center">
                 <div className="bg-blue-500 rounded-lg w-48 h-48 flex items-center justify-center px-2">
                   <span className="text-xl font-bold font-oldschool text-center">
-                    Light stake (sign) with your nft. <br></br> Earn royalties.
-                    <br></br> From sales.
+                    Light stake (sign) with your nft. <br></br> %5 royalties to
+                    do community.<br></br>
                   </span>
                 </div>
 
                 <div className="bg-yellow-500 rounded-full w-48 h-48 flex items-center justify-center">
                   <span className="text-xl font-bold font-oldschool text-center">
-                    No Listing.<br></br> Just offer or sell.
+                    No more Listing.<br></br> Just bid or sell.
                   </span>
                 </div>
                 <div className="bg-green-600 rounded-lg w-48 h-48 flex items-center justify-center px-2">
                   <span className="text-xl font-bold font-oldschool text-center">
-                    Democratic distribution<br></br> with quadratic
-                    calculations.
+                    post-democratic distribution<br></br> with tri-quadratic
+                    equations.
                   </span>
                 </div>
               </div>
@@ -241,6 +237,7 @@ export default function Page() {
                 </a>
                 <a
                   href="https://github.com/omgbbqhaxx/flooor"
+                  target="_blank"
                   className="hover:text-white transition-colors font-oldschool font-bold"
                 >
                   GitHub
@@ -248,6 +245,7 @@ export default function Page() {
 
                 <a
                   href="https://x.com/vrnouns"
+                  target="_blank"
                   className="hover:text-white transition-colors font-oldschool font-bold"
                 >
                   Twitter
@@ -255,6 +253,7 @@ export default function Page() {
 
                 <a
                   href="https://sepolia.etherscan.io/address/0x08e07bb838149ca3cefae752238ae89621d3771f#readContract"
+                  target="_blank"
                   className="hover:text-white transition-colors font-oldschool font-bold"
                 >
                   Contract
