@@ -25,7 +25,7 @@ contract flooordotfun {
     address public immutable WETH;
     modifier onlyOwner(){ require(msg.sender==owner,"owner"); _; }
     uint256 public  constant rBLOCKS   = 1440 minutes; 
-    uint256 public constant sDURATION  = 480 minutes;  
+    uint256 public constant sDURATION  = 960 minutes;  
     address public constant collectionId = 0xbB56a9359DF63014B3347585565d6F80Ac6305fd;
     IERC721Like private constant nft = IERC721Like(collectionId);
     uint256 public minbidAM  = 10**8;
