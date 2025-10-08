@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
+// 	0x4200000000000000000000000000000000000006 BASE WETH!
 
 interface IERC721Like {
     function safeTransferFrom(address from, address to, uint256 tokenId) external;
@@ -270,4 +271,20 @@ contract flooordotfun {
         bytes32 k = keccak256(abi.encodePacked("A", epochStart, user));
         return _signedTokenOf[k];
     }
+    function getPhaseInfo() external view returns (
+    string memory currentPhase,
+    uint256 elapsed,
+    uint256 remaining
+) {
+    uint256 mod = block.timestamp % rBLOCKS;
+    if (mod < sDURATION) {
+        currentPhase = "SIGN";
+        elapsed = mod;
+        remaining = sDURATION - mod;
+    } else {
+        currentPhase = "CLAIM";
+        elapsed = mod - sDURATION;
+        remaining = rBLOCKS - mod;
+    }
+}
 }
