@@ -272,19 +272,21 @@ contract flooordotfun {
         return _signedTokenOf[k];
     }
     function getPhaseInfo() external view returns (
-    string memory currentPhase,
-    uint256 elapsed,
-    uint256 remaining
-) {
-    uint256 mod = block.timestamp % rBLOCKS;
-    if (mod < sDURATION) {
-        currentPhase = "SIGN";
-        elapsed = mod;
-        remaining = sDURATION - mod;
-    } else {
-        currentPhase = "CLAIM";
-        elapsed = mod - sDURATION;
-        remaining = rBLOCKS - mod;
+            string memory currentPhase,
+            uint256 eid,
+            uint256 elapsed,
+            uint256 remaining
+        ) {
+            uint256 mod = block.timestamp % rBLOCKS;
+            eid = epochId; // kontrattaki gerçek epoch sayacı
+            if (mod < sDURATION) {
+                currentPhase = "SIGN";
+                elapsed = mod;
+                remaining = sDURATION - mod;
+            } else {
+                currentPhase = "CLAIM";
+                elapsed = mod - sDURATION;
+                remaining = rBLOCKS - mod;
+            }
     }
-}
 }

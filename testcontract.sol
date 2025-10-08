@@ -273,10 +273,12 @@ contract flooordotfun {
     }
     function getPhaseInfo() external view returns (
     string memory currentPhase,
+    uint256 eid,
     uint256 elapsed,
     uint256 remaining
 ) {
     uint256 mod = block.timestamp % rBLOCKS;
+    eid = epochId; // kontrattaki gerçek epoch sayacı
     if (mod < sDURATION) {
         currentPhase = "SIGN";
         elapsed = mod;
