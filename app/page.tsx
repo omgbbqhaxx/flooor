@@ -260,7 +260,7 @@ export default function Page() {
                 </a>
 
                 <a
-                  href="https://sepolia.etherscan.io/address/0x08e07bb838149ca3cefae752238ae89621d3771f#readContract"
+                  href="https://sepolia.etherscan.io/address/0x11d7e2520244D65Be6935e8BAfd87152De93c6FF#readContract"
                   target="_blank"
                   className="hover:text-white transition-colors font-oldschool font-bold"
                 >
