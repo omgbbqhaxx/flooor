@@ -200,19 +200,19 @@ export default function Page() {
               </h1>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 justify-items-center">
-                <div className="bg-blue-500 rounded-lg w-48 h-48 flex items-center justify-center px-2">
+                <div className="bg-[#63A0F9] rounded-lg w-48 h-48 flex items-center justify-center px-2">
                   <span className="text-xl font-bold font-oldschool text-center">
                     Light stake (sign) with your nft. <br></br> %5 of all
                     royalties are shared with the stakers.<br></br>
                   </span>
                 </div>
 
-                <div className="bg-yellow-500 rounded-full w-48 h-48 flex items-center justify-center">
+                <div className="bg-[#FFC110] rounded-lg w-48 h-48 flex items-center justify-center">
                   <span className="text-xl font-bold font-oldschool text-center">
                     No more Listing.<br></br> Just bid or sell.
                   </span>
                 </div>
-                <div className="bg-green-600 rounded-lg w-48 h-48 flex items-center justify-center px-2">
+                <div className="bg-[#FE500C] rounded-lg w-48 h-48 flex items-center justify-center px-2">
                   <span className="text-xl font-bold font-oldschool text-center">
                     post-democratic distribution<br></br> with tri-quadratic
                     equations.
