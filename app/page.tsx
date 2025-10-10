@@ -230,7 +230,7 @@ export default function Page() {
   // Check user signed status when address or phase changes
   useEffect(() => {
     checkUserSignedStatus();
-  }, [checkUserSignedStatus]);
+  }, [checkUserSignedStatus, address, phaseInfo]);
 
   // Load claimed status from localStorage when address changes
   useEffect(() => {
@@ -279,23 +279,6 @@ export default function Page() {
       return () => clearTimeout(timer);
     }
   }, [timeRemaining]);
-
-  // Format time remaining
-  const formatTime = useCallback((seconds: number) => {
-    if (seconds <= 0) return "0s";
-
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-
-    if (hours > 0) {
-      return `${hours}h ${minutes}m ${secs}s`;
-    } else if (minutes > 0) {
-      return `${minutes}m ${secs}s`;
-    } else {
-      return `${secs}s`;
-    }
-  }, []);
 
   // Get button text based on phase and user's sign status
   const getSignButtonText = useCallback(() => {
@@ -488,7 +471,7 @@ export default function Page() {
     } else {
       alert("Sign/Claim sent");
     }
-  }, [config, ensureBase, phaseInfo, userHasSigned]);
+  }, [config, ensureBase, phaseInfo, userHasSigned, address]);
 
   return (
     <div className="text-white min-h-screen">
