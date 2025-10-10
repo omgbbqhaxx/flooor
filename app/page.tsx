@@ -18,10 +18,31 @@ import {
 
 import Logo from "@/app/svg/Logo";
 import { useState, useCallback } from "react";
+import { useConfig, useChainId } from "wagmi";
+import { writeContract, switchChain } from "wagmi/actions";
+import { base } from "wagmi/chains";
+import { parseEther } from "viem";
+
+import MARKET_ABI from "@/app/abi/market.json";
+import NFT_ABI from "@/app/abi/nft.json";
+
+// Addresses
+const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
+const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
 
 export default function Page() {
   //const calls = []; // to be populated with buyFloor call later
   const [bidInput, setBidInput] = useState("");
+  const config = useConfig();
+  const chainId = useChainId();
+
+  const ensureBase = useCallback(async () => {
+    if (chainId !== base.id) {
+      try {
+        await switchChain(config, { chainId: base.id });
+      } catch {}
+    }
+  }, [chainId, config]);
 
   const handleBidInputChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,6 +66,58 @@ export default function Page() {
     },
     []
   );
+
+  const handleApprove = useCallback(async () => {
+    await ensureBase();
+    await writeContract(config, {
+      address: COLLECTION_ADDR,
+      abi: NFT_ABI,
+      functionName: "setApprovalForAll",
+      args: [CONTRACT_ADDR, true],
+    });
+    alert("Approval set for marketplace contract.");
+  }, [config, ensureBase]);
+
+  const handleBid = useCallback(async () => {
+    await ensureBase();
+    const value = parseEther((bidInput || "0") as `${string}`);
+    await writeContract(config, {
+      address: CONTRACT_ADDR,
+      abi: MARKET_ABI,
+      functionName: "placeBid",
+      args: [],
+      value,
+    });
+    alert("Bid placed");
+  }, [config, ensureBase, bidInput]);
+
+  const handleSell = useCallback(async () => {
+    const input = prompt("Enter your NFT tokenId to sell to highest bidder");
+    if (!input) return;
+    const tokenId = BigInt(input);
+    await ensureBase();
+    await writeContract(config, {
+      address: CONTRACT_ADDR,
+      abi: MARKET_ABI,
+      functionName: "sellToHighest",
+      args: [tokenId],
+    });
+    alert("Sell executed");
+  }, [config, ensureBase]);
+
+  const handleSign = useCallback(async () => {
+    const input = prompt("Enter your NFT tokenId to sign/claim");
+    if (!input) return;
+    const tokenId = BigInt(input);
+    await ensureBase();
+    await writeContract(config, {
+      address: CONTRACT_ADDR,
+      abi: MARKET_ABI,
+      functionName: "signOrClaim",
+      args: [tokenId],
+    });
+    alert("Sign/Claim sent");
+  }, [config, ensureBase]);
 
   return (
     <div className="text-white min-h-screen">
@@ -172,7 +245,10 @@ export default function Page() {
               </div>
 
               <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
-                <button className="px-8 py-3 bg-black text-white rounded-full font-oldschool font-bold hover:bg-gray-800 transition-colors">
+                <button
+                  onClick={handleSign}
+                  className="px-8 py-3 bg-black text-white rounded-full font-oldschool font-bold hover:bg-gray-800 transition-colors"
+                >
                   Daily sign
                 </button>
                 <a
