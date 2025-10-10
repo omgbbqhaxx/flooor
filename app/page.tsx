@@ -238,7 +238,10 @@ export default function Page() {
                     />
                   </div>
 
-                  <button className="px-6 py-3 bg-black text-white rounded-lg font-oldschool font-bold hover:bg-gray-800 transition-colors whitespace-nowrap">
+                  <button
+                    onClick={handleBid}
+                    className="px-6 py-3 bg-black text-white rounded-lg font-oldschool font-bold hover:bg-gray-800 transition-colors whitespace-nowrap"
+                  >
                     Bid
                   </button>
                 </div>
