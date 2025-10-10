@@ -24,6 +24,51 @@ import { base } from "wagmi/chains";
 import { parseEther } from "viem";
 import Image from "next/image";
 
+// Retry utility with exponential backoff
+const retryWithBackoff = async (
+  fn: () => Promise<any>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<any> => {
+  let lastError: Error;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error as Error;
+
+      // Don't retry on the last attempt
+      if (attempt === maxRetries) {
+        throw lastError;
+      }
+
+      // Check if it's a rate limit or connection error
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const isRetryableError =
+        errorMessage.includes("429") ||
+        errorMessage.includes("Too Many Requests") ||
+        errorMessage.includes("ERR_CONNECTION_RESET") ||
+        errorMessage.includes("ERR_TIMED_OUT") ||
+        errorMessage.includes("timeout");
+
+      if (!isRetryableError) {
+        throw lastError;
+      }
+
+      // Exponential backoff: 1s, 2s, 4s
+      const delay = baseDelay * Math.pow(2, attempt);
+      console.log(
+        `Retry attempt ${attempt + 1}/${maxRetries + 1} after ${delay}ms delay`
+      );
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError!;
+};
+
 import MARKET_ABI from "@/app/abi/market.json";
 import NFT_ABI from "@/app/abi/nft.json";
 
@@ -48,9 +93,15 @@ export default function Page() {
   const [yieldPerNFT, setYieldPerNFT] = useState<string>("0");
   const [userHasSigned, setUserHasSigned] = useState<boolean>(false);
   const [userHasClaimed, setUserHasClaimed] = useState<boolean>(false);
+  const [rpcError, setRpcError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [lastFetchTime, setLastFetchTime] = useState<number>(0);
   const config = useConfig();
   const chainId = useChainId();
   const { address } = useAccount();
+
+  // Cache duration in milliseconds (5 minutes)
+  const CACHE_DURATION = 5 * 60 * 1000;
 
   const ensureBase = useCallback(async () => {
     if (chainId !== base.id) {
@@ -69,11 +120,13 @@ export default function Page() {
 
     setIsCheckingApproval(true);
     try {
-      const approved = await readContract(config, {
-        address: COLLECTION_ADDR,
-        abi: NFT_ABI,
-        functionName: "isApprovedForAll",
-        args: [address, CONTRACT_ADDR],
+      const approved = await retryWithBackoff(async () => {
+        return await readContract(config, {
+          address: COLLECTION_ADDR,
+          abi: NFT_ABI,
+          functionName: "isApprovedForAll",
+          args: [address, CONTRACT_ADDR],
+        });
       });
       setIsApproved(approved as boolean);
     } catch (error) {
@@ -92,12 +145,14 @@ export default function Page() {
   // Get phase info from contract
   const getPhaseInfo = useCallback(async () => {
     try {
-      const info = (await readContract(config, {
-        address: CONTRACT_ADDR,
-        abi: MARKET_ABI,
-        functionName: "getPhaseInfo",
-        args: [],
-      })) as [string, bigint, bigint, bigint];
+      const info = await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: CONTRACT_ADDR,
+          abi: MARKET_ABI,
+          functionName: "getPhaseInfo",
+          args: [],
+        })) as [string, bigint, bigint, bigint];
+      });
 
       const [currentPhase, eid, elapsed, remaining] = info;
 
@@ -119,19 +174,23 @@ export default function Page() {
   const getDailySigners = useCallback(async () => {
     try {
       // Get currentEpochStart and use it directly for partCount
-      const currentEpochStart = (await readContract(config, {
-        address: CONTRACT_ADDR,
-        abi: MARKET_ABI,
-        functionName: "currentEpochStart",
-        args: [],
-      })) as bigint;
+      const currentEpochStart = await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: CONTRACT_ADDR,
+          abi: MARKET_ABI,
+          functionName: "currentEpochStart",
+          args: [],
+        })) as bigint;
+      });
 
-      const signersCount = (await readContract(config, {
-        address: CONTRACT_ADDR,
-        abi: MARKET_ABI,
-        functionName: "partCount",
-        args: [currentEpochStart],
-      })) as bigint;
+      const signersCount = await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: CONTRACT_ADDR,
+          abi: MARKET_ABI,
+          functionName: "partCount",
+          args: [currentEpochStart],
+        })) as bigint;
+      });
 
       setDailySigners(Number(signersCount));
     } catch (error) {
@@ -142,12 +201,14 @@ export default function Page() {
   // Get daily vault amount
   const getDailyVault = useCallback(async () => {
     try {
-      const poolAccrued = (await readContract(config, {
-        address: CONTRACT_ADDR,
-        abi: MARKET_ABI,
-        functionName: "poolAccrued",
-        args: [],
-      })) as bigint;
+      const poolAccrued = await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: CONTRACT_ADDR,
+          abi: MARKET_ABI,
+          functionName: "poolAccrued",
+          args: [],
+        })) as bigint;
+      });
 
       // Convert wei to ether and format
       const etherAmount = Number(poolAccrued) / 1e18;
@@ -160,12 +221,14 @@ export default function Page() {
   // Get current bid amount
   const getCurrentBid = useCallback(async () => {
     try {
-      const activeBidAmount = (await readContract(config, {
-        address: CONTRACT_ADDR,
-        abi: MARKET_ABI,
-        functionName: "activebidAM",
-        args: [],
-      })) as bigint;
+      const activeBidAmount = await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: CONTRACT_ADDR,
+          abi: MARKET_ABI,
+          functionName: "activebidAM",
+          args: [],
+        })) as bigint;
+      });
 
       // Convert wei to ether and format
       const etherAmount = Number(activeBidAmount) / 1e18;
@@ -183,19 +246,23 @@ export default function Page() {
     }
 
     try {
-      const currentEpochStart = (await readContract(config, {
-        address: CONTRACT_ADDR,
-        abi: MARKET_ABI,
-        functionName: "currentEpochStart",
-        args: [],
-      })) as bigint;
+      const currentEpochStart = await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: CONTRACT_ADDR,
+          abi: MARKET_ABI,
+          functionName: "currentEpochStart",
+          args: [],
+        })) as bigint;
+      });
 
-      const signedTokenId = (await readContract(config, {
-        address: CONTRACT_ADDR,
-        abi: MARKET_ABI,
-        functionName: "mySignedToken",
-        args: [currentEpochStart, address],
-      })) as bigint;
+      const signedTokenId = await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: CONTRACT_ADDR,
+          abi: MARKET_ABI,
+          functionName: "mySignedToken",
+          args: [currentEpochStart, address],
+        })) as bigint;
+      });
 
       // If signedTokenId is 0, user hasn't signed
       setUserHasSigned(signedTokenId > BigInt(0));
@@ -241,20 +308,38 @@ export default function Page() {
 
   // Update phase info when component mounts and periodically
   useEffect(() => {
-    getPhaseInfo();
-    getDailySigners();
-    getDailyVault();
-    getCurrentBid();
-    checkUserSignedStatus();
+    const fetchAllData = async () => {
+      const now = Date.now();
 
-    // Update all data every 30 seconds (less frequent to avoid rate limits)
-    const interval = setInterval(() => {
-      getPhaseInfo();
-      getDailySigners();
-      getDailyVault();
-      getCurrentBid();
-      checkUserSignedStatus();
-    }, 30000);
+      // Skip if we fetched recently (within cache duration)
+      if (now - lastFetchTime < CACHE_DURATION) {
+        return;
+      }
+
+      setIsLoading(true);
+      setRpcError(null);
+
+      try {
+        await Promise.allSettled([
+          getPhaseInfo(),
+          getDailySigners(),
+          getDailyVault(),
+          getCurrentBid(),
+          checkUserSignedStatus(),
+        ]);
+        setLastFetchTime(now);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        setRpcError("Failed to load some data. Retrying...");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAllData();
+
+    // Update all data every 2 minutes (reduced frequency)
+    const interval = setInterval(fetchAllData, 2 * 60 * 1000);
 
     return () => {
       clearInterval(interval);
@@ -265,6 +350,8 @@ export default function Page() {
     getDailyVault,
     getCurrentBid,
     checkUserSignedStatus,
+    lastFetchTime,
+    CACHE_DURATION,
   ]);
 
   // Get button text based on phase and user's sign status
@@ -363,12 +450,14 @@ export default function Page() {
       return;
     }
     await ensureBase();
-    const owned: bigint[] = (await readContract(config, {
-      address: COLLECTION_ADDR,
-      abi: NFT_ABI,
-      functionName: "getNFTzBelongingToOwner",
-      args: [address],
-    })) as unknown as bigint[];
+    const owned: bigint[] = await retryWithBackoff(async () => {
+      return (await readContract(config, {
+        address: COLLECTION_ADDR,
+        abi: NFT_ABI,
+        functionName: "getNFTzBelongingToOwner",
+        args: [address],
+      })) as unknown as bigint[];
+    });
     if (!owned || owned.length === 0) {
       alert("No NFTs owned");
       return;
@@ -406,12 +495,14 @@ export default function Page() {
     }
 
     // Then sell
-    const owned: bigint[] = (await readContract(config, {
-      address: COLLECTION_ADDR,
-      abi: NFT_ABI,
-      functionName: "getNFTzBelongingToOwner",
-      args: [address],
-    })) as unknown as bigint[];
+    const owned: bigint[] = await retryWithBackoff(async () => {
+      return (await readContract(config, {
+        address: COLLECTION_ADDR,
+        abi: NFT_ABI,
+        functionName: "getNFTzBelongingToOwner",
+        args: [address],
+      })) as unknown as bigint[];
+    });
     if (!owned || owned.length === 0) {
       alert("No NFTs owned");
       return;
@@ -511,6 +602,59 @@ export default function Page() {
 
             {/* İçerik - Sağ tarafta */}
             <div className="flex flex-col space-y-6 lg:max-w-md">
+              {/* RPC Error Banner */}
+              {rpcError && (
+                <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-lg text-sm">
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-700 mr-2"></div>
+                    {rpcError}
+                  </div>
+                </div>
+              )}
+
+              {/* Loading Indicator */}
+              {isLoading && !rpcError && (
+                <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded-lg text-sm">
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-700 mr-2"></div>
+                    Loading latest data...
+                  </div>
+                </div>
+              )}
+
+              {/* Manual Refresh Button */}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    setLastFetchTime(0); // Force refresh by resetting cache
+                    const fetchAllData = async () => {
+                      setIsLoading(true);
+                      setRpcError(null);
+                      try {
+                        await Promise.allSettled([
+                          getPhaseInfo(),
+                          getDailySigners(),
+                          getDailyVault(),
+                          getCurrentBid(),
+                          checkUserSignedStatus(),
+                        ]);
+                        setLastFetchTime(Date.now());
+                      } catch (error) {
+                        console.error("Error fetching data:", error);
+                        setRpcError("Failed to load some data. Retrying...");
+                      } finally {
+                        setIsLoading(false);
+                      }
+                    };
+                    fetchAllData();
+                  }}
+                  className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Refreshing..." : "Refresh Data"}
+                </button>
+              </div>
+
               <p className="text-lg text-gray-400 text-sm font-oldschool leading-relaxed">
                 Daily signers: &nbsp;
                 <span className="font-oldschool font-bold text-black text-sm">
