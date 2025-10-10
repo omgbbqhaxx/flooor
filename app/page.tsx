@@ -46,6 +46,7 @@ export default function Page() {
   const [dailySigners, setDailySigners] = useState<number>(0);
   const [dailyVault, setDailyVault] = useState<string>("0");
   const [currentBid, setCurrentBid] = useState<string>("0");
+  const [yieldPerNFT, setYieldPerNFT] = useState<string>("0");
   const config = useConfig();
   const chainId = useChainId();
   const { address } = useAccount();
@@ -171,6 +172,24 @@ export default function Page() {
       console.error("Error getting current bid:", error);
     }
   }, [config]);
+
+  // Calculate yield per NFT
+  const calculateYieldPerNFT = useCallback(() => {
+    const vaultAmount = parseFloat(dailyVault);
+    const signersCount = dailySigners;
+
+    if (signersCount > 0 && vaultAmount > 0) {
+      const yieldPerNFTAmount = vaultAmount / signersCount;
+      setYieldPerNFT(yieldPerNFTAmount.toFixed(3));
+    } else {
+      setYieldPerNFT("0");
+    }
+  }, [dailyVault, dailySigners]);
+
+  // Update yield per NFT when vault or signers change
+  useEffect(() => {
+    calculateYieldPerNFT();
+  }, [calculateYieldPerNFT]);
 
   // Update phase info when component mounts and periodically
   useEffect(() => {
@@ -424,7 +443,7 @@ export default function Page() {
                   &nbsp; <b style={{ color: "#353533" }}>Yield per nft</b>{" "}
                   &nbsp;
                   <span className="font-oldschool font-bold text-black text-sm">
-                    Ξ 0,044
+                    Ξ {yieldPerNFT}
                   </span>
                 </span>
               </p>
