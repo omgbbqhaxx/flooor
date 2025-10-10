@@ -47,6 +47,8 @@ export default function Page() {
   const [dailyVault, setDailyVault] = useState<string>("0");
   const [currentBid, setCurrentBid] = useState<string>("0");
   const [yieldPerNFT, setYieldPerNFT] = useState<string>("0");
+  const [userHasSigned, setUserHasSigned] = useState<boolean>(false);
+  const [userHasClaimed, setUserHasClaimed] = useState<boolean>(false);
   const config = useConfig();
   const chainId = useChainId();
   const { address } = useAccount();
@@ -99,6 +101,10 @@ export default function Page() {
       })) as [string, bigint, bigint, bigint];
 
       const [currentPhase, eid, elapsed, remaining] = info;
+
+      // Debug: Log the phase string to see what contract returns
+      console.log("Contract phase string:", currentPhase);
+
       setPhaseInfo({
         currentPhase,
         eid,
@@ -173,6 +179,36 @@ export default function Page() {
     }
   }, [config]);
 
+  // Check if user has signed in current epoch
+  const checkUserSignedStatus = useCallback(async () => {
+    if (!address || !phaseInfo) {
+      setUserHasSigned(false);
+      return;
+    }
+
+    try {
+      const currentEpochStart = (await readContract(config, {
+        address: CONTRACT_ADDR,
+        abi: MARKET_ABI,
+        functionName: "currentEpochStart",
+        args: [],
+      })) as bigint;
+
+      const signedTokenId = (await readContract(config, {
+        address: CONTRACT_ADDR,
+        abi: MARKET_ABI,
+        functionName: "mySignedToken",
+        args: [currentEpochStart, address],
+      })) as bigint;
+
+      // If signedTokenId is 0, user hasn't signed
+      setUserHasSigned(signedTokenId > BigInt(0));
+    } catch (error) {
+      console.error("Error checking user signed status:", error);
+      setUserHasSigned(false);
+    }
+  }, [config, address, phaseInfo]);
+
   // Calculate yield per NFT
   const calculateYieldPerNFT = useCallback(() => {
     const vaultAmount = parseFloat(dailyVault);
@@ -191,6 +227,22 @@ export default function Page() {
     calculateYieldPerNFT();
   }, [calculateYieldPerNFT]);
 
+  // Check user signed status when address or phase changes
+  useEffect(() => {
+    checkUserSignedStatus();
+  }, [checkUserSignedStatus]);
+
+  // Load claimed status from localStorage when address changes
+  useEffect(() => {
+    if (address && phaseInfo) {
+      const claimedKey = `claimed_${address}_${phaseInfo.eid}`;
+      const hasClaimed = localStorage.getItem(claimedKey) === "true";
+      setUserHasClaimed(hasClaimed);
+    } else {
+      setUserHasClaimed(false);
+    }
+  }, [address, phaseInfo]);
+
   // Update phase info when component mounts and periodically
   useEffect(() => {
     getPhaseInfo();
@@ -208,6 +260,7 @@ export default function Page() {
       getDailySigners();
       getDailyVault();
       getCurrentBid();
+      checkUserSignedStatus();
     }, 10000);
 
     return () => {
@@ -244,16 +297,58 @@ export default function Page() {
     }
   }, []);
 
-  // Get button text based on phase
+  // Get button text based on phase and user's sign status
   const getSignButtonText = useCallback(() => {
     if (!phaseInfo) return "Daily Sign";
 
-    if (phaseInfo.currentPhase === "sign") {
-      return `Daily Sign (${formatTime(timeRemaining)})`;
+    // Check if it's sign phase - contract might return different string values
+    const isSignPhase =
+      phaseInfo.currentPhase.toLowerCase().includes("sign") ||
+      phaseInfo.currentPhase.toLowerCase() === "signing" ||
+      phaseInfo.currentPhase.toLowerCase() === "sign_phase";
+
+    if (isSignPhase) {
+      // If it's sign phase, check if user has already signed
+      if (userHasSigned) {
+        return `Claim (${formatTime(timeRemaining)})`;
+      } else {
+        return `Daily Sign (${formatTime(timeRemaining)})`;
+      }
     } else {
-      return `Claim (${formatTime(timeRemaining)})`;
+      // If it's claim phase, check if user has signed
+      if (userHasSigned) {
+        if (userHasClaimed) {
+          return `Claimed`;
+        } else {
+          return `Claim (${formatTime(timeRemaining)})`;
+        }
+      } else {
+        return `Sign period ended`;
+      }
     }
-  }, [phaseInfo, timeRemaining, formatTime]);
+  }, [phaseInfo, timeRemaining, formatTime, userHasSigned, userHasClaimed]);
+
+  // Check if button should be disabled
+  const isSignButtonDisabled = useCallback(() => {
+    if (!phaseInfo) return false;
+
+    const isSignPhase =
+      phaseInfo.currentPhase.toLowerCase().includes("sign") ||
+      phaseInfo.currentPhase.toLowerCase() === "signing" ||
+      phaseInfo.currentPhase.toLowerCase() === "sign_phase";
+
+    // If it's claim phase and user hasn't signed, disable button
+    if (!isSignPhase && !userHasSigned) {
+      return true;
+    }
+
+    // If user has already claimed, disable button
+    if (userHasClaimed) {
+      return true;
+    }
+
+    return false;
+  }, [phaseInfo, userHasSigned, userHasClaimed]);
 
   const handleBidInputChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -366,14 +461,34 @@ export default function Page() {
     if (!input) return;
     const tokenId = BigInt(input);
     await ensureBase();
+
+    // Check if it's claim phase and user has signed
+    const isSignPhase =
+      phaseInfo?.currentPhase.toLowerCase().includes("sign") ||
+      phaseInfo?.currentPhase.toLowerCase() === "signing" ||
+      phaseInfo?.currentPhase.toLowerCase() === "sign_phase";
+
+    const isClaimOperation = !isSignPhase && userHasSigned;
+
     await writeContract(config, {
       address: CONTRACT_ADDR,
       abi: MARKET_ABI,
       functionName: "signOrClaim",
       args: [tokenId],
     });
-    alert("Sign/Claim sent");
-  }, [config, ensureBase]);
+
+    if (isClaimOperation) {
+      setUserHasClaimed(true);
+      // Save to localStorage with epoch ID
+      if (phaseInfo) {
+        const claimedKey = `claimed_${address}_${phaseInfo.eid}`;
+        localStorage.setItem(claimedKey, "true");
+      }
+      alert("Claim successful!");
+    } else {
+      alert("Sign/Claim sent");
+    }
+  }, [config, ensureBase, phaseInfo, userHasSigned]);
 
   return (
     <div className="text-white min-h-screen">
@@ -509,7 +624,12 @@ export default function Page() {
               <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
                 <button
                   onClick={handleSign}
-                  className="px-8 py-3 bg-black text-white rounded-full font-oldschool font-bold hover:bg-gray-800 transition-colors"
+                  disabled={isSignButtonDisabled()}
+                  className={`px-8 py-3 rounded-full font-oldschool font-bold transition-colors ${
+                    isSignButtonDisabled()
+                      ? "bg-gray-400 text-gray-600 cursor-not-allowed"
+                      : "bg-black text-white hover:bg-gray-800"
+                  }`}
                 >
                   {getSignButtonText()}
                 </button>
