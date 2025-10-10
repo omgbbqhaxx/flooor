@@ -21,15 +21,15 @@ import { useState, useCallback, useEffect } from "react";
 import { useConfig, useChainId, useAccount } from "wagmi";
 import { writeContract, readContract, switchChain } from "wagmi/actions";
 import { base } from "wagmi/chains";
-import { parseEther } from "viem";
+import { parseEther, formatEther } from "viem";
 import Image from "next/image";
 
 // Retry utility with exponential backoff
 const retryWithBackoff = async (
-  fn: () => Promise<any>,
+  fn: () => Promise<unknown>,
   maxRetries: number = 3,
   baseDelay: number = 1000
-): Promise<any> => {
+): Promise<unknown> => {
   let lastError: Error;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -154,7 +154,12 @@ export default function Page() {
         })) as [string, bigint, bigint, bigint];
       });
 
-      const [currentPhase, eid, elapsed, remaining] = info;
+      const [currentPhase, eid, elapsed, remaining] = info as [
+        string,
+        bigint,
+        bigint,
+        bigint
+      ];
 
       // Debug: Log the phase string to see what contract returns
       console.log("Contract phase string:", currentPhase);
@@ -201,18 +206,24 @@ export default function Page() {
   // Get daily vault amount
   const getDailyVault = useCallback(async () => {
     try {
-      const poolAccrued = await retryWithBackoff(async () => {
+      const poolAccrued = (await retryWithBackoff(async () => {
         return (await readContract(config, {
           address: CONTRACT_ADDR,
           abi: MARKET_ABI,
           functionName: "poolAccrued",
           args: [],
         })) as bigint;
-      });
+      })) as bigint;
 
-      // Convert wei to ether and format
-      const etherAmount = Number(poolAccrued) / 1e18;
-      setDailyVault(etherAmount.toFixed(3));
+      // Convert wei to ether using viem's formatEther for precise conversion
+      console.log("PoolAccrued (wei):", poolAccrued.toString());
+
+      const etherAmount = formatEther(poolAccrued);
+      console.log("PoolAccrued (ETH):", etherAmount);
+
+      // Parse the formatted ether string to a number and format to 8 decimal places
+      const etherNumber = parseFloat(etherAmount);
+      setDailyVault(etherNumber.toFixed(8));
     } catch (error) {
       console.error("Error getting daily vault:", error);
     }
@@ -221,18 +232,19 @@ export default function Page() {
   // Get current bid amount
   const getCurrentBid = useCallback(async () => {
     try {
-      const activeBidAmount = await retryWithBackoff(async () => {
+      const activeBidAmount = (await retryWithBackoff(async () => {
         return (await readContract(config, {
           address: CONTRACT_ADDR,
           abi: MARKET_ABI,
           functionName: "activebidAM",
           args: [],
         })) as bigint;
-      });
+      })) as bigint;
 
-      // Convert wei to ether and format
-      const etherAmount = Number(activeBidAmount) / 1e18;
-      setCurrentBid(etherAmount.toFixed(4));
+      // Convert wei to ether using viem's formatEther for precise conversion
+      const etherAmount = formatEther(activeBidAmount);
+      const etherNumber = parseFloat(etherAmount);
+      setCurrentBid(etherNumber.toFixed(8));
     } catch (error) {
       console.error("Error getting current bid:", error);
     }
@@ -265,7 +277,7 @@ export default function Page() {
       });
 
       // If signedTokenId is 0, user hasn't signed
-      setUserHasSigned(signedTokenId > BigInt(0));
+      setUserHasSigned((signedTokenId as bigint) > BigInt(0));
     } catch (error) {
       console.error("Error checking user signed status:", error);
       setUserHasSigned(false);
@@ -450,14 +462,14 @@ export default function Page() {
       return;
     }
     await ensureBase();
-    const owned: bigint[] = await retryWithBackoff(async () => {
+    const owned: bigint[] = (await retryWithBackoff(async () => {
       return (await readContract(config, {
         address: COLLECTION_ADDR,
         abi: NFT_ABI,
         functionName: "getNFTzBelongingToOwner",
         args: [address],
       })) as unknown as bigint[];
-    });
+    })) as bigint[];
     if (!owned || owned.length === 0) {
       alert("No NFTs owned");
       return;
@@ -495,14 +507,14 @@ export default function Page() {
     }
 
     // Then sell
-    const owned: bigint[] = await retryWithBackoff(async () => {
+    const owned: bigint[] = (await retryWithBackoff(async () => {
       return (await readContract(config, {
         address: COLLECTION_ADDR,
         abi: NFT_ABI,
         functionName: "getNFTzBelongingToOwner",
         args: [address],
       })) as unknown as bigint[];
-    });
+    })) as bigint[];
     if (!owned || owned.length === 0) {
       alert("No NFTs owned");
       return;
