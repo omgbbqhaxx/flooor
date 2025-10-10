@@ -289,11 +289,16 @@ export default function Page() {
     const vaultAmount = parseFloat(dailyVault);
     const signersCount = dailySigners;
 
+    console.log("Calculating yield per NFT:");
+    console.log("Daily Vault:", dailyVault, "ETH");
+    console.log("Daily Signers:", signersCount);
+
     if (signersCount > 0 && vaultAmount > 0) {
       const yieldPerNFTAmount = vaultAmount / signersCount;
-      setYieldPerNFT(yieldPerNFTAmount.toFixed(3));
+      console.log("Yield per NFT:", yieldPerNFTAmount, "ETH");
+      setYieldPerNFT(yieldPerNFTAmount.toFixed(8));
     } else {
-      setYieldPerNFT("0");
+      setYieldPerNFT("0.00000000");
     }
   }, [dailyVault, dailySigners]);
 
