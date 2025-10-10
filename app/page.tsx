@@ -42,7 +42,6 @@ export default function Page() {
     elapsed: bigint;
     remaining: bigint;
   } | null>(null);
-  const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [dailySigners, setDailySigners] = useState<number>(0);
   const [dailyVault, setDailyVault] = useState<string>("0");
   const [currentBid, setCurrentBid] = useState<string>("0");
@@ -111,9 +110,6 @@ export default function Page() {
         elapsed,
         remaining,
       });
-
-      // Convert remaining seconds to number
-      setTimeRemaining(Number(remaining));
     } catch (error) {
       console.error("Error getting phase info:", error);
     }
@@ -249,36 +245,27 @@ export default function Page() {
     getDailySigners();
     getDailyVault();
     getCurrentBid();
+    checkUserSignedStatus();
 
-    // Update every second
+    // Update all data every 30 seconds (less frequent to avoid rate limits)
     const interval = setInterval(() => {
       getPhaseInfo();
-    }, 1000);
-
-    // Update daily signers, vault and current bid every 10 seconds
-    const signersInterval = setInterval(() => {
       getDailySigners();
       getDailyVault();
       getCurrentBid();
       checkUserSignedStatus();
-    }, 10000);
+    }, 30000);
 
     return () => {
       clearInterval(interval);
-      clearInterval(signersInterval);
     };
-  }, [getPhaseInfo, getDailySigners, getDailyVault, getCurrentBid]);
-
-  // Update time remaining every second
-  useEffect(() => {
-    if (timeRemaining > 0) {
-      const timer = setTimeout(() => {
-        setTimeRemaining((prev) => Math.max(0, prev - 1));
-      }, 1000);
-
-      return () => clearTimeout(timer);
-    }
-  }, [timeRemaining]);
+  }, [
+    getPhaseInfo,
+    getDailySigners,
+    getDailyVault,
+    getCurrentBid,
+    checkUserSignedStatus,
+  ]);
 
   // Get button text based on phase and user's sign status
   const getSignButtonText = useCallback(() => {
@@ -463,7 +450,7 @@ export default function Page() {
     if (isClaimOperation) {
       setUserHasClaimed(true);
       // Save to localStorage with epoch ID
-      if (phaseInfo) {
+      if (phaseInfo && address) {
         const claimedKey = `claimed_${address}_${phaseInfo.eid}`;
         localStorage.setItem(claimedKey, "true");
       }
