@@ -43,6 +43,8 @@ export default function Page() {
   } | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [dailySigners, setDailySigners] = useState<number>(0);
+  const [dailyVault, setDailyVault] = useState<string>("0");
+  const [currentBid, setCurrentBid] = useState<string>("0");
   const config = useConfig();
   const chainId = useChainId();
   const { address } = useAccount();
@@ -133,26 +135,66 @@ export default function Page() {
     }
   }, [config]);
 
+  // Get daily vault amount
+  const getDailyVault = useCallback(async () => {
+    try {
+      const poolAccrued = (await readContract(config, {
+        address: CONTRACT_ADDR,
+        abi: MARKET_ABI,
+        functionName: "poolAccrued",
+        args: [],
+      })) as bigint;
+
+      // Convert wei to ether and format
+      const etherAmount = Number(poolAccrued) / 1e18;
+      setDailyVault(etherAmount.toFixed(3));
+    } catch (error) {
+      console.error("Error getting daily vault:", error);
+    }
+  }, [config]);
+
+  // Get current bid amount
+  const getCurrentBid = useCallback(async () => {
+    try {
+      const activeBidAmount = (await readContract(config, {
+        address: CONTRACT_ADDR,
+        abi: MARKET_ABI,
+        functionName: "activebidAM",
+        args: [],
+      })) as bigint;
+
+      // Convert wei to ether and format
+      const etherAmount = Number(activeBidAmount) / 1e18;
+      setCurrentBid(etherAmount.toFixed(4));
+    } catch (error) {
+      console.error("Error getting current bid:", error);
+    }
+  }, [config]);
+
   // Update phase info when component mounts and periodically
   useEffect(() => {
     getPhaseInfo();
     getDailySigners();
+    getDailyVault();
+    getCurrentBid();
 
     // Update every second
     const interval = setInterval(() => {
       getPhaseInfo();
     }, 1000);
 
-    // Update daily signers every 10 seconds
+    // Update daily signers, vault and current bid every 10 seconds
     const signersInterval = setInterval(() => {
       getDailySigners();
+      getDailyVault();
+      getCurrentBid();
     }, 10000);
 
     return () => {
       clearInterval(interval);
       clearInterval(signersInterval);
     };
-  }, [getPhaseInfo, getDailySigners]);
+  }, [getPhaseInfo, getDailySigners, getDailyVault, getCurrentBid]);
 
   // Update time remaining every second
   useEffect(() => {
@@ -384,7 +426,7 @@ export default function Page() {
                 <span className="font-oldschool text-gray-400 text-sm">
                   &nbsp;Daily vault &nbsp;
                   <span className="font-oldschool font-bold text-black text-sm">
-                    Ξ 0,621&nbsp;
+                    Ξ {dailyVault}&nbsp;
                   </span>
                 </span>
                 |
@@ -414,7 +456,7 @@ export default function Page() {
                 {/* Alt satır - İçerikler */}
                 <div className="text-center flex items-center justify-center">
                   <p className="text-2xl font-oldschool text-black font-bold">
-                    Ξ 0.0060
+                    Ξ {currentBid}
                   </p>
                 </div>
                 <div className="text-center flex items-center justify-center">
