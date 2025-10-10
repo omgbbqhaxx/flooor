@@ -310,23 +310,23 @@ export default function Page() {
     if (isSignPhase) {
       // If it's sign phase, check if user has already signed
       if (userHasSigned) {
-        return `Claim (${formatTime(timeRemaining)})`;
+        return "Claim";
       } else {
-        return `Daily Sign (${formatTime(timeRemaining)})`;
+        return "Daily Sign";
       }
     } else {
       // If it's claim phase, check if user has signed
       if (userHasSigned) {
         if (userHasClaimed) {
-          return `Claimed`;
+          return "Claimed";
         } else {
-          return `Claim (${formatTime(timeRemaining)})`;
+          return "Claim";
         }
       } else {
-        return `Sign period ended`;
+        return "Sign period ended";
       }
     }
-  }, [phaseInfo, timeRemaining, formatTime, userHasSigned, userHasClaimed]);
+  }, [phaseInfo, userHasSigned, userHasClaimed]);
 
   // Check if button should be disabled
   const isSignButtonDisabled = useCallback(() => {
