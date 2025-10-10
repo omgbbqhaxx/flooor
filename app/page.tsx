@@ -22,6 +22,7 @@ import { useConfig, useChainId, useAccount } from "wagmi";
 import { writeContract, readContract, switchChain } from "wagmi/actions";
 import { base } from "wagmi/chains";
 import { parseEther } from "viem";
+import Image from "next/image";
 
 import MARKET_ABI from "@/app/abi/market.json";
 import NFT_ABI from "@/app/abi/nft.json";
@@ -258,19 +259,6 @@ export default function Page() {
     []
   );
 
-  const handleApprove = useCallback(async () => {
-    await ensureBase();
-    await writeContract(config, {
-      address: COLLECTION_ADDR,
-      abi: NFT_ABI,
-      functionName: "setApprovalForAll",
-      args: [CONTRACT_ADDR, true],
-    });
-    alert("Approval set for marketplace contract.");
-    // Refresh approval status after successful approval
-    await checkApprovalStatus();
-  }, [config, ensureBase, checkApprovalStatus]);
-
   const handleBid = useCallback(async () => {
     await ensureBase();
     const value = parseEther((bidInput || "0") as `${string}`);
@@ -408,9 +396,11 @@ export default function Page() {
           <div className="flex flex-col lg:flex-row items-center lg:items-start space-y-8 lg:space-y-0 lg:space-x-12 w-full">
             {/* Resim - Mobilde ortalanmış */}
             <div className="w-64 h-64 bg-gray-300 rounded-lg flex items-center justify-center flex-shrink-0">
-              <img
+              <Image
                 src="/bg.png"
                 alt="Açıklamaa"
+                width={256}
+                height={256}
                 className="w-full h-full object-cover rounded-lg"
               />
             </div>
