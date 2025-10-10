@@ -17,9 +17,9 @@ import {
 //import { Transaction } from "@coinbase/onchainkit/transaction";
 
 import Logo from "@/app/svg/Logo";
-import { useState, useCallback } from "react";
-import { useConfig, useChainId } from "wagmi";
-import { writeContract, switchChain } from "wagmi/actions";
+import { useState, useCallback, useEffect } from "react";
+import { useConfig, useChainId, useAccount } from "wagmi";
+import { writeContract, readContract, switchChain } from "wagmi/actions";
 import { base } from "wagmi/chains";
 import { parseEther } from "viem";
 
@@ -33,8 +33,19 @@ const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
 export default function Page() {
   //const calls = []; // to be populated with buyFloor call later
   const [bidInput, setBidInput] = useState("");
+  const [isApproved, setIsApproved] = useState(false);
+  const [isCheckingApproval, setIsCheckingApproval] = useState(false);
+  const [phaseInfo, setPhaseInfo] = useState<{
+    currentPhase: string;
+    eid: bigint;
+    elapsed: bigint;
+    remaining: bigint;
+  } | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<number>(0);
+  const [dailySigners, setDailySigners] = useState<number>(0);
   const config = useConfig();
   const chainId = useChainId();
+  const { address } = useAccount();
 
   const ensureBase = useCallback(async () => {
     if (chainId !== base.id) {
@@ -43,6 +54,144 @@ export default function Page() {
       } catch {}
     }
   }, [chainId, config]);
+
+  // Check approval status
+  const checkApprovalStatus = useCallback(async () => {
+    if (!address) {
+      setIsApproved(false);
+      return;
+    }
+
+    setIsCheckingApproval(true);
+    try {
+      const approved = await readContract(config, {
+        address: COLLECTION_ADDR,
+        abi: NFT_ABI,
+        functionName: "isApprovedForAll",
+        args: [address, CONTRACT_ADDR],
+      });
+      setIsApproved(approved as boolean);
+    } catch (error) {
+      console.error("Error checking approval status:", error);
+      setIsApproved(false);
+    } finally {
+      setIsCheckingApproval(false);
+    }
+  }, [config, address]);
+
+  // Check approval status when address changes
+  useEffect(() => {
+    checkApprovalStatus();
+  }, [checkApprovalStatus]);
+
+  // Get phase info from contract
+  const getPhaseInfo = useCallback(async () => {
+    try {
+      const info = (await readContract(config, {
+        address: CONTRACT_ADDR,
+        abi: MARKET_ABI,
+        functionName: "getPhaseInfo",
+        args: [],
+      })) as [string, bigint, bigint, bigint];
+
+      const [currentPhase, eid, elapsed, remaining] = info;
+      setPhaseInfo({
+        currentPhase,
+        eid,
+        elapsed,
+        remaining,
+      });
+
+      // Convert remaining seconds to number
+      setTimeRemaining(Number(remaining));
+    } catch (error) {
+      console.error("Error getting phase info:", error);
+    }
+  }, [config]);
+
+  // Get daily signers count
+  const getDailySigners = useCallback(async () => {
+    try {
+      // Get currentEpochStart and use it directly for partCount
+      const currentEpochStart = (await readContract(config, {
+        address: CONTRACT_ADDR,
+        abi: MARKET_ABI,
+        functionName: "currentEpochStart",
+        args: [],
+      })) as bigint;
+
+      const signersCount = (await readContract(config, {
+        address: CONTRACT_ADDR,
+        abi: MARKET_ABI,
+        functionName: "partCount",
+        args: [currentEpochStart],
+      })) as bigint;
+
+      setDailySigners(Number(signersCount));
+    } catch (error) {
+      console.error("Error getting daily signers:", error);
+    }
+  }, [config]);
+
+  // Update phase info when component mounts and periodically
+  useEffect(() => {
+    getPhaseInfo();
+    getDailySigners();
+
+    // Update every second
+    const interval = setInterval(() => {
+      getPhaseInfo();
+    }, 1000);
+
+    // Update daily signers every 10 seconds
+    const signersInterval = setInterval(() => {
+      getDailySigners();
+    }, 10000);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(signersInterval);
+    };
+  }, [getPhaseInfo, getDailySigners]);
+
+  // Update time remaining every second
+  useEffect(() => {
+    if (timeRemaining > 0) {
+      const timer = setTimeout(() => {
+        setTimeRemaining((prev) => Math.max(0, prev - 1));
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [timeRemaining]);
+
+  // Format time remaining
+  const formatTime = useCallback((seconds: number) => {
+    if (seconds <= 0) return "0s";
+
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${secs}s`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${secs}s`;
+    } else {
+      return `${secs}s`;
+    }
+  }, []);
+
+  // Get button text based on phase
+  const getSignButtonText = useCallback(() => {
+    if (!phaseInfo) return "Daily Sign";
+
+    if (phaseInfo.currentPhase === "sign") {
+      return `Daily Sign (${formatTime(timeRemaining)})`;
+    } else {
+      return `Claim (${formatTime(timeRemaining)})`;
+    }
+  }, [phaseInfo, timeRemaining, formatTime]);
 
   const handleBidInputChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -76,7 +225,9 @@ export default function Page() {
       args: [CONTRACT_ADDR, true],
     });
     alert("Approval set for marketplace contract.");
-  }, [config, ensureBase]);
+    // Refresh approval status after successful approval
+    await checkApprovalStatus();
+  }, [config, ensureBase, checkApprovalStatus]);
 
   const handleBid = useCallback(async () => {
     await ensureBase();
@@ -92,10 +243,23 @@ export default function Page() {
   }, [config, ensureBase, bidInput]);
 
   const handleSell = useCallback(async () => {
-    const input = prompt("Enter your NFT tokenId to sell to highest bidder");
-    if (!input) return;
-    const tokenId = BigInt(input);
+    // Auto-pick: fetch user's NFTs and use the largest tokenId
+    if (!address) {
+      alert("Connect wallet first");
+      return;
+    }
     await ensureBase();
+    const owned: bigint[] = (await readContract(config, {
+      address: COLLECTION_ADDR,
+      abi: NFT_ABI,
+      functionName: "getNFTzBelongingToOwner",
+      args: [address],
+    })) as unknown as bigint[];
+    if (!owned || owned.length === 0) {
+      alert("No NFTs owned");
+      return;
+    }
+    const tokenId = owned.reduce((a, b) => (a > b ? a : b));
     await writeContract(config, {
       address: CONTRACT_ADDR,
       abi: MARKET_ABI,
@@ -103,7 +267,50 @@ export default function Page() {
       args: [tokenId],
     });
     alert("Sell executed");
-  }, [config, ensureBase]);
+  }, [config, ensureBase, address]);
+
+  // Combined approve and sell handler
+  const handleApproveAndSell = useCallback(async () => {
+    if (!address) {
+      alert("Connect wallet first");
+      return;
+    }
+
+    await ensureBase();
+
+    // First approve if not already approved
+    if (!isApproved) {
+      await writeContract(config, {
+        address: COLLECTION_ADDR,
+        abi: NFT_ABI,
+        functionName: "setApprovalForAll",
+        args: [CONTRACT_ADDR, true],
+      });
+      alert("Approval set for marketplace contract.");
+      // Refresh approval status
+      await checkApprovalStatus();
+    }
+
+    // Then sell
+    const owned: bigint[] = (await readContract(config, {
+      address: COLLECTION_ADDR,
+      abi: NFT_ABI,
+      functionName: "getNFTzBelongingToOwner",
+      args: [address],
+    })) as unknown as bigint[];
+    if (!owned || owned.length === 0) {
+      alert("No NFTs owned");
+      return;
+    }
+    const tokenId = owned.reduce((a, b) => (a > b ? a : b));
+    await writeContract(config, {
+      address: CONTRACT_ADDR,
+      abi: MARKET_ABI,
+      functionName: "sellToHighest",
+      args: [tokenId],
+    });
+    alert("Sell executed");
+  }, [config, ensureBase, address, isApproved, checkApprovalStatus]);
 
   const handleSign = useCallback(async () => {
     const input = prompt("Enter your NFT tokenId to sign/claim");
@@ -171,7 +378,7 @@ export default function Page() {
               <p className="text-lg text-gray-400 text-sm font-oldschool leading-relaxed">
                 Daily signers: &nbsp;
                 <span className="font-oldschool font-bold text-black text-sm">
-                  14 &nbsp;
+                  {dailySigners} &nbsp;
                 </span>{" "}
                 |
                 <span className="font-oldschool text-gray-400 text-sm">
@@ -190,8 +397,8 @@ export default function Page() {
                 </span>
               </p>
 
-              {/* 3x2 Grid Layout */}
-              <div className="grid grid-cols-3 gap-4 w-full">
+              {/* 2x2 Grid Layout */}
+              <div className="grid grid-cols-2 gap-4 w-full">
                 {/* Üst satır - Başlıklar */}
                 <div className="text-center">
                   <p className="text-sm text-gray-600 font-oldschool">
@@ -200,11 +407,8 @@ export default function Page() {
                 </div>
                 <div className="text-center">
                   <p className="text-sm text-gray-600 font-oldschool">
-                    Approve
+                    {isApproved ? "Sell" : "Approve & Sell"}
                   </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm text-gray-600 font-oldschool">Sell</p>
                 </div>
 
                 {/* Alt satır - İçerikler */}
@@ -214,14 +418,18 @@ export default function Page() {
                   </p>
                 </div>
                 <div className="text-center flex items-center justify-center">
-                  <button className="w-full max-w-24 px-3 py-2 bg-gray-200 text-black rounded-lg font-oldschool font-bold hover:bg-gray-300 transition-colors text-xs">
-                    Approve
-                  </button>
-                </div>
-                <div className="text-center flex items-center justify-center">
-                  <button className="w-full max-w-28 px-3 py-2 bg-black text-white rounded-lg font-oldschool font-bold hover:bg-gray-800 transition-colors text-xs">
-                    Sell
-                  </button>
+                  {isCheckingApproval ? (
+                    <div className="w-full max-w-32 px-3 py-2 bg-gray-200 text-black rounded-lg font-oldschool font-bold text-xs flex items-center justify-center">
+                      Checking...
+                    </div>
+                  ) : (
+                    <button
+                      onClick={isApproved ? handleSell : handleApproveAndSell}
+                      className="w-full max-w-32 px-3 py-2 bg-black text-white rounded-lg font-oldschool font-bold hover:bg-gray-800 transition-colors text-xs"
+                    >
+                      {isApproved ? "Sell" : "Approve & Sell"}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -252,7 +460,7 @@ export default function Page() {
                   onClick={handleSign}
                   className="px-8 py-3 bg-black text-white rounded-full font-oldschool font-bold hover:bg-gray-800 transition-colors"
                 >
-                  Daily sign
+                  {getSignButtonText()}
                 </button>
                 <a
                   href="https://vrnouns.gitbook.io/flooor/documentation/documentation-en"
