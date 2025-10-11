@@ -370,10 +370,16 @@ export default function Page() {
       phaseInfo.currentPhase.toLowerCase() === "sign_phase";
 
     if (isSignPhase) {
-      // During sign phase, always show "Daily Sign"
-      return "Daily Sign";
+      // During sign phase
+      if (userHasSigned) {
+        // User has signed, show remaining time until claim phase
+        const remainingHours = Math.floor(Number(phaseInfo.remaining) / 3600);
+        return `Claim in ${remainingHours}h`;
+      } else {
+        return "Daily Sign";
+      }
     } else {
-      // During claim phase, check if user has signed
+      // During claim phase
       if (userHasSigned) {
         return "Claim";
       } else {
@@ -391,12 +397,13 @@ export default function Page() {
       phaseInfo.currentPhase.toLowerCase() === "signing" ||
       phaseInfo.currentPhase.toLowerCase() === "sign_phase";
 
-    // If it's claim phase and user hasn't signed, disable button
-    if (!isSignPhase && !userHasSigned) {
-      return true;
+    if (isSignPhase) {
+      // During sign phase: disable if user has already signed
+      return userHasSigned;
+    } else {
+      // During claim phase: disable if user hasn't signed
+      return !userHasSigned;
     }
-
-    return false;
   }, [phaseInfo, userHasSigned]);
 
   const handleBidInputChange = useCallback(
@@ -555,6 +562,8 @@ export default function Page() {
     });
 
     if (isSignPhase) {
+      // Update userHasSigned state after successful sign
+      setUserHasSigned(true);
       alert("Sign successful!");
     } else {
       alert("Claim successful!");
