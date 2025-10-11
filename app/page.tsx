@@ -6,7 +6,12 @@ import { toast } from "sonner";
 import Logo from "@/app/svg/Logo";
 import { useState, useCallback, useEffect } from "react";
 import { useConfig, useChainId, useAccount } from "wagmi";
-import { writeContract, readContract, switchChain, simulateContract } from "wagmi/actions";
+import {
+  writeContract,
+  readContract,
+  switchChain,
+  simulateContract,
+} from "wagmi/actions";
 import { base } from "wagmi/chains";
 import { parseEther, formatEther } from "viem";
 import Image from "next/image";
@@ -204,7 +209,7 @@ export default function Page() {
         elapsed,
         remaining,
       });
-      
+
       setRemainingTimeDisplay(Number(remaining));
     } catch (error) {
       console.error("Error getting phase info:", error);
@@ -322,7 +327,7 @@ export default function Page() {
         phaseInfo.currentPhase.toLowerCase() === "sign_phase";
 
       let claimedStatus = false;
-      
+
       if (hasSigned && !isSignPhase) {
         try {
           await simulateContract(config, {
@@ -335,7 +340,10 @@ export default function Page() {
           claimedStatus = false;
         } catch (error: unknown) {
           const errorMsg = (error as Error)?.message?.toLowerCase() || "";
-          if (errorMsg.includes("already claimed") || errorMsg.includes("claimed")) {
+          if (
+            errorMsg.includes("already claimed") ||
+            errorMsg.includes("claimed")
+          ) {
             claimedStatus = true;
           }
         }
@@ -432,11 +440,11 @@ export default function Page() {
           setLastFetchTime(0);
           return 0;
         }
-        
+
         if (prev <= 120) {
           setLastFetchTime(0);
         }
-        
+
         return prev - 1;
       });
     }, 1000);
@@ -451,7 +459,10 @@ export default function Page() {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(
+      2,
+      "0"
+    )}:${String(secs).padStart(2, "0")}`;
   }, []);
 
   // Get button text based on phase and user's sign status
@@ -481,7 +492,13 @@ export default function Page() {
         return `Sign ended: ${formatTimeRemaining(remainingTimeDisplay)}`;
       }
     }
-  }, [phaseInfo, userHasSigned, userHasClaimed, remainingTimeDisplay, formatTimeRemaining]);
+  }, [
+    phaseInfo,
+    userHasSigned,
+    userHasClaimed,
+    remainingTimeDisplay,
+    formatTimeRemaining,
+  ]);
 
   // Check if button should be disabled
   const isSignButtonDisabled = useCallback(() => {
@@ -545,7 +562,9 @@ export default function Page() {
       toast.success("Bid placed successfully! 🎉");
     } catch (error) {
       if (error instanceof Error && error.message.includes("network")) {
-        toast.error("Transaction cancelled: Wrong network. Please switch to Base.");
+        toast.error(
+          "Transaction cancelled: Wrong network. Please switch to Base."
+        );
       } else {
         throw error;
       }
@@ -630,7 +649,9 @@ export default function Page() {
       toast.success("NFT sold successfully! 🎉");
     } catch (error) {
       if (error instanceof Error && error.message.includes("network")) {
-        toast.error("Transaction cancelled: Wrong network. Please switch to Base.");
+        toast.error(
+          "Transaction cancelled: Wrong network. Please switch to Base."
+        );
       } else {
         throw error;
       }
@@ -693,12 +714,21 @@ export default function Page() {
       }, 2000);
     } catch (error) {
       if (error instanceof Error && error.message.includes("network")) {
-        toast.error("Transaction cancelled: Wrong network. Please switch to Base.");
+        toast.error(
+          "Transaction cancelled: Wrong network. Please switch to Base."
+        );
       } else {
         throw error;
       }
     }
-  }, [config, ensureBase, phaseInfo, address, checkUserSignedStatus, getPhaseInfo]);
+  }, [
+    config,
+    ensureBase,
+    phaseInfo,
+    address,
+    checkUserSignedStatus,
+    getPhaseInfo,
+  ]);
 
   return (
     <div className="text-white min-h-screen">
@@ -740,7 +770,12 @@ export default function Page() {
                               onClick={openConnectModal}
                               type="button"
                               className="px-6 py-2 border-2 border-gray-400 rounded-full hover:bg-transparent transition text-sm !bg-transparent"
-                              style={{ color: 'rgb(9, 9, 11)', fontSize: '15px', letterSpacing: '-0.01em', fontWeight: '500' }}
+                              style={{
+                                color: "rgb(9, 9, 11)",
+                                fontSize: "15px",
+                                letterSpacing: "-0.01em",
+                                fontWeight: "500",
+                              }}
                             >
                               Connect Wallet
                             </button>
@@ -765,7 +800,12 @@ export default function Page() {
                               onClick={openAccountModal}
                               type="button"
                               className="px-6 py-2 border-2 border-gray-400 rounded-full hover:bg-transparent transition text-sm !bg-transparent flex items-center gap-2"
-                              style={{ color: 'rgb(9, 9, 11)', fontSize: '15px', letterSpacing: '-0.01em', fontWeight: '500' }}
+                              style={{
+                                color: "rgb(9, 9, 11)",
+                                fontSize: "15px",
+                                letterSpacing: "-0.01em",
+                                fontWeight: "500",
+                              }}
                             >
                               {chain.hasIcon && chain.iconUrl && (
                                 <img
