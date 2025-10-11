@@ -875,7 +875,7 @@ export default function Page() {
                 </a>
 
                 <a
-                  href="https://sepolia.etherscan.io/address/0x11d7e2520244D65Be6935e8BAfd87152De93c6FF#readContract"
+                  href="https://basescan.org/address/0xf6b2c2411a101db46c8513ddaef10b11184c58ff#readContract"
                   target="_blank"
                   className="hover:text-white transition-colors font-oldschool font-bold"
                 >
