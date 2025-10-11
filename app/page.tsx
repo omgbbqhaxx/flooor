@@ -92,7 +92,6 @@ export default function Page() {
   const [currentBid, setCurrentBid] = useState<string>("0");
   const [yieldPerNFT, setYieldPerNFT] = useState<string>("0");
   const [userHasSigned, setUserHasSigned] = useState<boolean>(false);
-  const [userHasClaimed, setUserHasClaimed] = useState<boolean>(false);
   const [rpcError, setRpcError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
@@ -312,17 +311,6 @@ export default function Page() {
     checkUserSignedStatus();
   }, [checkUserSignedStatus, address, phaseInfo]);
 
-  // Load claimed status from localStorage when address changes
-  useEffect(() => {
-    if (address && phaseInfo) {
-      const claimedKey = `claimed_${address}_${phaseInfo.eid}`;
-      const hasClaimed = localStorage.getItem(claimedKey) === "true";
-      setUserHasClaimed(hasClaimed);
-    } else {
-      setUserHasClaimed(false);
-    }
-  }, [address, phaseInfo]);
-
   // Update phase info when component mounts and periodically
   useEffect(() => {
     const fetchAllData = async () => {
@@ -382,25 +370,17 @@ export default function Page() {
       phaseInfo.currentPhase.toLowerCase() === "sign_phase";
 
     if (isSignPhase) {
-      // If it's sign phase, check if user has already signed
+      // During sign phase, always show "Daily Sign"
+      return "Daily Sign";
+    } else {
+      // During claim phase, check if user has signed
       if (userHasSigned) {
         return "Claim";
-      } else {
-        return "Daily Sign";
-      }
-    } else {
-      // If it's claim phase, check if user has signed
-      if (userHasSigned) {
-        if (userHasClaimed) {
-          return "Claimed";
-        } else {
-          return "Claim";
-        }
       } else {
         return "Sign period ended";
       }
     }
-  }, [phaseInfo, userHasSigned, userHasClaimed]);
+  }, [phaseInfo, userHasSigned]);
 
   // Check if button should be disabled
   const isSignButtonDisabled = useCallback(() => {
@@ -416,13 +396,8 @@ export default function Page() {
       return true;
     }
 
-    // If user has already claimed, disable button
-    if (userHasClaimed) {
-      return true;
-    }
-
     return false;
-  }, [phaseInfo, userHasSigned, userHasClaimed]);
+  }, [phaseInfo, userHasSigned]);
 
   const handleBidInputChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -566,13 +541,11 @@ export default function Page() {
     // Use the largest tokenId (in case of multiple, though we already checked)
     const tokenId = owned.reduce((a, b) => (a > b ? a : b));
 
-    // Check if it's claim phase and user has signed
+    // Check if it's sign phase or claim phase
     const isSignPhase =
       phaseInfo?.currentPhase.toLowerCase().includes("sign") ||
       phaseInfo?.currentPhase.toLowerCase() === "signing" ||
       phaseInfo?.currentPhase.toLowerCase() === "sign_phase";
-
-    const isClaimOperation = !isSignPhase && userHasSigned;
 
     await writeContract(config, {
       address: CONTRACT_ADDR,
@@ -581,18 +554,12 @@ export default function Page() {
       args: [tokenId],
     });
 
-    if (isClaimOperation) {
-      setUserHasClaimed(true);
-      // Save to localStorage with epoch ID
-      if (phaseInfo && address) {
-        const claimedKey = `claimed_${address}_${phaseInfo.eid}`;
-        localStorage.setItem(claimedKey, "true");
-      }
-      alert("Claim successful!");
+    if (isSignPhase) {
+      alert("Sign successful!");
     } else {
-      alert("Sign/Claim sent");
+      alert("Claim successful!");
     }
-  }, [config, ensureBase, phaseInfo, userHasSigned, address]);
+  }, [config, ensureBase, phaseInfo, address]);
 
   return (
     <div className="text-white min-h-screen">
