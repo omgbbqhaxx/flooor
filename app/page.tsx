@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import Logo from "@/app/svg/Logo";
 import { useState, useCallback, useEffect } from "react";
 import { useConfig, useChainId, useAccount } from "wagmi";
-import { writeContract, readContract, switchChain } from "wagmi/actions";
+import { writeContract, readContract, switchChain, simulateContract } from "wagmi/actions";
 import { base } from "wagmi/chains";
 import { parseEther, formatEther } from "viem";
 import Image from "next/image";
@@ -79,9 +79,12 @@ export default function Page() {
   const [currentBid, setCurrentBid] = useState<string>("0");
   const [yieldPerNFT, setYieldPerNFT] = useState<string>("0");
   const [userHasSigned, setUserHasSigned] = useState<boolean>(false);
+  const [userHasClaimed, setUserHasClaimed] = useState<boolean>(false);
+  const [ownedTokenId, setOwnedTokenId] = useState<bigint | null>(null);
   const [rpcError, setRpcError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
+  const [remainingTimeDisplay, setRemainingTimeDisplay] = useState<number>(0);
   const config = useConfig();
   const chainId = useChainId();
   const { address } = useAccount();
@@ -142,6 +145,40 @@ export default function Page() {
     checkApprovalStatus();
   }, [checkApprovalStatus]);
 
+  // Fetch owned token ID
+  const fetchOwnedTokenId = useCallback(async () => {
+    if (!address) {
+      setOwnedTokenId(null);
+      return;
+    }
+
+    try {
+      const owned: bigint[] = (await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: COLLECTION_ADDR,
+          abi: NFT_ABI,
+          functionName: "getNFTzBelongingToOwner",
+          args: [address],
+        })) as unknown as bigint[];
+      })) as bigint[];
+
+      if (owned && owned.length > 0) {
+        const tokenId = owned.reduce((a, b) => (a > b ? a : b));
+        setOwnedTokenId(tokenId);
+      } else {
+        setOwnedTokenId(null);
+      }
+    } catch (error) {
+      console.error("Error fetching owned token ID:", error);
+      setOwnedTokenId(null);
+    }
+  }, [config, address]);
+
+  // Fetch owned token ID when address changes
+  useEffect(() => {
+    fetchOwnedTokenId();
+  }, [fetchOwnedTokenId]);
+
   // Get phase info from contract
   const getPhaseInfo = useCallback(async () => {
     try {
@@ -161,15 +198,14 @@ export default function Page() {
         bigint
       ];
 
-      // Debug: Log the phase string to see what contract returns
-      console.log("Contract phase string:", currentPhase);
-
       setPhaseInfo({
         currentPhase,
         eid,
         elapsed,
         remaining,
       });
+      
+      setRemainingTimeDisplay(Number(remaining));
     } catch (error) {
       console.error("Error getting phase info:", error);
     }
@@ -215,13 +251,7 @@ export default function Page() {
         })) as bigint;
       })) as bigint;
 
-      // Convert wei to ether using viem's formatEther for precise conversion
-      console.log("PoolAccrued (wei):", poolAccrued.toString());
-
       const etherAmount = formatEther(poolAccrued);
-      console.log("PoolAccrued (ETH):", etherAmount);
-
-      // Parse the formatted ether string to a number and format to 8 decimal places
       const etherNumber = parseFloat(etherAmount);
       setDailyVault(etherNumber.toFixed(8));
     } catch (error) {
@@ -254,6 +284,13 @@ export default function Page() {
   const checkUserSignedStatus = useCallback(async () => {
     if (!address || !phaseInfo) {
       setUserHasSigned(false);
+      setUserHasClaimed(false);
+      return;
+    }
+
+    if (!ownedTokenId) {
+      setUserHasSigned(false);
+      setUserHasClaimed(false);
       return;
     }
 
@@ -276,26 +313,51 @@ export default function Page() {
         })) as bigint;
       });
 
-      // If signedTokenId is 0, user hasn't signed
-      setUserHasSigned((signedTokenId as bigint) > BigInt(0));
+      const hasSigned = (signedTokenId as bigint) > BigInt(0);
+      setUserHasSigned(hasSigned);
+
+      const isSignPhase =
+        phaseInfo.currentPhase.toLowerCase().includes("sign") ||
+        phaseInfo.currentPhase.toLowerCase() === "signing" ||
+        phaseInfo.currentPhase.toLowerCase() === "sign_phase";
+
+      let claimedStatus = false;
+      
+      if (hasSigned && !isSignPhase) {
+        try {
+          await simulateContract(config, {
+            address: CONTRACT_ADDR,
+            abi: MARKET_ABI,
+            functionName: "signOrClaim",
+            args: [BigInt(ownedTokenId)],
+            account: address,
+          });
+          claimedStatus = false;
+        } catch (error: any) {
+          const errorMsg = error?.message?.toLowerCase() || "";
+          if (errorMsg.includes("already claimed") || errorMsg.includes("claimed")) {
+            claimedStatus = true;
+          }
+        }
+      } else {
+        claimedStatus = false;
+      }
+
+      setUserHasClaimed(claimedStatus);
     } catch (error) {
       console.error("Error checking user signed status:", error);
       setUserHasSigned(false);
+      setUserHasClaimed(false);
     }
-  }, [config, address, phaseInfo]);
+  }, [config, address, phaseInfo, ownedTokenId]);
 
   // Calculate yield per NFT
   const calculateYieldPerNFT = useCallback(() => {
     const vaultAmount = parseFloat(dailyVault);
     const signersCount = dailySigners;
 
-    console.log("Calculating yield per NFT:");
-    console.log("Daily Vault:", dailyVault, "ETH");
-    console.log("Daily Signers:", signersCount);
-
     if (signersCount > 0 && vaultAmount > 0) {
       const yieldPerNFTAmount = vaultAmount / signersCount;
-      console.log("Yield per NFT:", yieldPerNFTAmount, "ETH");
       setYieldPerNFT(yieldPerNFTAmount.toFixed(8));
     } else {
       setYieldPerNFT("0.00000000");
@@ -309,8 +371,10 @@ export default function Page() {
 
   // Check user signed status when address or phase changes
   useEffect(() => {
-    checkUserSignedStatus();
-  }, [checkUserSignedStatus, address, phaseInfo]);
+    if (address && phaseInfo && ownedTokenId) {
+      checkUserSignedStatus();
+    }
+  }, [address, phaseInfo?.currentPhase, ownedTokenId, checkUserSignedStatus]);
 
   // Update phase info when component mounts and periodically
   useEffect(() => {
@@ -360,52 +424,85 @@ export default function Page() {
     CACHE_DURATION,
   ]);
 
+  // Countdown timer - updates every second
+  useEffect(() => {
+    const countdownInterval = setInterval(() => {
+      setRemainingTimeDisplay((prev) => {
+        if (prev <= 0) {
+          setLastFetchTime(0);
+          return 0;
+        }
+        
+        if (prev <= 120) {
+          setLastFetchTime(0);
+        }
+        
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      clearInterval(countdownInterval);
+    };
+  }, []);
+
+  // Format time as HH:MM:SS
+  const formatTimeRemaining = useCallback((seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }, []);
+
   // Get button text based on phase and user's sign status
   const getSignButtonText = useCallback(() => {
     if (!phaseInfo) return "Daily Sign";
 
-    // Check if it's sign phase - contract might return different string values
     const isSignPhase =
       phaseInfo.currentPhase.toLowerCase().includes("sign") ||
       phaseInfo.currentPhase.toLowerCase() === "signing" ||
       phaseInfo.currentPhase.toLowerCase() === "sign_phase";
 
     if (isSignPhase) {
-      // During sign phase
       if (userHasSigned) {
-        // User has signed, show remaining time until claim phase
-        const remainingHours = Math.floor(Number(phaseInfo.remaining) / 3600);
-        return `Claim in ${remainingHours}h`;
+        if (remainingTimeDisplay < 60) {
+          return "Refreshing...";
+        }
+        return `Claim: ${formatTimeRemaining(remainingTimeDisplay)}`;
       } else {
         return "Daily Sign";
       }
     } else {
-      // During claim phase
-      if (userHasSigned) {
+      if (userHasClaimed) {
+        return `Next sign: ${formatTimeRemaining(remainingTimeDisplay)}`;
+      } else if (userHasSigned) {
         return "Claim";
       } else {
-        return "Sign period ended";
+        return `Sign ended: ${formatTimeRemaining(remainingTimeDisplay)}`;
       }
     }
-  }, [phaseInfo, userHasSigned]);
+  }, [phaseInfo, userHasSigned, userHasClaimed, remainingTimeDisplay, formatTimeRemaining]);
 
   // Check if button should be disabled
   const isSignButtonDisabled = useCallback(() => {
-    if (!phaseInfo) return false;
+    if (!phaseInfo) return true;
+    if (!address) return true;
 
     const isSignPhase =
       phaseInfo.currentPhase.toLowerCase().includes("sign") ||
       phaseInfo.currentPhase.toLowerCase() === "signing" ||
       phaseInfo.currentPhase.toLowerCase() === "sign_phase";
 
+    if (remainingTimeDisplay < 30 && isSignPhase && userHasSigned) {
+      return true;
+    }
+
     if (isSignPhase) {
-      // During sign phase: disable if user has already signed
       return userHasSigned;
     } else {
-      // During claim phase: disable if user hasn't signed
-      return !userHasSigned;
+      return !userHasSigned || userHasClaimed;
     }
-  }, [phaseInfo, userHasSigned]);
+  }, [phaseInfo, userHasSigned, userHasClaimed, address, remainingTimeDisplay]);
 
   const handleBidInputChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -586,8 +683,14 @@ export default function Page() {
         setUserHasSigned(true);
         toast.success("Sign successful! ✍️");
       } else {
+        setUserHasClaimed(true);
         toast.success("Claim successful! 💰");
       }
+
+      setTimeout(() => {
+        checkUserSignedStatus();
+        getPhaseInfo();
+      }, 2000);
     } catch (error) {
       if (error instanceof Error && error.message.includes("network")) {
         toast.error("Transaction cancelled: Wrong network. Please switch to Base.");
@@ -595,7 +698,7 @@ export default function Page() {
         throw error;
       }
     }
-  }, [config, ensureBase, phaseInfo, address]);
+  }, [config, ensureBase, phaseInfo, address, checkUserSignedStatus, getPhaseInfo]);
 
   return (
     <div className="text-white min-h-screen">
@@ -867,7 +970,7 @@ export default function Page() {
                 <button
                   onClick={handleSign}
                   disabled={isSignButtonDisabled()}
-                  className={`px-8 py-3 rounded-full font-oldschool font-bold transition-colors ${
+                  className={`px-8 py-3 rounded-full font-oldschool font-bold transition-colors min-w-[280px] tabular-nums ${
                     isSignButtonDisabled()
                       ? "bg-gray-400 text-gray-600 cursor-not-allowed"
                       : "bg-black text-white hover:bg-gray-800"
