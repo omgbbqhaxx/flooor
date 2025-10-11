@@ -1,25 +1,12 @@
 "use client";
 
-import {
-  ConnectWallet,
-  Wallet,
-  WalletDropdown,
-  WalletDropdownLink,
-  WalletDropdownDisconnect,
-} from "@coinbase/onchainkit/wallet";
-import {
-  Avatar,
-  Name,
-  Address,
-  EthBalance,
-  Identity,
-} from "@coinbase/onchainkit/identity";
-//import { Transaction } from "@coinbase/onchainkit/transaction";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { toast } from "sonner";
 
 import Logo from "@/app/svg/Logo";
 import { useState, useCallback, useEffect } from "react";
 import { useConfig, useChainId, useAccount } from "wagmi";
-import { writeContract, readContract, switchChain } from "wagmi/actions";
+import { writeContract, readContract, switchChain, simulateContract } from "wagmi/actions";
 import { base } from "wagmi/chains";
 import { parseEther, formatEther } from "viem";
 import Image from "next/image";
@@ -92,23 +79,40 @@ export default function Page() {
   const [currentBid, setCurrentBid] = useState<string>("0");
   const [yieldPerNFT, setYieldPerNFT] = useState<string>("0");
   const [userHasSigned, setUserHasSigned] = useState<boolean>(false);
+  const [userHasClaimed, setUserHasClaimed] = useState<boolean>(false);
+  const [ownedTokenId, setOwnedTokenId] = useState<bigint | null>(null);
   const [rpcError, setRpcError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
+  const [remainingTimeDisplay, setRemainingTimeDisplay] = useState<number>(0);
   const config = useConfig();
   const chainId = useChainId();
   const { address } = useAccount();
+  const [showNetworkWarning, setShowNetworkWarning] = useState(false);
 
   // Cache duration in milliseconds (5 minutes)
   const CACHE_DURATION = 5 * 60 * 1000;
 
   const ensureBase = useCallback(async () => {
     if (chainId !== base.id) {
+      setShowNetworkWarning(true);
       try {
         await switchChain(config, { chainId: base.id });
-      } catch {}
+        setShowNetworkWarning(false);
+      } catch (error) {
+        console.error("Failed to switch network:", error);
+        throw new Error("Please switch to Base network to continue");
+      }
     }
   }, [chainId, config]);
+
+  useEffect(() => {
+    if (address && chainId !== base.id) {
+      setShowNetworkWarning(true);
+    } else {
+      setShowNetworkWarning(false);
+    }
+  }, [chainId, address]);
 
   // Check approval status
   const checkApprovalStatus = useCallback(async () => {
@@ -141,6 +145,40 @@ export default function Page() {
     checkApprovalStatus();
   }, [checkApprovalStatus]);
 
+  // Fetch owned token ID
+  const fetchOwnedTokenId = useCallback(async () => {
+    if (!address) {
+      setOwnedTokenId(null);
+      return;
+    }
+
+    try {
+      const owned: bigint[] = (await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: COLLECTION_ADDR,
+          abi: NFT_ABI,
+          functionName: "getNFTzBelongingToOwner",
+          args: [address],
+        })) as unknown as bigint[];
+      })) as bigint[];
+
+      if (owned && owned.length > 0) {
+        const tokenId = owned.reduce((a, b) => (a > b ? a : b));
+        setOwnedTokenId(tokenId);
+      } else {
+        setOwnedTokenId(null);
+      }
+    } catch (error) {
+      console.error("Error fetching owned token ID:", error);
+      setOwnedTokenId(null);
+    }
+  }, [config, address]);
+
+  // Fetch owned token ID when address changes
+  useEffect(() => {
+    fetchOwnedTokenId();
+  }, [fetchOwnedTokenId]);
+
   // Get phase info from contract
   const getPhaseInfo = useCallback(async () => {
     try {
@@ -160,15 +198,14 @@ export default function Page() {
         bigint
       ];
 
-      // Debug: Log the phase string to see what contract returns
-      console.log("Contract phase string:", currentPhase);
-
       setPhaseInfo({
         currentPhase,
         eid,
         elapsed,
         remaining,
       });
+      
+      setRemainingTimeDisplay(Number(remaining));
     } catch (error) {
       console.error("Error getting phase info:", error);
     }
@@ -214,13 +251,7 @@ export default function Page() {
         })) as bigint;
       })) as bigint;
 
-      // Convert wei to ether using viem's formatEther for precise conversion
-      console.log("PoolAccrued (wei):", poolAccrued.toString());
-
       const etherAmount = formatEther(poolAccrued);
-      console.log("PoolAccrued (ETH):", etherAmount);
-
-      // Parse the formatted ether string to a number and format to 8 decimal places
       const etherNumber = parseFloat(etherAmount);
       setDailyVault(etherNumber.toFixed(8));
     } catch (error) {
@@ -253,6 +284,13 @@ export default function Page() {
   const checkUserSignedStatus = useCallback(async () => {
     if (!address || !phaseInfo) {
       setUserHasSigned(false);
+      setUserHasClaimed(false);
+      return;
+    }
+
+    if (!ownedTokenId) {
+      setUserHasSigned(false);
+      setUserHasClaimed(false);
       return;
     }
 
@@ -275,26 +313,51 @@ export default function Page() {
         })) as bigint;
       });
 
-      // If signedTokenId is 0, user hasn't signed
-      setUserHasSigned((signedTokenId as bigint) > BigInt(0));
+      const hasSigned = (signedTokenId as bigint) > BigInt(0);
+      setUserHasSigned(hasSigned);
+
+      const isSignPhase =
+        phaseInfo.currentPhase.toLowerCase().includes("sign") ||
+        phaseInfo.currentPhase.toLowerCase() === "signing" ||
+        phaseInfo.currentPhase.toLowerCase() === "sign_phase";
+
+      let claimedStatus = false;
+      
+      if (hasSigned && !isSignPhase) {
+        try {
+          await simulateContract(config, {
+            address: CONTRACT_ADDR,
+            abi: MARKET_ABI,
+            functionName: "signOrClaim",
+            args: [BigInt(ownedTokenId)],
+            account: address,
+          });
+          claimedStatus = false;
+        } catch (error: unknown) {
+          const errorMsg = (error as Error)?.message?.toLowerCase() || "";
+          if (errorMsg.includes("already claimed") || errorMsg.includes("claimed")) {
+            claimedStatus = true;
+          }
+        }
+      } else {
+        claimedStatus = false;
+      }
+
+      setUserHasClaimed(claimedStatus);
     } catch (error) {
       console.error("Error checking user signed status:", error);
       setUserHasSigned(false);
+      setUserHasClaimed(false);
     }
-  }, [config, address, phaseInfo]);
+  }, [config, address, phaseInfo, ownedTokenId]);
 
   // Calculate yield per NFT
   const calculateYieldPerNFT = useCallback(() => {
     const vaultAmount = parseFloat(dailyVault);
     const signersCount = dailySigners;
 
-    console.log("Calculating yield per NFT:");
-    console.log("Daily Vault:", dailyVault, "ETH");
-    console.log("Daily Signers:", signersCount);
-
     if (signersCount > 0 && vaultAmount > 0) {
       const yieldPerNFTAmount = vaultAmount / signersCount;
-      console.log("Yield per NFT:", yieldPerNFTAmount, "ETH");
       setYieldPerNFT(yieldPerNFTAmount.toFixed(8));
     } else {
       setYieldPerNFT("0.00000000");
@@ -308,8 +371,10 @@ export default function Page() {
 
   // Check user signed status when address or phase changes
   useEffect(() => {
-    checkUserSignedStatus();
-  }, [checkUserSignedStatus, address, phaseInfo]);
+    if (address && phaseInfo && ownedTokenId) {
+      checkUserSignedStatus();
+    }
+  }, [address, phaseInfo?.currentPhase, ownedTokenId, checkUserSignedStatus]);
 
   // Update phase info when component mounts and periodically
   useEffect(() => {
@@ -359,52 +424,85 @@ export default function Page() {
     CACHE_DURATION,
   ]);
 
+  // Countdown timer - updates every second
+  useEffect(() => {
+    const countdownInterval = setInterval(() => {
+      setRemainingTimeDisplay((prev) => {
+        if (prev <= 0) {
+          setLastFetchTime(0);
+          return 0;
+        }
+        
+        if (prev <= 120) {
+          setLastFetchTime(0);
+        }
+        
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      clearInterval(countdownInterval);
+    };
+  }, []);
+
+  // Format time as HH:MM:SS
+  const formatTimeRemaining = useCallback((seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }, []);
+
   // Get button text based on phase and user's sign status
   const getSignButtonText = useCallback(() => {
     if (!phaseInfo) return "Daily Sign";
 
-    // Check if it's sign phase - contract might return different string values
     const isSignPhase =
       phaseInfo.currentPhase.toLowerCase().includes("sign") ||
       phaseInfo.currentPhase.toLowerCase() === "signing" ||
       phaseInfo.currentPhase.toLowerCase() === "sign_phase";
 
     if (isSignPhase) {
-      // During sign phase
       if (userHasSigned) {
-        // User has signed, show remaining time until claim phase
-        const remainingHours = Math.floor(Number(phaseInfo.remaining) / 3600);
-        return `Claim in ${remainingHours}h`;
+        if (remainingTimeDisplay < 60) {
+          return "Refreshing...";
+        }
+        return `Claim: ${formatTimeRemaining(remainingTimeDisplay)}`;
       } else {
         return "Daily Sign";
       }
     } else {
-      // During claim phase
-      if (userHasSigned) {
+      if (userHasClaimed) {
+        return `Next sign: ${formatTimeRemaining(remainingTimeDisplay)}`;
+      } else if (userHasSigned) {
         return "Claim";
       } else {
-        return "Sign period ended";
+        return `Sign ended: ${formatTimeRemaining(remainingTimeDisplay)}`;
       }
     }
-  }, [phaseInfo, userHasSigned]);
+  }, [phaseInfo, userHasSigned, userHasClaimed, remainingTimeDisplay, formatTimeRemaining]);
 
   // Check if button should be disabled
   const isSignButtonDisabled = useCallback(() => {
-    if (!phaseInfo) return false;
+    if (!phaseInfo) return true;
+    if (!address) return true;
 
     const isSignPhase =
       phaseInfo.currentPhase.toLowerCase().includes("sign") ||
       phaseInfo.currentPhase.toLowerCase() === "signing" ||
       phaseInfo.currentPhase.toLowerCase() === "sign_phase";
 
+    if (remainingTimeDisplay < 30 && isSignPhase && userHasSigned) {
+      return true;
+    }
+
     if (isSignPhase) {
-      // During sign phase: disable if user has already signed
       return userHasSigned;
     } else {
-      // During claim phase: disable if user hasn't signed
-      return !userHasSigned;
+      return !userHasSigned || userHasClaimed;
     }
-  }, [phaseInfo, userHasSigned]);
+  }, [phaseInfo, userHasSigned, userHasClaimed, address, remainingTimeDisplay]);
 
   const handleBidInputChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -430,145 +528,177 @@ export default function Page() {
   );
 
   const handleBid = useCallback(async () => {
-    await ensureBase();
-    const value = parseEther((bidInput || "0") as `${string}`);
-    await writeContract(config, {
-      address: CONTRACT_ADDR,
-      abi: MARKET_ABI,
-      functionName: "placeBid",
-      args: [],
-      value,
-    });
-    alert("Bid placed");
-  }, [config, ensureBase, bidInput]);
+    if (!address) {
+      toast.warning("Please connect your wallet first");
+      return;
+    }
+    try {
+      await ensureBase();
+      const value = parseEther((bidInput || "0") as `${string}`);
+      await writeContract(config, {
+        address: CONTRACT_ADDR,
+        abi: MARKET_ABI,
+        functionName: "placeBid",
+        args: [],
+        value,
+      });
+      toast.success("Bid placed successfully! 🎉");
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("network")) {
+        toast.error("Transaction cancelled: Wrong network. Please switch to Base.");
+      } else {
+        throw error;
+      }
+    }
+  }, [config, ensureBase, bidInput, address]);
 
   const handleSell = useCallback(async () => {
-    // Auto-pick: fetch user's NFTs and use the largest tokenId
     if (!address) {
-      alert("Connect wallet first");
+      toast.warning("Please connect your wallet first");
       return;
     }
-    await ensureBase();
-    const owned: bigint[] = (await retryWithBackoff(async () => {
-      return (await readContract(config, {
-        address: COLLECTION_ADDR,
-        abi: NFT_ABI,
-        functionName: "getNFTzBelongingToOwner",
-        args: [address],
-      })) as unknown as bigint[];
-    })) as bigint[];
-    if (!owned || owned.length === 0) {
-      alert("No NFTs owned");
-      return;
+    try {
+      await ensureBase();
+      const owned: bigint[] = (await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: COLLECTION_ADDR,
+          abi: NFT_ABI,
+          functionName: "getNFTzBelongingToOwner",
+          args: [address],
+        })) as unknown as bigint[];
+      })) as bigint[];
+      if (!owned || owned.length === 0) {
+        toast.error("No NFTs owned");
+        return;
+      }
+      const tokenId = owned.reduce((a, b) => (a > b ? a : b));
+      await writeContract(config, {
+        address: CONTRACT_ADDR,
+        abi: MARKET_ABI,
+        functionName: "sellToHighest",
+        args: [tokenId],
+      });
+      toast.success("NFT sold successfully! 🎉");
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("network")) {
+        alert("Transaction cancelled: Wrong network. Please switch to Base.");
+      } else {
+        throw error;
+      }
     }
-    const tokenId = owned.reduce((a, b) => (a > b ? a : b));
-    await writeContract(config, {
-      address: CONTRACT_ADDR,
-      abi: MARKET_ABI,
-      functionName: "sellToHighest",
-      args: [tokenId],
-    });
-    alert("Sell executed");
   }, [config, ensureBase, address]);
 
-  // Combined approve and sell handler
   const handleApproveAndSell = useCallback(async () => {
     if (!address) {
-      alert("Connect wallet first");
+      toast.warning("Please connect your wallet first");
       return;
     }
 
-    await ensureBase();
+    try {
+      await ensureBase();
 
-    // First approve if not already approved
-    if (!isApproved) {
+      if (!isApproved) {
+        await writeContract(config, {
+          address: COLLECTION_ADDR,
+          abi: NFT_ABI,
+          functionName: "setApprovalForAll",
+          args: [CONTRACT_ADDR, true],
+        });
+        toast.success("Approval set for marketplace contract ✅");
+        await checkApprovalStatus();
+      }
+
+      const owned: bigint[] = (await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: COLLECTION_ADDR,
+          abi: NFT_ABI,
+          functionName: "getNFTzBelongingToOwner",
+          args: [address],
+        })) as unknown as bigint[];
+      })) as bigint[];
+      if (!owned || owned.length === 0) {
+        toast.error("No NFTs owned");
+        return;
+      }
+      const tokenId = owned.reduce((a, b) => (a > b ? a : b));
       await writeContract(config, {
-        address: COLLECTION_ADDR,
-        abi: NFT_ABI,
-        functionName: "setApprovalForAll",
-        args: [CONTRACT_ADDR, true],
+        address: CONTRACT_ADDR,
+        abi: MARKET_ABI,
+        functionName: "sellToHighest",
+        args: [tokenId],
       });
-      alert("Approval set for marketplace contract.");
-      // Refresh approval status
-      await checkApprovalStatus();
+      toast.success("NFT sold successfully! 🎉");
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("network")) {
+        toast.error("Transaction cancelled: Wrong network. Please switch to Base.");
+      } else {
+        throw error;
+      }
     }
-
-    // Then sell
-    const owned: bigint[] = (await retryWithBackoff(async () => {
-      return (await readContract(config, {
-        address: COLLECTION_ADDR,
-        abi: NFT_ABI,
-        functionName: "getNFTzBelongingToOwner",
-        args: [address],
-      })) as unknown as bigint[];
-    })) as bigint[];
-    if (!owned || owned.length === 0) {
-      alert("No NFTs owned");
-      return;
-    }
-    const tokenId = owned.reduce((a, b) => (a > b ? a : b));
-    await writeContract(config, {
-      address: CONTRACT_ADDR,
-      abi: MARKET_ABI,
-      functionName: "sellToHighest",
-      args: [tokenId],
-    });
-    alert("Sell executed");
   }, [config, ensureBase, address, isApproved, checkApprovalStatus]);
 
   const handleSign = useCallback(async () => {
     if (!address) {
-      alert("Connect wallet first");
+      toast.warning("Please connect your wallet first");
       return;
     }
 
-    await ensureBase();
+    try {
+      await ensureBase();
 
-    // Auto-detect user's NFTs
-    const owned: bigint[] = (await retryWithBackoff(async () => {
-      return (await readContract(config, {
-        address: COLLECTION_ADDR,
-        abi: NFT_ABI,
-        functionName: "getNFTzBelongingToOwner",
-        args: [address],
-      })) as unknown as bigint[];
-    })) as bigint[];
+      const owned: bigint[] = (await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: COLLECTION_ADDR,
+          abi: NFT_ABI,
+          functionName: "getNFTzBelongingToOwner",
+          args: [address],
+        })) as unknown as bigint[];
+      })) as bigint[];
 
-    if (!owned || owned.length === 0) {
-      alert("No NFTs owned");
-      return;
+      if (!owned || owned.length === 0) {
+        toast.error("No NFTs owned");
+        return;
+      }
+
+      if (owned.length > 1) {
+        toast.warning("You must hodl only 1 vrnouns in your wallet");
+        return;
+      }
+
+      const tokenId = owned.reduce((a, b) => (a > b ? a : b));
+
+      const isSignPhase =
+        phaseInfo?.currentPhase.toLowerCase().includes("sign") ||
+        phaseInfo?.currentPhase.toLowerCase() === "signing" ||
+        phaseInfo?.currentPhase.toLowerCase() === "sign_phase";
+
+      await writeContract(config, {
+        address: CONTRACT_ADDR,
+        abi: MARKET_ABI,
+        functionName: "signOrClaim",
+        args: [tokenId],
+      });
+
+      if (isSignPhase) {
+        setUserHasSigned(true);
+        toast.success("Sign successful! ✍️");
+      } else {
+        setUserHasClaimed(true);
+        toast.success("Claim successful! 💰");
+      }
+
+      setTimeout(() => {
+        checkUserSignedStatus();
+        getPhaseInfo();
+      }, 2000);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("network")) {
+        toast.error("Transaction cancelled: Wrong network. Please switch to Base.");
+      } else {
+        throw error;
+      }
     }
-
-    // Check if user has more than 1 NFT
-    if (owned.length > 1) {
-      alert("You must hodl only 1 vrnouns on your wallet");
-      return;
-    }
-
-    // Use the largest tokenId (in case of multiple, though we already checked)
-    const tokenId = owned.reduce((a, b) => (a > b ? a : b));
-
-    // Check if it's sign phase or claim phase
-    const isSignPhase =
-      phaseInfo?.currentPhase.toLowerCase().includes("sign") ||
-      phaseInfo?.currentPhase.toLowerCase() === "signing" ||
-      phaseInfo?.currentPhase.toLowerCase() === "sign_phase";
-
-    await writeContract(config, {
-      address: CONTRACT_ADDR,
-      abi: MARKET_ABI,
-      functionName: "signOrClaim",
-      args: [tokenId],
-    });
-
-    if (isSignPhase) {
-      // Update userHasSigned state after successful sign
-      setUserHasSigned(true);
-      alert("Sign successful!");
-    } else {
-      alert("Claim successful!");
-    }
-  }, [config, ensureBase, phaseInfo, address]);
+  }, [config, ensureBase, phaseInfo, address, checkUserSignedStatus, getPhaseInfo]);
 
   return (
     <div className="text-white min-h-screen">
@@ -579,28 +709,80 @@ export default function Page() {
               <Logo className="h-24 w-auto mt-1" />
             </div>
 
-            {/* Sağdaki cüzdan/buton kısmı çerçevenin dışında */}
             <div>
-              <Wallet>
-                <ConnectWallet className="px-4 py-2 border-2 border-gray-400 rounded-full hover:bg-transparent transition text-sm !bg-transparent" />
-                <WalletDropdown>
-                  <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                    <Avatar />
-                    <Name />
-                    <Address />
-                    <EthBalance />
-                  </Identity>
-                  <WalletDropdownLink
-                    icon="wallet"
-                    href="https://keys.coinbase.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Wallet
-                  </WalletDropdownLink>
-                  <WalletDropdownDisconnect />
-                </WalletDropdown>
-              </Wallet>
+              <ConnectButton.Custom>
+                {({
+                  account,
+                  chain,
+                  openAccountModal,
+                  openChainModal,
+                  openConnectModal,
+                  mounted,
+                }) => {
+                  const ready = mounted;
+                  const connected = ready && account && chain;
+
+                  return (
+                    <div
+                      {...(!ready && {
+                        "aria-hidden": true,
+                        style: {
+                          opacity: 0,
+                          pointerEvents: "none",
+                          userSelect: "none",
+                        },
+                      })}
+                    >
+                      {(() => {
+                        if (!connected) {
+                          return (
+                            <button
+                              onClick={openConnectModal}
+                              type="button"
+                              className="px-6 py-2 border-2 border-gray-400 rounded-full hover:bg-transparent transition text-sm !bg-transparent"
+                              style={{ color: 'rgb(9, 9, 11)', fontSize: '15px', letterSpacing: '-0.01em', fontWeight: '500' }}
+                            >
+                              Connect Wallet
+                            </button>
+                          );
+                        }
+
+                        if (chain.unsupported) {
+                          return (
+                            <button
+                              onClick={openChainModal}
+                              type="button"
+                              className="px-4 py-2 border-2 border-red-400 rounded-full hover:bg-red-50 transition text-sm bg-red-100 text-red-600 font-bold"
+                            >
+                              Wrong Network
+                            </button>
+                          );
+                        }
+
+                        return (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={openAccountModal}
+                              type="button"
+                              className="px-6 py-2 border-2 border-gray-400 rounded-full hover:bg-transparent transition text-sm !bg-transparent flex items-center gap-2"
+                              style={{ color: 'rgb(9, 9, 11)', fontSize: '15px', letterSpacing: '-0.01em', fontWeight: '500' }}
+                            >
+                              {chain.hasIcon && chain.iconUrl && (
+                                <img
+                                  alt={chain.name ?? "Chain icon"}
+                                  src={chain.iconUrl}
+                                  style={{ width: 20, height: 20 }}
+                                />
+                              )}
+                              {account.displayName}
+                            </button>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  );
+                }}
+              </ConnectButton.Custom>
             </div>
           </div>
         </header>
@@ -621,6 +803,36 @@ export default function Page() {
 
             {/* İçerik - Sağ tarafta */}
             <div className="flex flex-col space-y-6 lg:max-w-md">
+              {/* Network Warning Banner */}
+              {showNetworkWarning && address && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg text-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <svg
+                        className="h-5 w-5 mr-2"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      <span className="font-bold">
+                        Wrong Network! Please switch to Base
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => ensureBase()}
+                      className="ml-2 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors text-xs font-bold"
+                    >
+                      Switch Network
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* RPC Error Banner */}
               {rpcError && (
                 <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-lg text-sm">
@@ -758,7 +970,7 @@ export default function Page() {
                 <button
                   onClick={handleSign}
                   disabled={isSignButtonDisabled()}
-                  className={`px-8 py-3 rounded-full font-oldschool font-bold transition-colors ${
+                  className={`px-8 py-3 rounded-full font-oldschool font-bold transition-colors min-w-[280px] tabular-nums ${
                     isSignButtonDisabled()
                       ? "bg-gray-400 text-gray-600 cursor-not-allowed"
                       : "bg-black text-white hover:bg-gray-800"
