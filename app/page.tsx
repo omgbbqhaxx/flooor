@@ -333,8 +333,8 @@ export default function Page() {
             account: address,
           });
           claimedStatus = false;
-        } catch (error: any) {
-          const errorMsg = error?.message?.toLowerCase() || "";
+        } catch (error: unknown) {
+          const errorMsg = (error as Error)?.message?.toLowerCase() || "";
           if (errorMsg.includes("already claimed") || errorMsg.includes("claimed")) {
             claimedStatus = true;
           }
