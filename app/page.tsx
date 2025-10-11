@@ -535,10 +535,36 @@ export default function Page() {
   }, [config, ensureBase, address, isApproved, checkApprovalStatus]);
 
   const handleSign = useCallback(async () => {
-    const input = prompt("Enter your NFT tokenId to sign/claim");
-    if (!input) return;
-    const tokenId = BigInt(input);
+    if (!address) {
+      alert("Connect wallet first");
+      return;
+    }
+
     await ensureBase();
+
+    // Auto-detect user's NFTs
+    const owned: bigint[] = (await retryWithBackoff(async () => {
+      return (await readContract(config, {
+        address: COLLECTION_ADDR,
+        abi: NFT_ABI,
+        functionName: "getNFTzBelongingToOwner",
+        args: [address],
+      })) as unknown as bigint[];
+    })) as bigint[];
+
+    if (!owned || owned.length === 0) {
+      alert("No NFTs owned");
+      return;
+    }
+
+    // Check if user has more than 1 NFT
+    if (owned.length > 1) {
+      alert("You must hodl only 1 vrnouns on your wallet");
+      return;
+    }
+
+    // Use the largest tokenId (in case of multiple, though we already checked)
+    const tokenId = owned.reduce((a, b) => (a > b ? a : b));
 
     // Check if it's claim phase and user has signed
     const isSignPhase =
@@ -684,7 +710,7 @@ export default function Page() {
                     Ξ {dailyVault}&nbsp;
                   </span>
                 </span>
-                |
+                <br></br>
                 <span className="font-oldschool text-gray-400 text-sm">
                   &nbsp; <b style={{ color: "#353533" }}>Yield per nft</b>{" "}
                   &nbsp;
