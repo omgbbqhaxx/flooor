@@ -15,6 +15,7 @@ import {
 import { base } from "wagmi/chains";
 import { parseEther, formatEther } from "viem";
 import Image from "next/image";
+import blockies from "blockies";
 
 // Retry utility with exponential backoff
 const retryWithBackoff = async (
@@ -82,10 +83,14 @@ export default function Page() {
   const [dailySigners, setDailySigners] = useState<number>(0);
   const [dailyVault, setDailyVault] = useState<string>("0");
   const [currentBid, setCurrentBid] = useState<string>("0");
+  const [activeBidder, setActiveBidder] = useState<string>("");
+  const [activeBidderName, setActiveBidderName] = useState<string>("");
   const [yieldPerNFT, setYieldPerNFT] = useState<string>("0");
   const [userHasSigned, setUserHasSigned] = useState<boolean>(false);
   const [userHasClaimed, setUserHasClaimed] = useState<boolean>(false);
   const [ownedTokenId, setOwnedTokenId] = useState<bigint | null>(null);
+  const [userNFTs, setUserNFTs] = useState<bigint[]>([]);
+  const [nftImages, setNftImages] = useState<{ [key: string]: string }>({});
   const [rpcError, setRpcError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
@@ -285,6 +290,71 @@ export default function Page() {
     }
   }, [config]);
 
+  // Get active bidder address
+  const getActiveBidder = useCallback(async () => {
+    try {
+      const bidderAddress = (await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: CONTRACT_ADDR,
+          abi: MARKET_ABI,
+          functionName: "activeBidder",
+          args: [],
+        })) as string;
+      })) as string;
+
+      setActiveBidder(bidderAddress);
+
+      // Try to resolve ENS/Base name
+      if (
+        bidderAddress &&
+        bidderAddress !== "0x0000000000000000000000000000000000000000"
+      ) {
+        try {
+          // Try Base name resolution first
+          const baseName = await retryWithBackoff(async () => {
+            return (await readContract(config, {
+              address: "0x4200000000000000000000000000000000000006", // Base Name Service
+              abi: [
+                {
+                  inputs: [{ name: "name", type: "string" }],
+                  name: "addr",
+                  outputs: [{ name: "", type: "address" }],
+                  stateMutability: "view",
+                  type: "function",
+                },
+              ],
+              functionName: "addr",
+              args: [bidderAddress],
+            })) as string;
+          });
+
+          if (
+            baseName &&
+            baseName !== "0x0000000000000000000000000000000000000000"
+          ) {
+            setActiveBidderName(baseName);
+          } else {
+            // Fallback to shortened address
+            setActiveBidderName(
+              `${bidderAddress.slice(0, 6)}...${bidderAddress.slice(-4)}`
+            );
+          }
+        } catch (error) {
+          // Fallback to shortened address
+          setActiveBidderName(
+            `${bidderAddress.slice(0, 6)}...${bidderAddress.slice(-4)}`
+          );
+        }
+      } else {
+        setActiveBidderName("");
+      }
+    } catch (error) {
+      console.error("Error getting active bidder:", error);
+      setActiveBidder("");
+      setActiveBidderName("");
+    }
+  }, [config]);
+
   // Check if user has signed in current epoch
   const checkUserSignedStatus = useCallback(async () => {
     if (!address || !phaseInfo) {
@@ -372,10 +442,91 @@ export default function Page() {
     }
   }, [dailyVault, dailySigners]);
 
+  // Get user's NFTs
+  const getUserNFTs = useCallback(async () => {
+    if (!address || !config) {
+      setUserNFTs([]);
+      return;
+    }
+
+    try {
+      const nfts: bigint[] = [];
+
+      // Get first 5 NFTs owned by user
+      for (let i = 0; i < 5; i++) {
+        try {
+          const tokenId = await retryWithBackoff(async () => {
+            return (await readContract(config, {
+              address: COLLECTION_ADDR,
+              abi: NFT_ABI,
+              functionName: "tokenOfOwnerByIndex",
+              args: [address, BigInt(i)],
+            })) as bigint;
+          });
+          nfts.push(tokenId);
+        } catch (error) {
+          // No more NFTs or error
+          break;
+        }
+      }
+
+      setUserNFTs(nfts);
+    } catch (error) {
+      console.error("Error getting user NFTs:", error);
+      setUserNFTs([]);
+    }
+  }, [address, config]);
+
+  // Get NFT images from tokenURI
+  const getNFTImages = useCallback(async () => {
+    if (!userNFTs.length || !config) {
+      setNftImages({});
+      return;
+    }
+
+    const images: { [key: string]: string } = {};
+
+    for (const tokenId of userNFTs) {
+      try {
+        const tokenURI = await retryWithBackoff(async () => {
+          return (await readContract(config, {
+            address: COLLECTION_ADDR,
+            abi: NFT_ABI,
+            functionName: "tokenURI",
+            args: [tokenId],
+          })) as string;
+        });
+
+        // Decode base64 JSON
+        if (tokenURI.startsWith("data:application/json;base64,")) {
+          const base64Data = tokenURI.split(",")[1];
+          const jsonData = JSON.parse(atob(base64Data));
+
+          if (jsonData.image_data) {
+            // Create data URL for SVG
+            const svgDataUrl = `data:image/svg+xml;base64,${btoa(
+              jsonData.image_data
+            )}`;
+            images[tokenId.toString()] = svgDataUrl;
+          }
+        }
+      } catch (error) {
+        console.error(`Error getting image for token ${tokenId}:`, error);
+      }
+    }
+
+    setNftImages(images);
+  }, [userNFTs, config]);
+
   // Update yield per NFT when vault or signers change
   useEffect(() => {
     calculateYieldPerNFT();
   }, [calculateYieldPerNFT]);
+
+  // Get NFT images when userNFTs change
+  useEffect(() => {
+    getNFTImages();
+  }, [getNFTImages]);
 
   // Check user signed status when address or phase changes
   useEffect(() => {
@@ -403,7 +554,9 @@ export default function Page() {
           getDailySigners(),
           getDailyVault(),
           getCurrentBid(),
+          getActiveBidder(),
           checkUserSignedStatus(),
+          getUserNFTs(),
         ]);
         setLastFetchTime(now);
       } catch (error) {
@@ -427,7 +580,9 @@ export default function Page() {
     getDailySigners,
     getDailyVault,
     getCurrentBid,
+    getActiveBidder,
     checkUserSignedStatus,
+    getUserNFTs,
     lastFetchTime,
     CACHE_DURATION,
   ]);
@@ -831,14 +986,17 @@ export default function Page() {
           {/* Hero Section - Resim ve İçerik */}
           <div className="flex flex-col lg:flex-row items-center lg:items-start space-y-8 lg:space-y-0 lg:space-x-12 w-full">
             {/* Resim - Mobilde ortalanmış */}
-            <div className="w-64 h-64 bg-gray-300 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Image
-                src="/bg.png"
-                alt="Açıklamaa"
-                width={256}
-                height={256}
-                className="w-full h-full object-cover rounded-lg"
-              />
+            <div className="w-64 h-64 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden relative">
+              <div className="absolute inset-0 rounded-full overflow-hidden">
+                <Image
+                  src="/bg.png"
+                  alt="Açıklamaa"
+                  width={256}
+                  height={256}
+                  priority
+                  className="w-full h-full object-cover"
+                />
+              </div>
             </div>
 
             {/* İçerik - Sağ tarafta */}
@@ -907,7 +1065,9 @@ export default function Page() {
                           getDailySigners(),
                           getDailyVault(),
                           getCurrentBid(),
+                          getActiveBidder(),
                           checkUserSignedStatus(),
+                          getUserNFTs(),
                         ]);
                         setLastFetchTime(Date.now());
                       } catch (error) {
@@ -987,19 +1147,98 @@ export default function Page() {
                     <div className="text-xs text-blue-600 font-oldschool uppercase tracking-wide mb-1">
                       Current Bid
                     </div>
-                    <div className="text-xl font-oldschool font-bold text-blue-900">
-                      Ξ {currentBid}
+                    <div className="flex items-center justify-center text-xl font-oldschool font-bold text-blue-900 mb-2">
+                      <svg
+                        className="w-5 h-5 mr-2"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <path
+                          d="M12 1.75L5.75 12.25L12 16L18.25 12.25L12 1.75Z"
+                          fill="currentColor"
+                        />
+                        <path
+                          d="M5.75 13.75L12 17.5L18.25 13.75L12 22.25L5.75 13.75Z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                      {currentBid}
                     </div>
+                    {activeBidder &&
+                      activeBidder !==
+                        "0x0000000000000000000000000000000000000000" && (
+                        <div className="flex items-center justify-center text-xs text-blue-500 font-oldschool">
+                          {activeBidder && (
+                            <div className="w-4 h-4 mr-1 rounded-full overflow-hidden relative">
+                              <div className="absolute inset-0 rounded-full overflow-hidden">
+                                <canvas
+                                  ref={(canvas) => {
+                                    if (canvas && activeBidder) {
+                                      try {
+                                        const blockieCanvas = blockies({
+                                          seed: activeBidder.toLowerCase(),
+                                          size: 8,
+                                          scale: 4,
+                                        });
+                                        const ctx = canvas.getContext("2d");
+                                        if (ctx) {
+                                          canvas.width = 32;
+                                          canvas.height = 32;
+                                          ctx.drawImage(blockieCanvas, 0, 0);
+                                        }
+                                      } catch (error) {
+                                        console.error(
+                                          "Error drawing blockie:",
+                                          error
+                                        );
+                                      }
+                                    }
+                                  }}
+                                  className="w-full h-full"
+                                />
+                              </div>
+                            </div>
+                          )}
+                          <a
+                            href={`https://basescan.org/address/${activeBidder}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-blue-700 hover:underline transition-colors cursor-pointer inline-flex items-center"
+                            title={`View ${
+                              activeBidderName || activeBidder
+                            } on Basescan`}
+                          >
+                            {activeBidderName ||
+                              `${activeBidder.slice(
+                                0,
+                                6
+                              )}...${activeBidder.slice(-4)}`}
+                            <svg
+                              className="w-3 h-3 ml-1"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                              />
+                            </svg>
+                          </a>
+                        </div>
+                      )}
                   </div>
                 </div>
 
                 {/* Action Card */}
                 <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200">
                   <div className="text-center">
-                    <div className="text-xs text-green-600 font-oldschool uppercase tracking-wide mb-2">
+                    <div className="text-xs text-green-600 font-oldschool uppercase tracking-wide mb-1">
                       {isApproved ? "Ready to Sell" : "Approve & Sell"}
                     </div>
-                    <div>
+                    <div className="mb-2">
                       {isCheckingApproval ? (
                         <div className="inline-flex items-center px-3 py-1.5 bg-green-100 text-green-700 rounded-md font-oldschool text-xs">
                           <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-600 mr-1.5"></div>
@@ -1016,6 +1255,34 @@ export default function Page() {
                         </button>
                       )}
                     </div>
+                    {address && userNFTs.length > 0 && userNFTs.length <= 5 && (
+                      <div className="flex justify-center space-x-1">
+                        {userNFTs.map((tokenId) => (
+                          <a
+                            key={tokenId.toString()}
+                            href={`https://basescan.org/token/${COLLECTION_ADDR}?a=${tokenId.toString()}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-4 h-4 rounded-full overflow-hidden border border-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
+                            title={`View Noun #${tokenId.toString()} on Basescan`}
+                          >
+                            {nftImages[tokenId.toString()] ? (
+                              <img
+                                src={nftImages[tokenId.toString()]}
+                                alt={`Noun ${tokenId.toString()}`}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                                <span className="text-xs font-bold text-gray-600">
+                                  #{tokenId.toString()}
+                                </span>
+                              </div>
+                            )}
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
