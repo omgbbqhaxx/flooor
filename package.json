@@ -23,6 +23,7 @@
     "wagmi": "^2.14.11"
   },
   "devDependencies": {
+    "@types/blockies": "^0.0.4",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

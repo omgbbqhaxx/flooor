@@ -330,6 +330,7 @@ export default function Page() {
 
           if (
             baseName &&
+            typeof baseName === "string" &&
             baseName !== "0x0000000000000000000000000000000000000000"
           ) {
             setActiveBidderName(baseName);
@@ -339,7 +340,7 @@ export default function Page() {
               `${bidderAddress.slice(0, 6)}...${bidderAddress.slice(-4)}`
             );
           }
-        } catch (error) {
+        } catch {
           // Fallback to shortened address
           setActiveBidderName(
             `${bidderAddress.slice(0, 6)}...${bidderAddress.slice(-4)}`
@@ -455,16 +456,16 @@ export default function Page() {
       // Get first 5 NFTs owned by user
       for (let i = 0; i < 5; i++) {
         try {
-          const tokenId = await retryWithBackoff(async () => {
+          const tokenId = (await retryWithBackoff(async () => {
             return (await readContract(config, {
               address: COLLECTION_ADDR,
               abi: NFT_ABI,
               functionName: "tokenOfOwnerByIndex",
               args: [address, BigInt(i)],
             })) as bigint;
-          });
+          })) as bigint;
           nfts.push(tokenId);
-        } catch (error) {
+        } catch {
           // No more NFTs or error
           break;
         }
@@ -488,14 +489,14 @@ export default function Page() {
 
     for (const tokenId of userNFTs) {
       try {
-        const tokenURI = await retryWithBackoff(async () => {
+        const tokenURI = (await retryWithBackoff(async () => {
           return (await readContract(config, {
             address: COLLECTION_ADDR,
             abi: NFT_ABI,
             functionName: "tokenURI",
             args: [tokenId],
           })) as string;
-        });
+        })) as string;
 
         // Decode base64 JSON
         if (tokenURI.startsWith("data:application/json;base64,")) {
@@ -533,7 +534,7 @@ export default function Page() {
     if (address && phaseInfo && ownedTokenId) {
       checkUserSignedStatus();
     }
-  }, [address, phaseInfo?.currentPhase, ownedTokenId, checkUserSignedStatus]);
+  }, [address, phaseInfo, ownedTokenId, checkUserSignedStatus]);
 
   // Update phase info when component mounts and periodically
   useEffect(() => {
@@ -963,10 +964,11 @@ export default function Page() {
                               }}
                             >
                               {chain.hasIcon && chain.iconUrl && (
-                                <img
+                                <Image
                                   alt={chain.name ?? "Chain icon"}
                                   src={chain.iconUrl}
-                                  style={{ width: 20, height: 20 }}
+                                  width={20}
+                                  height={20}
                                 />
                               )}
                               {account.displayName}
@@ -1293,9 +1295,11 @@ export default function Page() {
                             title={`View Noun #${tokenId.toString()} on Basescan`}
                           >
                             {nftImages[tokenId.toString()] ? (
-                              <img
+                              <Image
                                 src={nftImages[tokenId.toString()]}
                                 alt={`Noun ${tokenId.toString()}`}
+                                width={16}
+                                height={16}
                                 className="w-full h-full object-cover"
                               />
                             ) : (
