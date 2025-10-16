@@ -736,60 +736,50 @@ export default function Page() {
     }
   }, [config, ensureBase, bidInput, address]);
 
-  const handleSell = useCallback(async () => {
-    if (!address) {
-      toast.warning("Please connect your wallet first");
-      return;
-    }
-    try {
-      await ensureBase();
-      
-      // Check approval status before selling
-      await checkApprovalStatus();
-      
-      // If not approved, automatically approve first
-      if (!isApproved) {
-        toast.info("Approval required. Approving automatically...");
-        await writeContract(config, {
-          address: COLLECTION_ADDR,
-          abi: NFT_ABI,
-          functionName: "setApprovalForAll",
-          args: [CONTRACT_ADDR, true],
-        });
-        toast.success("Approval set for marketplace contract ✅");
-        // Re-check approval status after setting approval
-        await checkApprovalStatus();
-      }
-      
-      const owned: bigint[] = (await retryWithBackoff(async () => {
-        return (await readContract(config, {
-          address: COLLECTION_ADDR,
-          abi: NFT_ABI,
-          functionName: "getNFTzBelongingToOwner",
-          args: [address],
-        })) as unknown as bigint[];
-      })) as bigint[];
-      if (!owned || owned.length === 0) {
-        toast.error("No NFTs owned");
+  const handleSellNFT = useCallback(
+    async (tokenId: bigint) => {
+      if (!address) {
+        toast.warning("Please connect your wallet first");
         return;
       }
-      const tokenId = owned.reduce((a, b) => (a > b ? a : b));
-      await writeContract(config, {
-        address: CONTRACT_ADDR,
-        abi: MARKET_ABI,
-        functionName: "sellToHighest",
-        args: [tokenId],
-      });
-      toast.success("NFT sold successfully! 🎉");
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("network")) {
-        alert("Transaction cancelled: Wrong network. Please switch to Base.");
-      } else {
-        throw error;
-      }
-    }
-  }, [config, ensureBase, address, isApproved, checkApprovalStatus]);
+      try {
+        await ensureBase();
 
+        // Check approval status before selling
+        await checkApprovalStatus();
+
+        // If not approved, automatically approve first
+        if (!isApproved) {
+          toast.info("Approval required. Approving automatically...");
+          await writeContract(config, {
+            address: COLLECTION_ADDR,
+            abi: NFT_ABI,
+            functionName: "setApprovalForAll",
+            args: [CONTRACT_ADDR, true],
+          });
+          toast.success("Approval set for marketplace contract ✅");
+          // Re-check approval status after setting approval
+          await checkApprovalStatus();
+        }
+
+        // Sell the specific NFT
+        await writeContract(config, {
+          address: CONTRACT_ADDR,
+          abi: MARKET_ABI,
+          functionName: "sellToHighest",
+          args: [tokenId],
+        });
+        toast.success(`Noun #${tokenId.toString()} sold successfully! 🎉`);
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("network")) {
+          alert("Transaction cancelled: Wrong network. Please switch to Base.");
+        } else {
+          throw error;
+        }
+      }
+    },
+    [config, ensureBase, address, isApproved, checkApprovalStatus]
+  );
 
   const handleSign = useCallback(async () => {
     if (!address) {
@@ -1244,21 +1234,21 @@ export default function Page() {
                     <div className="text-xs text-green-600 font-oldschool uppercase tracking-wide mb-3">
                       Your NFTs - Click to Sell
                     </div>
-                    
+
                     {isCheckingApproval && (
                       <div className="inline-flex items-center px-3 py-1.5 bg-green-100 text-green-700 rounded-md font-oldschool text-xs mb-3">
                         <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-600 mr-1.5"></div>
                         Checking approval...
                       </div>
                     )}
-                    
+
                     {address && userNFTs.length > 0 && userNFTs.length <= 5 && (
                       <div className="flex justify-center space-x-4">
                         {userNFTs.map((tokenId) => (
                           <div
                             key={tokenId.toString()}
                             className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-gray-300 hover:border-green-400 hover:shadow-lg transition-all cursor-pointer group"
-                            onClick={() => handleSell()}
+                            onClick={() => handleSellNFT(tokenId)}
                             title={`Click to sell Noun #${tokenId.toString()}`}
                           >
                             {nftImages[tokenId.toString()] ? (
@@ -1276,24 +1266,26 @@ export default function Page() {
                                 </span>
                               </div>
                             )}
-                            
+
                             {/* Approve overlay for unapproved NFTs */}
                             {!isApproved && (
                               <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center">
                                 <div className="text-white text-xs font-oldschool font-bold text-center">
                                   <div className="animate-pulse">Approve</div>
-                                  <div className="text-xs opacity-75">Required</div>
+                                  <div className="text-xs opacity-75">
+                                    Required
+                                  </div>
                                 </div>
                               </div>
                             )}
-                            
+
                             {/* Hover effect */}
                             <div className="absolute inset-0 bg-green-500 bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
                               <div className="text-white text-sm font-oldschool font-bold opacity-0 group-hover:opacity-100 transition-opacity">
                                 Sell
                               </div>
                             </div>
-                            
+
                             {/* Token ID badge */}
                             <div className="absolute top-1 left-1 bg-black bg-opacity-70 text-white text-xs px-1.5 py-0.5 rounded font-oldschool font-bold">
                               #{tokenId.toString()}
@@ -1302,13 +1294,13 @@ export default function Page() {
                         ))}
                       </div>
                     )}
-                    
+
                     {address && userNFTs.length === 0 && (
                       <div className="text-xs text-gray-500 font-oldschool">
                         No NFTs found
                       </div>
                     )}
-                    
+
                     {!address && (
                       <div className="text-xs text-gray-500 font-oldschool">
                         Connect wallet to view NFTs
