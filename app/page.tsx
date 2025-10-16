@@ -158,20 +158,47 @@ export default function Page() {
 
     const approvalStatus: { [key: string]: boolean } = {};
 
-    for (const tokenId of userNFTs) {
-      try {
-        const approved = await retryWithBackoff(async () => {
-          return await readContract(config, {
-            address: COLLECTION_ADDR,
-            abi: NFT_ABI,
-            functionName: "isApprovedForAll",
-            args: [address, CONTRACT_ADDR],
-          });
+    // First check if user has approved all NFTs for the contract
+    let isAllApproved = false;
+    try {
+      isAllApproved = (await retryWithBackoff(async () => {
+        return await readContract(config, {
+          address: COLLECTION_ADDR,
+          abi: NFT_ABI,
+          functionName: "isApprovedForAll",
+          args: [address, CONTRACT_ADDR],
         });
-        approvalStatus[tokenId.toString()] = approved as boolean;
-      } catch (error) {
-        console.error(`Error checking approval for token ${tokenId}:`, error);
-        approvalStatus[tokenId.toString()] = false;
+      })) as boolean;
+    } catch (error) {
+      console.error("Error checking isApprovedForAll:", error);
+      isAllApproved = false;
+    }
+
+    // If all are approved, all NFTs are approved
+    if (isAllApproved) {
+      for (const tokenId of userNFTs) {
+        approvalStatus[tokenId.toString()] = true;
+      }
+    } else {
+      // Check individual NFT approvals
+      for (const tokenId of userNFTs) {
+        try {
+          const approvedAddress = (await retryWithBackoff(async () => {
+            return await readContract(config, {
+              address: COLLECTION_ADDR,
+              abi: NFT_ABI,
+              functionName: "getApproved",
+              args: [tokenId],
+            });
+          })) as string;
+
+          // Check if this specific NFT is approved for the contract
+          approvalStatus[tokenId.toString()] =
+            approvedAddress.toLowerCase() === CONTRACT_ADDR.toLowerCase();
+        } catch (error) {
+          console.error(`Error checking approval for token ${tokenId}:`, error);
+          approvalStatus[tokenId.toString()] = false;
+        }
       }
     }
 
