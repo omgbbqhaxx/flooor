@@ -72,8 +72,10 @@ const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
 export default function Page() {
   //const calls = []; // to be populated with buyFloor call later
   const [bidInput, setBidInput] = useState("");
-  const [isApproved, setIsApproved] = useState(false);
   const [isCheckingApproval, setIsCheckingApproval] = useState(false);
+  const [nftApprovalStatus, setNftApprovalStatus] = useState<{
+    [key: string]: boolean;
+  }>({});
   const [phaseInfo, setPhaseInfo] = useState<{
     currentPhase: string;
     eid: bigint;
@@ -127,13 +129,12 @@ export default function Page() {
   // Check approval status
   const checkApprovalStatus = useCallback(async () => {
     if (!address) {
-      setIsApproved(false);
       return;
     }
 
     setIsCheckingApproval(true);
     try {
-      const approved = await retryWithBackoff(async () => {
+      await retryWithBackoff(async () => {
         return await readContract(config, {
           address: COLLECTION_ADDR,
           abi: NFT_ABI,
@@ -141,14 +142,41 @@ export default function Page() {
           args: [address, CONTRACT_ADDR],
         });
       });
-      setIsApproved(approved as boolean);
     } catch (error) {
       console.error("Error checking approval status:", error);
-      setIsApproved(false);
     } finally {
       setIsCheckingApproval(false);
     }
   }, [config, address]);
+
+  // Check individual NFT approval status
+  const checkIndividualNFTApprovals = useCallback(async () => {
+    if (!address || userNFTs.length === 0) {
+      setNftApprovalStatus({});
+      return;
+    }
+
+    const approvalStatus: { [key: string]: boolean } = {};
+
+    for (const tokenId of userNFTs) {
+      try {
+        const approved = await retryWithBackoff(async () => {
+          return await readContract(config, {
+            address: COLLECTION_ADDR,
+            abi: NFT_ABI,
+            functionName: "isApprovedForAll",
+            args: [address, CONTRACT_ADDR],
+          });
+        });
+        approvalStatus[tokenId.toString()] = approved as boolean;
+      } catch (error) {
+        console.error(`Error checking approval for token ${tokenId}:`, error);
+        approvalStatus[tokenId.toString()] = false;
+      }
+    }
+
+    setNftApprovalStatus(approvalStatus);
+  }, [config, address, userNFTs]);
 
   // Check approval status when address changes
   useEffect(() => {
@@ -159,8 +187,9 @@ export default function Page() {
   useEffect(() => {
     if (userNFTs.length > 0) {
       checkApprovalStatus();
+      checkIndividualNFTApprovals();
     }
-  }, [userNFTs, checkApprovalStatus]);
+  }, [userNFTs, checkApprovalStatus, checkIndividualNFTApprovals]);
 
   // Fetch owned token ID
   const fetchOwnedTokenId = useCallback(async () => {
@@ -745,12 +774,15 @@ export default function Page() {
       try {
         await ensureBase();
 
-        // Check approval status before selling
-        await checkApprovalStatus();
+        // Check if this specific NFT is approved
+        const tokenIdStr = tokenId.toString();
+        const isThisNFTApproved = nftApprovalStatus[tokenIdStr];
 
         // If not approved, automatically approve first
-        if (!isApproved) {
-          toast.info("Approval required. Approving automatically...");
+        if (!isThisNFTApproved) {
+          toast.info(
+            `Approval required for Noun #${tokenIdStr}. Approving automatically...`
+          );
           await writeContract(config, {
             address: COLLECTION_ADDR,
             abi: NFT_ABI,
@@ -760,6 +792,7 @@ export default function Page() {
           toast.success("Approval set for marketplace contract ✅");
           // Re-check approval status after setting approval
           await checkApprovalStatus();
+          await checkIndividualNFTApprovals();
         }
 
         // Sell the specific NFT
@@ -769,7 +802,7 @@ export default function Page() {
           functionName: "sellToHighest",
           args: [tokenId],
         });
-        toast.success(`Noun #${tokenId.toString()} sold successfully! 🎉`);
+        toast.success(`Noun #${tokenIdStr} sold successfully! 🎉`);
       } catch (error) {
         if (error instanceof Error && error.message.includes("network")) {
           alert("Transaction cancelled: Wrong network. Please switch to Base.");
@@ -778,7 +811,14 @@ export default function Page() {
         }
       }
     },
-    [config, ensureBase, address, isApproved, checkApprovalStatus]
+    [
+      config,
+      ensureBase,
+      address,
+      nftApprovalStatus,
+      checkApprovalStatus,
+      checkIndividualNFTApprovals,
+    ]
   );
 
   const handleSign = useCallback(async () => {
@@ -1268,7 +1308,7 @@ export default function Page() {
                             )}
 
                             {/* Approve overlay for unapproved NFTs */}
-                            {!isApproved && (
+                            {!nftApprovalStatus[tokenId.toString()] && (
                               <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center">
                                 <div className="text-white text-xs font-oldschool font-bold text-center">
                                   <div className="animate-pulse">Approve</div>
