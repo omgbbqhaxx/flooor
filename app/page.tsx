@@ -76,6 +76,9 @@ export default function Page() {
   const [nftApprovalStatus, setNftApprovalStatus] = useState<{
     [key: string]: boolean;
   }>({});
+  const [nftLoadingStatus, setNftLoadingStatus] = useState<{
+    [key: string]: boolean;
+  }>({});
   const [phaseInfo, setPhaseInfo] = useState<{
     currentPhase: string;
     eid: bigint;
@@ -202,6 +205,7 @@ export default function Page() {
       }
     }
 
+    console.log("checkIndividualNFTApprovals result:", approvalStatus);
     setNftApprovalStatus(approvalStatus);
   }, [config, address, userNFTs]);
 
@@ -213,8 +217,13 @@ export default function Page() {
   // Check approval status when user NFTs change (new NFT acquired)
   useEffect(() => {
     if (userNFTs.length > 0) {
-      checkApprovalStatus();
-      checkIndividualNFTApprovals();
+      // Add delay to avoid rate limits
+      const timeoutId = setTimeout(() => {
+        checkApprovalStatus();
+        checkIndividualNFTApprovals();
+      }, 1000);
+
+      return () => clearTimeout(timeoutId);
     }
   }, [userNFTs, checkApprovalStatus, checkIndividualNFTApprovals]);
 
@@ -803,26 +812,91 @@ export default function Page() {
 
         // Check if this specific NFT is approved
         const tokenIdStr = tokenId.toString();
-        const isThisNFTApproved = nftApprovalStatus[tokenIdStr];
+        const isThisNFTApproved = nftApprovalStatus[tokenIdStr] === true;
+
+        console.log(`NFT ${tokenIdStr} approval status:`, isThisNFTApproved);
+        console.log("Current nftApprovalStatus:", nftApprovalStatus);
+        console.log("Current nftLoadingStatus:", nftLoadingStatus);
 
         // If not approved, automatically approve first
         if (!isThisNFTApproved) {
+          // Set loading state for this specific NFT
+          setNftLoadingStatus((prev) => ({
+            ...prev,
+            [tokenIdStr]: true,
+          }));
+
           toast.info(
             `Approval required for Noun #${tokenIdStr}. Approving automatically...`
           );
-          await writeContract(config, {
-            address: COLLECTION_ADDR,
-            abi: NFT_ABI,
-            functionName: "setApprovalForAll",
-            args: [CONTRACT_ADDR, true],
-          });
-          toast.success("Approval set for marketplace contract ✅");
-          // Re-check approval status after setting approval
-          await checkApprovalStatus();
-          await checkIndividualNFTApprovals();
+
+          try {
+            await retryWithBackoff(
+              async () => {
+                return await writeContract(config, {
+                  address: COLLECTION_ADDR,
+                  abi: NFT_ABI,
+                  functionName: "setApprovalForAll",
+                  args: [CONTRACT_ADDR, true],
+                });
+              },
+              5,
+              2000
+            ); // 5 retry, 2 second base delay
+
+            toast.info(
+              "Approval transaction sent. Waiting for confirmation..."
+            );
+
+            // Wait for approval transaction to be confirmed
+            await new Promise((resolve) => setTimeout(resolve, 5000));
+
+            // Verify approval is actually set
+            const isActuallyApproved = await retryWithBackoff(async () => {
+              return await readContract(config, {
+                address: COLLECTION_ADDR,
+                abi: NFT_ABI,
+                functionName: "isApprovedForAll",
+                args: [address, CONTRACT_ADDR],
+              });
+            });
+
+            if (isActuallyApproved) {
+              toast.success("Approval confirmed! ✅");
+
+              // Update the specific NFT's approval status
+              setNftApprovalStatus((prev) => ({
+                ...prev,
+                [tokenIdStr]: true,
+              }));
+
+              // Update all NFT approval statuses
+              await checkIndividualNFTApprovals();
+            } else {
+              throw new Error("Approval not confirmed on blockchain");
+            }
+          } catch (error) {
+            console.error("Approval failed:", error);
+            if (
+              error instanceof Error &&
+              error.message.includes("rate limited")
+            ) {
+              toast.error("Rate limited. Please wait a moment and try again.");
+            } else {
+              toast.error("Approval failed. Please try again.");
+            }
+            throw error;
+          } finally {
+            // Clear loading state
+            setNftLoadingStatus((prev) => ({
+              ...prev,
+              [tokenIdStr]: false,
+            }));
+          }
         }
 
         // Sell the specific NFT
+        toast.info(`Selling Noun #${tokenIdStr}...`);
         await writeContract(config, {
           address: CONTRACT_ADDR,
           abi: MARKET_ABI,
@@ -843,7 +917,7 @@ export default function Page() {
       ensureBase,
       address,
       nftApprovalStatus,
-      checkApprovalStatus,
+      nftLoadingStatus,
       checkIndividualNFTApprovals,
     ]
   );
@@ -1334,24 +1408,38 @@ export default function Page() {
                               </div>
                             )}
 
-                            {/* Approve overlay for unapproved NFTs */}
-                            {!nftApprovalStatus[tokenId.toString()] && (
-                              <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center">
+                            {/* Loading overlay */}
+                            {nftLoadingStatus[tokenId.toString()] && (
+                              <div className="absolute inset-0 bg-blue-500 bg-opacity-80 flex items-center justify-center">
                                 <div className="text-white text-xs font-oldschool font-bold text-center">
-                                  <div className="animate-pulse">Approve</div>
-                                  <div className="text-xs opacity-75">
-                                    Required
-                                  </div>
+                                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mx-auto mb-2"></div>
+                                  <div>Approving...</div>
                                 </div>
                               </div>
                             )}
 
-                            {/* Hover effect */}
-                            <div className="absolute inset-0 bg-green-500 bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
-                              <div className="text-white text-sm font-oldschool font-bold opacity-0 group-hover:opacity-100 transition-opacity">
-                                Sell
-                              </div>
-                            </div>
+                            {/* Approve overlay for unapproved NFTs */}
+                            {!nftApprovalStatus[tokenId.toString()] &&
+                              !nftLoadingStatus[tokenId.toString()] && (
+                                <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center">
+                                  <div className="text-white text-xs font-oldschool font-bold text-center">
+                                    <div className="animate-pulse">Approve</div>
+                                    <div className="text-xs opacity-75">
+                                      Required
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                            {/* Hover effect for approved NFTs */}
+                            {nftApprovalStatus[tokenId.toString()] &&
+                              !nftLoadingStatus[tokenId.toString()] && (
+                                <div className="absolute inset-0 bg-green-500 bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
+                                  <div className="text-white text-sm font-oldschool font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                                    Sell
+                                  </div>
+                                </div>
+                              )}
 
                             {/* Token ID badge */}
                             <div className="absolute top-1 left-1 bg-black bg-opacity-70 text-white text-xs px-1.5 py-0.5 rounded font-oldschool font-bold">
@@ -1493,6 +1581,14 @@ export default function Page() {
                   className="hover:text-white transition-colors font-oldschool font-bold"
                 >
                   Twitter
+                </a>
+
+                <a
+                  href="https://basescan.org/address/0xbb56a9359df63014b3347585565d6f80ac6305fd#readContract"
+                  target="_blank"
+                  className="hover:text-white transition-colors font-oldschool font-bold"
+                >
+                  VRNouns Contract
                 </a>
 
                 <a
