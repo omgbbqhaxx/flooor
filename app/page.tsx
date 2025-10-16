@@ -592,6 +592,7 @@ export default function Page() {
     getActiveBidder,
     checkUserSignedStatus,
     getUserNFTs,
+    checkApprovalStatus,
     lastFetchTime,
     CACHE_DURATION,
   ]);
