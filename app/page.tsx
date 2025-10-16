@@ -743,16 +743,24 @@ export default function Page() {
     }
     try {
       await ensureBase();
-
+      
       // Check approval status before selling
       await checkApprovalStatus();
-
-      // If not approved, redirect to approve and sell
+      
+      // If not approved, automatically approve first
       if (!isApproved) {
-        toast.warning("Approval required. Please use 'Approve & Sell' button.");
-        return;
+        toast.info("Approval required. Approving automatically...");
+        await writeContract(config, {
+          address: COLLECTION_ADDR,
+          abi: NFT_ABI,
+          functionName: "setApprovalForAll",
+          args: [CONTRACT_ADDR, true],
+        });
+        toast.success("Approval set for marketplace contract ✅");
+        // Re-check approval status after setting approval
+        await checkApprovalStatus();
       }
-
+      
       const owned: bigint[] = (await retryWithBackoff(async () => {
         return (await readContract(config, {
           address: COLLECTION_ADDR,
@@ -782,60 +790,6 @@ export default function Page() {
     }
   }, [config, ensureBase, address, isApproved, checkApprovalStatus]);
 
-  const handleApproveAndSell = useCallback(async () => {
-    if (!address) {
-      toast.warning("Please connect your wallet first");
-      return;
-    }
-
-    try {
-      await ensureBase();
-
-      // Always check approval status before proceeding
-      await checkApprovalStatus();
-
-      if (!isApproved) {
-        await writeContract(config, {
-          address: COLLECTION_ADDR,
-          abi: NFT_ABI,
-          functionName: "setApprovalForAll",
-          args: [CONTRACT_ADDR, true],
-        });
-        toast.success("Approval set for marketplace contract ✅");
-        // Re-check approval status after setting approval
-        await checkApprovalStatus();
-      }
-
-      const owned: bigint[] = (await retryWithBackoff(async () => {
-        return (await readContract(config, {
-          address: COLLECTION_ADDR,
-          abi: NFT_ABI,
-          functionName: "getNFTzBelongingToOwner",
-          args: [address],
-        })) as unknown as bigint[];
-      })) as bigint[];
-      if (!owned || owned.length === 0) {
-        toast.error("No NFTs owned");
-        return;
-      }
-      const tokenId = owned.reduce((a, b) => (a > b ? a : b));
-      await writeContract(config, {
-        address: CONTRACT_ADDR,
-        abi: MARKET_ABI,
-        functionName: "sellToHighest",
-        args: [tokenId],
-      });
-      toast.success("NFT sold successfully! 🎉");
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("network")) {
-        toast.error(
-          "Transaction cancelled: Wrong network. Please switch to Base."
-        );
-      } else {
-        throw error;
-      }
-    }
-  }, [config, ensureBase, address, isApproved, checkApprovalStatus]);
 
   const handleSign = useCallback(async () => {
     if (!address) {
@@ -1288,7 +1242,7 @@ export default function Page() {
                 <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200">
                   <div className="text-center">
                     <div className="text-xs text-green-600 font-oldschool uppercase tracking-wide mb-1">
-                      {isApproved ? "Ready to Sell" : "Approve & Sell"}
+                      Sell NFT
                     </div>
                     <div className="mb-2">
                       {isCheckingApproval ? (
@@ -1298,18 +1252,16 @@ export default function Page() {
                         </div>
                       ) : (
                         <button
-                          onClick={
-                            isApproved ? handleSell : handleApproveAndSell
-                          }
+                          onClick={handleSell}
                           className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md font-oldschool font-medium hover:bg-green-700 transition-colors text-xs"
                         >
-                          {isApproved ? "Sell" : "Approve & Sell"}
+                          Sell
                         </button>
                       )}
                     </div>
                     {!isApproved && !isCheckingApproval && (
-                      <div className="text-xs text-orange-600 font-oldschool text-center">
-                        Approval required for new NFTs
+                      <div className="text-xs text-blue-600 font-oldschool text-center">
+                        Will auto-approve if needed
                       </div>
                     )}
                     {address && userNFTs.length > 0 && userNFTs.length <= 5 && (
