@@ -155,6 +155,13 @@ export default function Page() {
     checkApprovalStatus();
   }, [checkApprovalStatus]);
 
+  // Check approval status when user NFTs change (new NFT acquired)
+  useEffect(() => {
+    if (userNFTs.length > 0) {
+      checkApprovalStatus();
+    }
+  }, [userNFTs, checkApprovalStatus]);
+
   // Fetch owned token ID
   const fetchOwnedTokenId = useCallback(async () => {
     if (!address) {
@@ -558,6 +565,7 @@ export default function Page() {
           getActiveBidder(),
           checkUserSignedStatus(),
           getUserNFTs(),
+          checkApprovalStatus(),
         ]);
         setLastFetchTime(now);
       } catch (error) {
@@ -734,6 +742,16 @@ export default function Page() {
     }
     try {
       await ensureBase();
+
+      // Check approval status before selling
+      await checkApprovalStatus();
+
+      // If not approved, redirect to approve and sell
+      if (!isApproved) {
+        toast.warning("Approval required. Please use 'Approve & Sell' button.");
+        return;
+      }
+
       const owned: bigint[] = (await retryWithBackoff(async () => {
         return (await readContract(config, {
           address: COLLECTION_ADDR,
@@ -761,7 +779,7 @@ export default function Page() {
         throw error;
       }
     }
-  }, [config, ensureBase, address]);
+  }, [config, ensureBase, address, isApproved, checkApprovalStatus]);
 
   const handleApproveAndSell = useCallback(async () => {
     if (!address) {
@@ -772,6 +790,9 @@ export default function Page() {
     try {
       await ensureBase();
 
+      // Always check approval status before proceeding
+      await checkApprovalStatus();
+
       if (!isApproved) {
         await writeContract(config, {
           address: COLLECTION_ADDR,
@@ -780,6 +801,7 @@ export default function Page() {
           args: [CONTRACT_ADDR, true],
         });
         toast.success("Approval set for marketplace contract ✅");
+        // Re-check approval status after setting approval
         await checkApprovalStatus();
       }
 
@@ -1068,6 +1090,7 @@ export default function Page() {
                           getActiveBidder(),
                           checkUserSignedStatus(),
                           getUserNFTs(),
+                          checkApprovalStatus(),
                         ]);
                         setLastFetchTime(Date.now());
                       } catch (error) {
@@ -1283,6 +1306,11 @@ export default function Page() {
                         </button>
                       )}
                     </div>
+                    {!isApproved && !isCheckingApproval && (
+                      <div className="text-xs text-orange-600 font-oldschool text-center">
+                        Approval required for new NFTs
+                      </div>
+                    )}
                     {address && userNFTs.length > 0 && userNFTs.length <= 5 && (
                       <div className="flex justify-center space-x-1">
                         {userNFTs.map((tokenId) => (
