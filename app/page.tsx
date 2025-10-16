@@ -1601,6 +1601,50 @@ export default function Page() {
               </div>
             </div>
 
+            {/* Contract Address Section */}
+            <div className="mt-6 pt-6 border-t border-white-800">
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 mb-6">
+                <div className="text-center">
+                  <p className="text-sm text-gray-600 font-oldschool font-bold mb-2">
+                    If you sent ETH directly to contract you can bid instantly
+                  </p>
+                  <p className="text-xs text-gray-500 font-oldschool mb-3">
+                    But you must set gas limit to 300,000
+                  </p>
+
+                  <div className="flex items-center justify-center space-x-2 bg-white rounded-lg p-3 border border-gray-300">
+                    <span className="text-sm font-mono text-gray-800 font-oldschool">
+                      0xf6b2c2411a101db46c8513ddaef10b11184c58ff
+                    </span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(
+                          "0xf6b2c2411a101db46c8513ddaef10b11184c58ff"
+                        );
+                        toast.success("Contract address copied!");
+                      }}
+                      className="ml-2 p-1.5 bg-gray-200 hover:bg-gray-300 rounded transition-colors"
+                      title="Copy contract address"
+                    >
+                      <svg
+                        className="w-4 h-4 text-gray-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="mt-6 pt-6 border-t border-white-800 text-center">
               <p className="text-xs text-gray-500 font-oldschool font-bold">
                 © 2025 flooor.fun . CC0 - Licensed.
