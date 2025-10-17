@@ -937,9 +937,34 @@ export default function Page() {
         toast.success(`Noun #${tokenIdStr} sold successfully! 🎉`);
       } catch (error) {
         if (error instanceof Error && error.message.includes("network")) {
-          alert("Transaction cancelled: Wrong network. Please switch to Base.");
+          toast.error(
+            "Transaction cancelled: Wrong network. Please switch to Base."
+          );
+        } else if (
+          error instanceof Error &&
+          error.message.includes("rate limited")
+        ) {
+          toast.error(
+            `Rate limited: ${error.message}. Please wait a moment and try again.`,
+            {
+              duration: 5000,
+              action: {
+                label: "Retry",
+                onClick: () => handleSellNFT(tokenId),
+              },
+            }
+          );
         } else {
-          throw error;
+          // Show the actual error message to the user
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          toast.error(`Sell failed: ${errorMessage}`, {
+            duration: 5000,
+            action: {
+              label: "Retry",
+              onClick: () => handleSellNFT(tokenId),
+            },
+          });
         }
       }
     },
@@ -1012,8 +1037,31 @@ export default function Page() {
         toast.error(
           "Transaction cancelled: Wrong network. Please switch to Base."
         );
+      } else if (
+        error instanceof Error &&
+        error.message.includes("rate limited")
+      ) {
+        toast.error(
+          `Rate limited: ${error.message}. Please wait a moment and try again.`,
+          {
+            duration: 5000,
+            action: {
+              label: "Retry",
+              onClick: () => handleSign(),
+            },
+          }
+        );
       } else {
-        throw error;
+        // Show the actual error message to the user
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        toast.error(`Sign/Claim failed: ${errorMessage}`, {
+          duration: 5000,
+          action: {
+            label: "Retry",
+            onClick: () => handleSign(),
+          },
+        });
       }
     }
   }, [
