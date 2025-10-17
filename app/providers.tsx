@@ -10,7 +10,9 @@ import "@rainbow-me/rainbowkit/styles.css";
 
 const rpcTransports = fallback([
   http("https://base-mainnet.g.alchemy.com/v2/R11AN4bze2Uyhg3V6KZ7m"),
-  http("https://base.drpc.org"),
+  http(
+    "https://lb.drpc.live/base/AoBzi9hc10ZYuXKhr5g4Uz-ksgFoq00R8LjmQrxF2MGT"
+  ),
 ]);
 
 const config = getDefaultConfig({

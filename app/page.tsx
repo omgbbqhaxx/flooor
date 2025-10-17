@@ -1097,14 +1097,22 @@ export default function Page() {
           <div className="flex flex-col lg:flex-row items-center lg:items-start space-y-8 lg:space-y-0 lg:space-x-12 w-full">
             {/* Resim - Mobilde ortalanmış */}
             <div className="w-64 h-64 bg-gray-300 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Image
-                src="/bg.png"
-                alt="Açıklamaa"
-                width={256}
-                height={256}
-                priority
-                className="w-full h-full object-cover rounded-lg"
-              />
+              <a
+                href="https://opensea.io/collection/vrnouns"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full h-full cursor-pointer hover:opacity-90 transition-opacity"
+                title="View VRNouns on OpenSea"
+              >
+                <Image
+                  src="/bg.png"
+                  alt="VRNouns Collection - Click to view on OpenSea"
+                  width={256}
+                  height={256}
+                  priority
+                  className="w-full h-full object-cover rounded-lg"
+                />
+              </a>
             </div>
 
             {/* İçerik - Sağ tarafta */}
@@ -1538,8 +1546,8 @@ export default function Page() {
                 </div>
                 <div className="bg-[#FE500C] rounded-lg w-48 h-48 flex items-center justify-center px-2">
                   <span className="text-xl font-bold font-oldschool text-center">
-                    post-democratic distribution<br></br> with tri-quadratic
-                    equations.
+                    An NFT platform built on game theory<br></br> , designed so
+                    the whole group wins together.
                   </span>
                 </div>
               </div>
@@ -1588,7 +1596,7 @@ export default function Page() {
                   target="_blank"
                   className="hover:text-white transition-colors font-oldschool font-bold"
                 >
-                  VRNouns Contract
+                  VRNouns
                 </a>
 
                 <a
@@ -1596,7 +1604,7 @@ export default function Page() {
                   target="_blank"
                   className="hover:text-white transition-colors font-oldschool font-bold"
                 >
-                  Contract
+                  Flooor
                 </a>
               </div>
             </div>
