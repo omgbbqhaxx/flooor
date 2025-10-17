@@ -1639,7 +1639,7 @@ export default function Page() {
                   target="_blank"
                   className="hover:text-white transition-colors font-oldschool font-bold"
                 >
-                  Twitter
+                  X
                 </a>
 
                 <a
