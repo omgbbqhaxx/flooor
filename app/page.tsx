@@ -803,8 +803,31 @@ export default function Page() {
         toast.error(
           "Transaction cancelled: Wrong network. Please switch to Base."
         );
+      } else if (
+        error instanceof Error &&
+        error.message.includes("rate limited")
+      ) {
+        toast.error(
+          `Rate limited: ${error.message}. Please wait a moment and try again.`,
+          {
+            duration: 5000,
+            action: {
+              label: "Retry",
+              onClick: () => handleBid(),
+            },
+          }
+        );
       } else {
-        throw error;
+        // Show the actual error message to the user
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        toast.error(`Transaction failed: ${errorMessage}`, {
+          duration: 5000,
+          action: {
+            label: "Retry",
+            onClick: () => handleBid(),
+          },
+        });
       }
     }
   }, [config, ensureBase, bidInput, address]);
