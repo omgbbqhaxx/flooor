@@ -152,7 +152,7 @@ export default function Page() {
     }
   }, [config, address]);
 
-  // Check individual NFT approval status
+  // Check approval status for the displayed NFT only (highest token ID)
   const checkIndividualNFTApprovals = useCallback(async () => {
     if (!address || userNFTs.length === 0) {
       setNftApprovalStatus({});
@@ -160,6 +160,10 @@ export default function Page() {
     }
 
     const approvalStatus: { [key: string]: boolean } = {};
+
+    // Get the highest token ID (the one we display)
+    const highestTokenId = userNFTs.reduce((a, b) => (a > b ? a : b));
+    const tokenIdStr = highestTokenId.toString();
 
     // First check if user has approved all NFTs for the contract
     let isAllApproved = false;
@@ -177,35 +181,37 @@ export default function Page() {
       isAllApproved = false;
     }
 
-    // If all are approved, all NFTs are approved
+    // If all are approved, the displayed NFT is approved
     if (isAllApproved) {
-      for (const tokenId of userNFTs) {
-        approvalStatus[tokenId.toString()] = true;
-      }
+      approvalStatus[tokenIdStr] = true;
     } else {
-      // Check individual NFT approvals
-      for (const tokenId of userNFTs) {
-        try {
-          const approvedAddress = (await retryWithBackoff(async () => {
-            return await readContract(config, {
-              address: COLLECTION_ADDR,
-              abi: NFT_ABI,
-              functionName: "getApproved",
-              args: [tokenId],
-            });
-          })) as string;
+      // Check individual approval for the displayed NFT only
+      try {
+        const approvedAddress = (await retryWithBackoff(async () => {
+          return await readContract(config, {
+            address: COLLECTION_ADDR,
+            abi: NFT_ABI,
+            functionName: "getApproved",
+            args: [highestTokenId],
+          });
+        })) as string;
 
-          // Check if this specific NFT is approved for the contract
-          approvalStatus[tokenId.toString()] =
-            approvedAddress.toLowerCase() === CONTRACT_ADDR.toLowerCase();
-        } catch (error) {
-          console.error(`Error checking approval for token ${tokenId}:`, error);
-          approvalStatus[tokenId.toString()] = false;
-        }
+        // Check if this specific NFT is approved for the contract
+        approvalStatus[tokenIdStr] =
+          approvedAddress.toLowerCase() === CONTRACT_ADDR.toLowerCase();
+      } catch (error) {
+        console.error(
+          `Error checking approval for token ${highestTokenId}:`,
+          error
+        );
+        approvalStatus[tokenIdStr] = false;
       }
     }
 
-    console.log("checkIndividualNFTApprovals result:", approvalStatus);
+    console.log(
+      "checkIndividualNFTApprovals result (displayed NFT only):",
+      approvalStatus
+    );
     setNftApprovalStatus(approvalStatus);
   }, [config, address, userNFTs]);
 
@@ -550,7 +556,7 @@ export default function Page() {
     }
   }, [address, config]);
 
-  // Get NFT images from tokenURI
+  // Get NFT image for the displayed NFT only (highest token ID)
   const getNFTImages = useCallback(async () => {
     if (!userNFTs.length || !config) {
       setNftImages({});
@@ -559,33 +565,35 @@ export default function Page() {
 
     const images: { [key: string]: string } = {};
 
-    for (const tokenId of userNFTs) {
-      try {
-        const tokenURI = (await retryWithBackoff(async () => {
-          return (await readContract(config, {
-            address: COLLECTION_ADDR,
-            abi: NFT_ABI,
-            functionName: "tokenURI",
-            args: [tokenId],
-          })) as string;
+    // Get only the highest token ID (the one we display)
+    const highestTokenId = userNFTs.reduce((a, b) => (a > b ? a : b));
+    const tokenIdStr = highestTokenId.toString();
+
+    try {
+      const tokenURI = (await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: COLLECTION_ADDR,
+          abi: NFT_ABI,
+          functionName: "tokenURI",
+          args: [highestTokenId],
         })) as string;
+      })) as string;
 
-        // Decode base64 JSON
-        if (tokenURI.startsWith("data:application/json;base64,")) {
-          const base64Data = tokenURI.split(",")[1];
-          const jsonData = JSON.parse(atob(base64Data));
+      // Decode base64 JSON
+      if (tokenURI.startsWith("data:application/json;base64,")) {
+        const base64Data = tokenURI.split(",")[1];
+        const jsonData = JSON.parse(atob(base64Data));
 
-          if (jsonData.image_data) {
-            // Create data URL for SVG
-            const svgDataUrl = `data:image/svg+xml;base64,${btoa(
-              jsonData.image_data
-            )}`;
-            images[tokenId.toString()] = svgDataUrl;
-          }
+        if (jsonData.image_data) {
+          // Create data URL for SVG
+          const svgDataUrl = `data:image/svg+xml;base64,${btoa(
+            jsonData.image_data
+          )}`;
+          images[tokenIdStr] = svgDataUrl;
         }
-      } catch (error) {
-        console.error(`Error getting image for token ${tokenId}:`, error);
       }
+    } catch (error) {
+      console.error(`Error getting image for token ${highestTokenId}:`, error);
     }
 
     setNftImages(images);
@@ -1391,70 +1399,90 @@ export default function Page() {
                       </div>
                     )}
 
-                    {address && userNFTs.length > 0 && userNFTs.length <= 5 && (
-                      <div className="flex justify-center space-x-4">
-                        {userNFTs.map((tokenId) => (
-                          <div
-                            key={tokenId.toString()}
-                            className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-gray-300 hover:border-green-400 hover:shadow-lg transition-all cursor-pointer group"
-                            onClick={() => handleSellNFT(tokenId)}
-                            title={`Click to sell Noun #${tokenId.toString()}`}
-                          >
-                            {nftImages[tokenId.toString()] ? (
-                              <Image
-                                src={nftImages[tokenId.toString()]}
-                                alt={`Noun ${tokenId.toString()}`}
-                                width={80}
-                                height={80}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                                <span className="text-sm font-bold text-gray-600">
-                                  #{tokenId.toString()}
-                                </span>
-                              </div>
-                            )}
+                    {address && userNFTs.length > 0 && (
+                      <div className="flex flex-col items-center space-y-3">
+                        {/* Show only the highest token ID NFT */}
+                        {(() => {
+                          const highestTokenId = userNFTs.reduce((a, b) =>
+                            a > b ? a : b
+                          );
+                          const tokenIdStr = highestTokenId.toString();
+                          const moreCount = userNFTs.length - 1;
 
-                            {/* Loading overlay */}
-                            {nftLoadingStatus[tokenId.toString()] && (
-                              <div className="absolute inset-0 bg-blue-500 bg-opacity-80 flex items-center justify-center">
-                                <div className="text-white text-xs font-oldschool font-bold text-center">
-                                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mx-auto mb-2"></div>
-                                  <div>Approving...</div>
-                                </div>
-                              </div>
-                            )}
+                          return (
+                            <div className="flex flex-col items-center space-y-2">
+                              <div
+                                className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-gray-300 hover:border-green-400 hover:shadow-lg transition-all cursor-pointer group"
+                                onClick={() => handleSellNFT(highestTokenId)}
+                                title={`Click to sell Noun #${tokenIdStr}`}
+                              >
+                                {nftImages[tokenIdStr] ? (
+                                  <Image
+                                    src={nftImages[tokenIdStr]}
+                                    alt={`Noun ${tokenIdStr}`}
+                                    width={80}
+                                    height={80}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                                    <span className="text-sm font-bold text-gray-600">
+                                      #{tokenIdStr}
+                                    </span>
+                                  </div>
+                                )}
 
-                            {/* Approve overlay for unapproved NFTs */}
-                            {!nftApprovalStatus[tokenId.toString()] &&
-                              !nftLoadingStatus[tokenId.toString()] && (
-                                <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center">
-                                  <div className="text-white text-xs font-oldschool font-bold text-center">
-                                    <div className="animate-pulse">Approve</div>
-                                    <div className="text-xs opacity-75">
-                                      Required
+                                {/* Loading overlay */}
+                                {nftLoadingStatus[tokenIdStr] && (
+                                  <div className="absolute inset-0 bg-blue-500 bg-opacity-80 flex items-center justify-center">
+                                    <div className="text-white text-xs font-oldschool font-bold text-center">
+                                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mx-auto mb-2"></div>
+                                      <div>Approving...</div>
                                     </div>
                                   </div>
+                                )}
+
+                                {/* Approve overlay for unapproved NFTs */}
+                                {!nftApprovalStatus[tokenIdStr] &&
+                                  !nftLoadingStatus[tokenIdStr] && (
+                                    <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center">
+                                      <div className="text-white text-xs font-oldschool font-bold text-center">
+                                        <div className="animate-pulse">
+                                          Approve
+                                        </div>
+                                        <div className="text-xs opacity-75">
+                                          Required
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                {/* Hover effect for approved NFTs */}
+                                {nftApprovalStatus[tokenIdStr] &&
+                                  !nftLoadingStatus[tokenIdStr] && (
+                                    <div className="absolute inset-0 bg-green-500 bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
+                                      <div className="text-white text-sm font-oldschool font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                                        Sell
+                                      </div>
+                                    </div>
+                                  )}
+
+                                {/* Token ID badge */}
+                                <div className="absolute top-1 left-1 bg-black bg-opacity-70 text-white text-xs px-1.5 py-0.5 rounded font-oldschool font-bold">
+                                  #{tokenIdStr}
+                                </div>
+                              </div>
+
+                              {/* Show count of additional NFTs */}
+                              {moreCount > 0 && (
+                                <div className="text-xs text-gray-500 font-oldschool font-bold">
+                                  +{moreCount} more NFT
+                                  {moreCount > 1 ? "s" : ""}
                                 </div>
                               )}
-
-                            {/* Hover effect for approved NFTs */}
-                            {nftApprovalStatus[tokenId.toString()] &&
-                              !nftLoadingStatus[tokenId.toString()] && (
-                                <div className="absolute inset-0 bg-green-500 bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
-                                  <div className="text-white text-sm font-oldschool font-bold opacity-0 group-hover:opacity-100 transition-opacity">
-                                    Sell
-                                  </div>
-                                </div>
-                              )}
-
-                            {/* Token ID badge */}
-                            <div className="absolute top-1 left-1 bg-black bg-opacity-70 text-white text-xs px-1.5 py-0.5 rounded font-oldschool font-bold">
-                              #{tokenId.toString()}
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })()}
                       </div>
                     )}
 
@@ -1655,7 +1683,8 @@ export default function Page() {
 
             <div className="mt-6 pt-6 border-t border-white-800 text-center">
               <p className="text-xs text-gray-500 font-oldschool font-bold">
-                © 2025 flooor.fun . CC0 - Licensed.
+                © 2025 flooor.fun . CC0 - Licensed. Front-end v1.0.17 & Contract
+                version 1.0
               </p>
             </div>
           </div>
