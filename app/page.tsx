@@ -843,6 +843,11 @@ export default function Page() {
 
         // Check if this specific NFT is approved
         const tokenIdStr = tokenId.toString();
+        console.log("handleSellNFT called with tokenId:", tokenIdStr);
+        console.log(
+          "userNFTs:",
+          userNFTs.map((id) => id.toString())
+        );
         const isThisNFTApproved = nftApprovalStatus[tokenIdStr] === true;
 
         console.log(`NFT ${tokenIdStr} approval status:`, isThisNFTApproved);
@@ -1480,6 +1485,15 @@ export default function Page() {
                           const tokenIdStr = highestTokenId.toString();
                           const moreCount = userNFTs.length - 1;
 
+                          console.log(
+                            "Displaying NFT - userNFTs:",
+                            userNFTs.map((id) => id.toString())
+                          );
+                          console.log(
+                            "Displaying NFT - highestTokenId:",
+                            tokenIdStr
+                          );
+
                           return (
                             <div className="flex flex-col items-center space-y-2">
                               <div
@@ -1754,7 +1768,7 @@ export default function Page() {
 
             <div className="mt-6 pt-6 border-t border-white-800 text-center">
               <p className="text-xs text-gray-500 font-oldschool font-bold">
-                © 2025 flooor.fun . CC0 - Licensed. Front-end v1.0.17 & Contract
+                © 2025 flooor.fun . CC0 - Licensed. Front-end v1.0.18 & Contract
                 version 1.0
               </p>
             </div>
