@@ -841,6 +841,14 @@ export default function Page() {
       try {
         await ensureBase();
 
+        // Check if user has multiple NFTs
+        if (userNFTs.length > 1) {
+          toast.error(
+            "You must hold only 1 NFT to sell. Please transfer other NFTs to another wallet first."
+          );
+          return;
+        }
+
         // Check if this specific NFT is approved
         const tokenIdStr = tokenId.toString();
         console.log("handleSellNFT called with tokenId:", tokenIdStr);
@@ -1371,12 +1379,12 @@ export default function Page() {
               {/* Current Bid & Action Section */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
                 {/* Current Bid Card */}
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                   <div className="text-center">
-                    <div className="text-xs text-blue-600 font-oldschool uppercase tracking-wide mb-1">
+                    <div className="text-xs text-gray-500 font-oldschool uppercase tracking-wide mb-1">
                       Current Bid
                     </div>
-                    <div className="flex items-center justify-center text-xl font-oldschool font-bold text-blue-900 mb-2">
+                    <div className="flex items-center justify-center text-xl font-oldschool font-bold text-black mb-2">
                       <svg
                         className="w-7 h-7 mr-2"
                         viewBox="0 0 24 24"
@@ -1396,7 +1404,7 @@ export default function Page() {
                     {activeBidder &&
                       activeBidder !==
                         "0x0000000000000000000000000000000000000000" && (
-                        <div className="flex items-center justify-center text-xs text-blue-500 font-oldschool">
+                        <div className="flex items-center justify-center text-xs text-gray-500 font-oldschool">
                           {activeBidder && (
                             <div className="w-4 h-4 mr-1 rounded-full overflow-hidden relative">
                               <div className="absolute inset-0 rounded-full overflow-hidden">
@@ -1462,15 +1470,15 @@ export default function Page() {
                 </div>
 
                 {/* NFT Collection Card */}
-                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200">
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                   <div className="text-center">
-                    <div className="text-xs text-green-600 font-oldschool uppercase tracking-wide mb-3">
+                    <div className="text-xs text-gray-500 font-oldschool uppercase tracking-wide mb-3">
                       Your NFTs - Click to Sell
                     </div>
 
                     {isCheckingApproval && (
-                      <div className="inline-flex items-center px-3 py-1.5 bg-green-100 text-green-700 rounded-md font-oldschool text-xs mb-3">
-                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-600 mr-1.5"></div>
+                      <div className="inline-flex items-center px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md font-oldschool text-xs mb-3">
+                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-600 mr-1.5"></div>
                         Checking approval...
                       </div>
                     )}
@@ -1501,6 +1509,12 @@ export default function Page() {
                                 onClick={() => handleSellNFT(highestTokenId)}
                                 title={`Click to sell Noun #${tokenIdStr}`}
                               >
+                                {/* Multiple NFT Warning Overlay */}
+                                {userNFTs.length > 1 && (
+                                  <div className="absolute top-0 left-0 right-0 bg-red-500 text-white text-xs px-1 py-0.5 text-center font-oldschool font-bold">
+                                    Must hold only 1 NFT
+                                  </div>
+                                )}
                                 {nftImages[tokenIdStr] ? (
                                   <Image
                                     src={nftImages[tokenIdStr]}
@@ -1612,7 +1626,7 @@ export default function Page() {
                 <button
                   onClick={handleSign}
                   disabled={isSignButtonDisabled()}
-                  className={`px-8 py-3 rounded-full font-oldschool font-bold transition-colors min-w-[280px] tabular-nums ${
+                  className={`flex-1 px-6 py-3 rounded font-oldschool font-bold transition-colors whitespace-nowrap ${
                     isSignButtonDisabled()
                       ? "bg-gray-400 text-gray-600 cursor-not-allowed"
                       : "bg-black text-white hover:bg-gray-800"
@@ -1620,14 +1634,6 @@ export default function Page() {
                 >
                   {getSignButtonText()}
                 </button>
-                <a
-                  href="https://vrnouns.gitbook.io/flooor/documentation/documentation-en"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-8 py-3 border-2 border-black text-black rounded-full font-oldschool font-bold hover:bg-black hover:text-white transition-colors inline-block text-center"
-                >
-                  Docs
-                </a>
               </div>
             </div>
           </div>
@@ -1719,50 +1725,6 @@ export default function Page() {
                 >
                   Flooor
                 </a>
-              </div>
-            </div>
-
-            {/* Contract Address Section */}
-            <div className="mt-6 pt-6 border-t border-white-800">
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 mb-6">
-                <div className="text-center">
-                  <p className="text-sm text-gray-600 font-oldschool font-bold mb-2">
-                    If you sent ETH directly to contract you can bid instantly
-                  </p>
-                  <p className="text-xs text-gray-500 font-oldschool mb-3">
-                    But you must set gas limit to 300,000
-                  </p>
-
-                  <div className="flex items-center justify-center space-x-2 bg-white rounded-lg p-3 border border-gray-300">
-                    <span className="text-sm font-mono text-gray-800 font-oldschool">
-                      0xf6b2c2411a101db46c8513ddaef10b11184c58ff
-                    </span>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(
-                          "0xf6b2c2411a101db46c8513ddaef10b11184c58ff"
-                        );
-                        toast.success("Contract address copied!");
-                      }}
-                      className="ml-2 p-1.5 bg-gray-200 hover:bg-gray-300 rounded transition-colors"
-                      title="Copy contract address"
-                    >
-                      <svg
-                        className="w-4 h-4 text-gray-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
               </div>
             </div>
 
