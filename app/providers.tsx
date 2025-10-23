@@ -23,6 +23,10 @@ const config = getDefaultConfig({
   chains: [base],
   transports: { [base.id]: rpcTransports },
   ssr: true,
+  // 👇 Bunlar WalletConnect metadata'sına gider
+  appDescription: "Royalties for the community",
+  appUrl: "https://flooor.fun",
+  appIcon: "https://flooor.fun/favicon.ico",
 });
 
 const queryClient = new QueryClient();
@@ -32,6 +36,11 @@ export function Providers(props: { children: ReactNode }) {
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
+          initialChain={base}
+          appInfo={{
+            appName: "flooor.fun",
+            learnMoreUrl: "https://flooor.fun",
+          }}
           theme={{
             lightMode: {
               colors: {
