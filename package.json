@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && mkdir -p out/.well-known && cp -r .well-known/* out/.well-known/",
     "postbuild": "touch out/.nojekyll",
     "gh": "gh-pages -d out -b gh-pages",
     "deploy": "npm run build && gh-pages -d out -b gh-pages"
