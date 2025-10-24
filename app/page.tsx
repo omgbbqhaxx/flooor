@@ -127,8 +127,11 @@ export default function Page() {
     sdk.actions.ready();
 
     // Check if we're in Farcaster miniapp
-    if (sdk?.wallet) {
-      console.log("Farcaster miniapp detected, wallet available");
+    if (
+      typeof window !== "undefined" &&
+      window.location.href.includes("farcaster")
+    ) {
+      console.log("Farcaster miniapp detected");
       // Auto-connect logic can be added here if needed
     } else {
       console.log("Normal web browser - Connect Wallet required");
@@ -1111,7 +1114,8 @@ export default function Page() {
             </div>
 
             <div>
-              {sdk?.wallet ? (
+              {typeof window !== "undefined" &&
+              window.location.href.includes("farcaster") ? (
                 <div
                   className="px-6 py-2 border-2 border-gray-400 rounded-full text-sm bg-transparent"
                   style={{
