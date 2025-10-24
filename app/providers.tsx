@@ -17,8 +17,8 @@ import {
 
 import { Toaster } from "sonner";
 import "@rainbow-me/rainbowkit/styles.css";
-// import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
-// import { sdk } from "@farcaster/miniapp-sdk";
+import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
+import { sdk } from "@farcaster/miniapp-sdk";
 
 const rpcTransports = fallback([
   http("https://base-mainnet.g.alchemy.com/v2/R11AN4bze2Uyhg3V6KZ7m"),
@@ -54,7 +54,7 @@ const connectors = connectorsForWallets(
 // 3️⃣ Wagmi config
 const config = createConfig({
   chains: [base],
-  connectors,
+  connectors: [...connectors, farcasterMiniApp()],
   transports: { [base.id]: rpcTransports },
   ssr: true,
 });
@@ -62,10 +62,10 @@ const config = createConfig({
 const queryClient = new QueryClient();
 
 export function Providers({ children }: { children: ReactNode }) {
-  // ✅ Farcaster splash screen kapatma (temporarily disabled)
-  // if (typeof window !== "undefined") {
-  //   sdk?.actions?.ready?.();
-  // }
+  // ✅ Farcaster splash screen kapatma
+  if (typeof window !== "undefined") {
+    sdk?.actions?.ready?.();
+  }
 
   return (
     <WagmiProvider config={config}>
