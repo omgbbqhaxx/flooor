@@ -4,11 +4,21 @@ import { base } from "wagmi/chains";
 import type { ReactNode } from "react";
 import { WagmiProvider, http, fallback, createConfig } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { RainbowKitProvider, getDefaultConfig } from "@rainbow-me/rainbowkit";
+import {
+  RainbowKitProvider,
+  connectorsForWallets,
+} from "@rainbow-me/rainbowkit";
+import {
+  metaMaskWallet,
+  walletConnectWallet,
+  phantomWallet,
+  baseAccount,
+} from "@rainbow-me/rainbowkit/wallets";
+
 import { Toaster } from "sonner";
 import "@rainbow-me/rainbowkit/styles.css";
-import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
-import { sdk } from "@farcaster/miniapp-sdk";
+// import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
+// import { sdk } from "@farcaster/miniapp-sdk";
 
 const rpcTransports = fallback([
   http("https://base-mainnet.g.alchemy.com/v2/R11AN4bze2Uyhg3V6KZ7m"),
@@ -17,33 +27,45 @@ const rpcTransports = fallback([
   ),
 ]);
 
-// 1️⃣ RainbowKit default config
-const baseConfig = getDefaultConfig({
-  appName: "flooor.fun",
-  projectId:
-    process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
-    "f4be81876ed5bc310bbc1b67612831c3",
+// 1️⃣ Project ID
+const projectId =
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
+  "f4be81876ed5bc310bbc1b67612831c3";
+
+// 2️⃣ Wallet connectors
+const connectors = connectorsForWallets(
+  [
+    {
+      groupName: "Popular",
+      wallets: [
+        metaMaskWallet,
+        walletConnectWallet,
+        baseAccount,
+        phantomWallet,
+      ],
+    },
+  ],
+  {
+    appName: "flooor.fun",
+    projectId,
+  }
+);
+
+// 3️⃣ Wagmi config
+const config = createConfig({
   chains: [base],
+  connectors,
   transports: { [base.id]: rpcTransports },
   ssr: true,
-  appDescription: "Royalties for the community",
-  appUrl: "https://flooor.fun",
-  appIcon: "https://flooor.fun/favicon.ico",
-});
-
-// 2️⃣ Farcaster + WalletConnect birleşik yapı
-const config = createConfig({
-  ...baseConfig,
-  connectors: [farcasterMiniApp(), ...baseConfig.connectors],
 });
 
 const queryClient = new QueryClient();
 
 export function Providers({ children }: { children: ReactNode }) {
-  // ✅ Farcaster splash screen kapatma
-  if (typeof window !== "undefined") {
-    sdk?.actions?.ready?.();
-  }
+  // ✅ Farcaster splash screen kapatma (temporarily disabled)
+  // if (typeof window !== "undefined") {
+  //   sdk?.actions?.ready?.();
+  // }
 
   return (
     <WagmiProvider config={config}>

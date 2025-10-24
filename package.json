@@ -37,6 +37,6 @@
     "typescript": "^5"
   },
   "resolutions": {
-    "zod": "^3.22.4"
+    "zod": "3.22.4"
   }
 }
