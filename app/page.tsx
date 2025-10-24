@@ -91,6 +91,18 @@ export default function Page() {
       typeof window !== "undefined" &&
       /farcaster|warpcast/i.test(window.location.href);
     setIsMiniApp(inside);
+
+    // Farcaster splash screen'i kapatmak için
+    if (inside && typeof window !== "undefined") {
+      // Farcaster miniapp'de splash screen'i kapat
+      const script = document.createElement("script");
+      script.textContent = `
+        if (window.farcaster && window.farcaster.ready) {
+          window.farcaster.ready();
+        }
+      `;
+      document.head.appendChild(script);
+    }
   }, []);
 
   useEffect(() => {
