@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build && next export",
+    "build": "next build",
     "postbuild": "mkdir -p out/.well-known && cp public/.well-known/farcaster.json out/.well-known/",
     "gh": "gh-pages -d out -b gh-pages",
     "deploy": "npm run build && gh-pages -d out -b gh-pages"
