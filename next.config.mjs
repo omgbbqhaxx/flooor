@@ -5,15 +5,6 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  async redirects() {
-    return [
-      {
-        source: "/.well-known/farcaster.json",
-        destination: "/farcaster.json",
-        permanent: true,
-      },
-    ];
-  },
 };
 
 export default nextConfig;

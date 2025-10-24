@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "postbuild": "mkdir -p out/.well-known && cp public/.well-known/farcaster.json out/.well-known/",
+    "postbuild": "touch out/.nojekyll",
     "gh": "gh-pages -d out -b gh-pages",
     "deploy": "npm run build && gh-pages -d out -b gh-pages"
   },
