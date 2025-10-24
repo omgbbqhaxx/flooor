@@ -108,8 +108,8 @@ export default function Page() {
   const [showNetworkWarning, setShowNetworkWarning] = useState(false);
   const [isMiniApp, setIsMiniApp] = useState(false);
 
-  // Cache duration in milliseconds (5 minutes)
-  const CACHE_DURATION = 5 * 60 * 1000;
+  // Cache duration in milliseconds (10 minutes)
+  const CACHE_DURATION = 10 * 60 * 1000;
 
   const ensureBase = useCallback(async () => {
     if (chainId !== base.id) {
@@ -691,8 +691,8 @@ export default function Page() {
 
     fetchAllData();
 
-    // Update all data every 2 minutes (reduced frequency)
-    const interval = setInterval(fetchAllData, 2 * 60 * 1000);
+    // Update all data every 5 minutes (reduced frequency)
+    const interval = setInterval(fetchAllData, 5 * 60 * 1000);
 
     return () => {
       clearInterval(interval);
