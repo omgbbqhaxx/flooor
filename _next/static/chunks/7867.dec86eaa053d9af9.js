@@ -1,4 +1,4 @@
-"use strict";(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[7867],{57867:(l,h,f)=>{f.r(h),f.d(h,{facebookSvg:()=>i});var c=f(28312);let i=(0,c.JW)`<svg fill="none" viewBox="0 0 40 40">
+"use strict";(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[7867],{80248:(l,h,f)=>{f.r(h),f.d(h,{facebookSvg:()=>i});var c=f(28312);let i=(0,c.JW)`<svg fill="none" viewBox="0 0 40 40">
   <g clip-path="url(#a)">
     <g clip-path="url(#b)">
       <circle cx="20" cy="19.89" r="20" fill="#1877F2" />
