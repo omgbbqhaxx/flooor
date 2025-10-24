@@ -2,6 +2,7 @@
 
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { toast } from "sonner";
+import { sdk } from "@farcaster/miniapp-sdk";
 
 import Logo from "@/app/svg/Logo";
 import { useState, useCallback, useEffect } from "react";
@@ -120,6 +121,19 @@ export default function Page() {
       }
     }
   }, [chainId, config]);
+
+  // Initialize Farcaster SDK
+  useEffect(() => {
+    sdk.actions.ready();
+
+    // Check if we're in Farcaster miniapp
+    if (sdk?.wallet) {
+      console.log("Farcaster miniapp detected, wallet available");
+      // Auto-connect logic can be added here if needed
+    } else {
+      console.log("Normal web browser - Connect Wallet required");
+    }
+  }, []);
 
   useEffect(() => {
     if (address && chainId !== base.id) {
@@ -1097,90 +1111,104 @@ export default function Page() {
             </div>
 
             <div>
-              <ConnectButton.Custom>
-                {({
-                  account,
-                  chain,
-                  openAccountModal,
-                  openChainModal,
-                  openConnectModal,
-                  mounted,
-                }) => {
-                  const ready = mounted;
-                  const connected = ready && account && chain;
+              {sdk?.wallet ? (
+                <div
+                  className="px-6 py-2 border-2 border-gray-400 rounded-full text-sm bg-transparent"
+                  style={{
+                    color: "rgb(9, 9, 11)",
+                    fontSize: "15px",
+                    letterSpacing: "-0.01em",
+                    fontWeight: "500",
+                  }}
+                >
+                  Connected via Farcaster
+                </div>
+              ) : (
+                <ConnectButton.Custom>
+                  {({
+                    account,
+                    chain,
+                    openAccountModal,
+                    openChainModal,
+                    openConnectModal,
+                    mounted,
+                  }) => {
+                    const ready = mounted;
+                    const connected = ready && account && chain;
 
-                  return (
-                    <div
-                      {...(!ready && {
-                        "aria-hidden": true,
-                        style: {
-                          opacity: 0,
-                          pointerEvents: "none",
-                          userSelect: "none",
-                        },
-                      })}
-                    >
-                      {(() => {
-                        if (!connected) {
+                    return (
+                      <div
+                        {...(!ready && {
+                          "aria-hidden": true,
+                          style: {
+                            opacity: 0,
+                            pointerEvents: "none",
+                            userSelect: "none",
+                          },
+                        })}
+                      >
+                        {(() => {
+                          if (!connected) {
+                            return (
+                              <button
+                                onClick={openConnectModal}
+                                type="button"
+                                className="px-6 py-2 border-2 border-gray-400 rounded-full hover:bg-transparent transition text-sm !bg-transparent"
+                                style={{
+                                  color: "rgb(9, 9, 11)",
+                                  fontSize: "15px",
+                                  letterSpacing: "-0.01em",
+                                  fontWeight: "500",
+                                }}
+                              >
+                                Connect Wallet
+                              </button>
+                            );
+                          }
+
+                          if (chain.unsupported) {
+                            return (
+                              <button
+                                onClick={openChainModal}
+                                type="button"
+                                className="px-4 py-2 border-2 border-red-400 rounded-full hover:bg-red-50 transition text-sm bg-red-100 text-red-600 font-bold"
+                              >
+                                Wrong Network
+                              </button>
+                            );
+                          }
+
                           return (
-                            <button
-                              onClick={openConnectModal}
-                              type="button"
-                              className="px-6 py-2 border-2 border-gray-400 rounded-full hover:bg-transparent transition text-sm !bg-transparent"
-                              style={{
-                                color: "rgb(9, 9, 11)",
-                                fontSize: "15px",
-                                letterSpacing: "-0.01em",
-                                fontWeight: "500",
-                              }}
-                            >
-                              Connect Wallet
-                            </button>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={openAccountModal}
+                                type="button"
+                                className="px-6 py-2 border-2 border-gray-400 rounded-full hover:bg-transparent transition text-sm !bg-transparent flex items-center gap-2"
+                                style={{
+                                  color: "rgb(9, 9, 11)",
+                                  fontSize: "15px",
+                                  letterSpacing: "-0.01em",
+                                  fontWeight: "500",
+                                }}
+                              >
+                                {chain.hasIcon && chain.iconUrl && (
+                                  <Image
+                                    alt={chain.name ?? "Chain icon"}
+                                    src={chain.iconUrl}
+                                    width={20}
+                                    height={20}
+                                  />
+                                )}
+                                {account.displayName}
+                              </button>
+                            </div>
                           );
-                        }
-
-                        if (chain.unsupported) {
-                          return (
-                            <button
-                              onClick={openChainModal}
-                              type="button"
-                              className="px-4 py-2 border-2 border-red-400 rounded-full hover:bg-red-50 transition text-sm bg-red-100 text-red-600 font-bold"
-                            >
-                              Wrong Network
-                            </button>
-                          );
-                        }
-
-                        return (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={openAccountModal}
-                              type="button"
-                              className="px-6 py-2 border-2 border-gray-400 rounded-full hover:bg-transparent transition text-sm !bg-transparent flex items-center gap-2"
-                              style={{
-                                color: "rgb(9, 9, 11)",
-                                fontSize: "15px",
-                                letterSpacing: "-0.01em",
-                                fontWeight: "500",
-                              }}
-                            >
-                              {chain.hasIcon && chain.iconUrl && (
-                                <Image
-                                  alt={chain.name ?? "Chain icon"}
-                                  src={chain.iconUrl}
-                                  width={20}
-                                  height={20}
-                                />
-                              )}
-                              {account.displayName}
-                            </button>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  );
-                }}
-              </ConnectButton.Custom>
+                        })()}
+                      </div>
+                    );
+                  }}
+                </ConnectButton.Custom>
+              )}
             </div>
           </div>
         </header>
