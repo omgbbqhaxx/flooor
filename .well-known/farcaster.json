@@ -1,3 +1,20 @@
 {
-  "redirect": "https://api.farcaster.xyz/miniapps/hosted-manifest/019a16e7-73f0-93d4-aa7e-935305d8d163"
+  "frame": {
+    "name": "flooor.fun",
+    "homeUrl": "https://flooor.fun",
+    "iconUrl": "https://flooor.fun/icon.png",
+    "version": "1",
+    "imageUrl": "https://flooor.fun/image.png",
+    "subtitle": "Royalties to the community.",
+    "webhookUrl": "https://flooor.fun/api/webhook",
+    "description": "A game-theory NFT marketplace where holders collect daily royalties.",
+    "splashImageUrl": "https://flooor.fun/splash.png",
+    "primaryCategory": "finance",
+    "splashBackgroundColor": "#F3322C"
+  },
+  "accountAssociation": {
+    "header": "eyJmaWQiOjMyNTA0MywidHlwZSI6ImF1dGgiLCJrZXkiOiIweGQyQjAzMTU4RkJmMWFiZWYxRDQ5ODA3N0MxRWU5ZDYxMDdhNzU4NjkifQ",
+    "payload": "eyJkb21haW4iOiJmbG9vb3IuZnVuIn0",
+    "signature": "oq2oVAQzm28Oc7VzA6tyZ0/6s+DrtkbyHP5rjusU2J0YN5BBzKS4Bs6JUVUP4kECrdb24jMGNts27EH662/ZEBs="
+  }
 }
