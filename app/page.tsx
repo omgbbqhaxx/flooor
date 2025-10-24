@@ -3,6 +3,7 @@
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { toast } from "sonner";
 import { sdk } from "@farcaster/miniapp-sdk";
+import { farcasterMiniApp as miniAppConnector } from "@farcaster/miniapp-wagmi-connector";
 
 import Logo from "@/app/svg/Logo";
 import { useState, useCallback, useEffect } from "react";
@@ -105,6 +106,7 @@ export default function Page() {
   const chainId = useChainId();
   const { address } = useAccount();
   const [showNetworkWarning, setShowNetworkWarning] = useState(false);
+  const [isMiniApp, setIsMiniApp] = useState(false);
 
   // Cache duration in milliseconds (5 minutes)
   const CACHE_DURATION = 5 * 60 * 1000;
@@ -124,18 +126,39 @@ export default function Page() {
 
   // Initialize Farcaster SDK
   useEffect(() => {
-    sdk.actions.ready();
+    let cancelled = false;
+    (async () => {
+      try {
+        const inside = await sdk.isInMiniApp(); // SSR güvenli tespit
+        if (!cancelled) setIsMiniApp(inside);
 
-    // Check if we're in Farcaster miniapp
-    if (
-      typeof window !== "undefined" &&
-      window.location.href.includes("farcaster")
-    ) {
-      console.log("Farcaster miniapp detected");
-      // Auto-connect logic can be added here if needed
-    } else {
-      console.log("Normal web browser - Connect Wallet required");
-    }
+        if (inside) {
+          await sdk.actions.ready({
+            /* disableNativeGestures: true */
+          });
+          console.log("Farcaster miniapp detected");
+
+          // Auto-connect with Farcaster connector
+          try {
+            const connector = miniAppConnector();
+            console.log("Farcaster connector created:", connector);
+
+            // Try to connect automatically
+            console.log("Farcaster connector ready for auto-connect");
+            // The connector should handle the connection automatically in Farcaster miniapp
+          } catch (error) {
+            console.log("Farcaster connector error:", error);
+          }
+        } else {
+          console.log("Normal web browser - Connect Wallet required");
+        }
+      } catch (e) {
+        console.error("MiniApp init failed:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -1114,8 +1137,7 @@ export default function Page() {
             </div>
 
             <div>
-              {typeof window !== "undefined" &&
-              window.location.href.includes("farcaster") ? (
+              {isMiniApp ? (
                 <div
                   className="px-6 py-2 border-2 border-gray-400 rounded-full text-sm bg-transparent"
                   style={{
