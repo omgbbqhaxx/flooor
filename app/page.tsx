@@ -985,6 +985,7 @@ export default function Page() {
       config,
       ensureBase,
       address,
+      userNFTs,
       nftApprovalStatus,
       nftLoadingStatus,
       checkIndividualNFTApprovals,
