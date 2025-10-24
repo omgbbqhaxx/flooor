@@ -2,9 +2,10 @@
 
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { toast } from "sonner";
+
 import Logo from "@/app/svg/Logo";
 import { useState, useCallback, useEffect } from "react";
-import { useConfig, useChainId, useAccount, useConnect } from "wagmi";
+import { useConfig, useChainId, useAccount } from "wagmi";
 import {
   writeContract,
   readContract,
@@ -16,215 +17,247 @@ import { parseEther, formatEther } from "viem";
 import Image from "next/image";
 import blockies from "blockies";
 
+// Retry utility with exponential backoff
 const retryWithBackoff = async (
   fn: () => Promise<unknown>,
-  maxRetries = 3,
-  baseDelay = 1000
-) => {
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<unknown> => {
   let lastError: Error;
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
     } catch (error) {
       lastError = error as Error;
-      const msg = lastError.message || "";
-      const retryable =
-        /429|Too Many Requests|ERR_CONNECTION_RESET|ERR_TIMED_OUT|timeout/i.test(
-          msg
-        );
-      if (!retryable || attempt === maxRetries) throw lastError;
-      await new Promise((r) => setTimeout(r, baseDelay * Math.pow(2, attempt)));
+
+      // Don't retry on the last attempt
+      if (attempt === maxRetries) {
+        throw lastError;
+      }
+
+      // Check if it's a rate limit or connection error
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const isRetryableError =
+        errorMessage.includes("429") ||
+        errorMessage.includes("Too Many Requests") ||
+        errorMessage.includes("ERR_CONNECTION_RESET") ||
+        errorMessage.includes("ERR_TIMED_OUT") ||
+        errorMessage.includes("timeout");
+
+      if (!isRetryableError) {
+        throw lastError;
+      }
+
+      // Exponential backoff: 1s, 2s, 4s
+      const delay = baseDelay * Math.pow(2, attempt);
+      console.log(
+        `Retry attempt ${attempt + 1}/${maxRetries + 1} after ${delay}ms delay`
+      );
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
+
   throw lastError!;
 };
 
 import MARKET_ABI from "@/app/abi/market.json";
 import NFT_ABI from "@/app/abi/nft.json";
 
+// Addresses
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
 
 export default function Page() {
+  //const calls = []; // to be populated with buyFloor call later
   const [bidInput, setBidInput] = useState("");
   const [isCheckingApproval, setIsCheckingApproval] = useState(false);
-  const [nftApprovalStatus, setNftApprovalStatus] = useState<
-    Record<string, boolean>
-  >({});
-  const [nftLoadingStatus, setNftLoadingStatus] = useState<
-    Record<string, boolean>
-  >({});
+  const [nftApprovalStatus, setNftApprovalStatus] = useState<{
+    [key: string]: boolean;
+  }>({});
+  const [nftLoadingStatus, setNftLoadingStatus] = useState<{
+    [key: string]: boolean;
+  }>({});
   const [phaseInfo, setPhaseInfo] = useState<{
     currentPhase: string;
     eid: bigint;
     elapsed: bigint;
     remaining: bigint;
   } | null>(null);
-  const [dailySigners, setDailySigners] = useState(0);
-  const [dailyVault, setDailyVault] = useState("0");
-  const [currentBid, setCurrentBid] = useState("0");
-  const [activeBidder, setActiveBidder] = useState("");
-  const [activeBidderName, setActiveBidderName] = useState("");
-  const [yieldPerNFT, setYieldPerNFT] = useState("0");
-  const [userHasSigned, setUserHasSigned] = useState(false);
-  const [userHasClaimed, setUserHasClaimed] = useState(false);
+  const [dailySigners, setDailySigners] = useState<number>(0);
+  const [dailyVault, setDailyVault] = useState<string>("0");
+  const [currentBid, setCurrentBid] = useState<string>("0");
+  const [activeBidder, setActiveBidder] = useState<string>("");
+  const [activeBidderName, setActiveBidderName] = useState<string>("");
+  const [yieldPerNFT, setYieldPerNFT] = useState<string>("0");
+  const [userHasSigned, setUserHasSigned] = useState<boolean>(false);
+  const [userHasClaimed, setUserHasClaimed] = useState<boolean>(false);
   const [ownedTokenId, setOwnedTokenId] = useState<bigint | null>(null);
   const [userNFTs, setUserNFTs] = useState<bigint[]>([]);
-  const [nftImages, setNftImages] = useState<Record<string, string>>({});
+  const [nftImages, setNftImages] = useState<{ [key: string]: string }>({});
   const [rpcError, setRpcError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [lastFetchTime, setLastFetchTime] = useState(0);
-  const [remainingTimeDisplay, setRemainingTimeDisplay] = useState(0);
-  const [showNetworkWarning, setShowNetworkWarning] = useState(false);
-  const [isMiniApp, setIsMiniApp] = useState(false);
-
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [lastFetchTime, setLastFetchTime] = useState<number>(0);
+  const [remainingTimeDisplay, setRemainingTimeDisplay] = useState<number>(0);
   const config = useConfig();
   const chainId = useChainId();
-  const { address, isConnected } = useAccount();
-  const { connect, connectors } = useConnect();
+  const { address } = useAccount();
+  const [showNetworkWarning, setShowNetworkWarning] = useState(false);
 
-  const CACHE_DURATION = 10 * 60 * 1000;
+  // Cache duration in milliseconds (5 minutes)
+  const CACHE_DURATION = 5 * 60 * 1000;
 
-  // Mini-app algılama + auto-connect
-  useEffect(() => {
-    const inside =
-      typeof window !== "undefined" &&
-      /farcaster|warpcast/i.test(window.location.href);
-    setIsMiniApp(inside);
-
-    // Farcaster splash screen'i kapatmak için
-    if (inside && typeof window !== "undefined") {
-      // Farcaster miniapp'de splash screen'i kapat
-      const script = document.createElement("script");
-      script.textContent = `
-        if (window.farcaster && window.farcaster.ready) {
-          window.farcaster.ready();
-        }
-      `;
-      document.head.appendChild(script);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!isMiniApp || isConnected) return;
-    const fc =
-      connectors.find((c) =>
-        (c.name || "").toLowerCase().includes("farcaster")
-      ) ||
-      connectors.find((c) =>
-        (c.name || "").toLowerCase().includes("embedded")
-      ) ||
-      connectors[0];
-    if (fc) {
-      try {
-        connect({ connector: fc });
-      } catch {
-        // Ignore connection errors
-      }
-    }
-  }, [isMiniApp, isConnected, connectors, connect]);
-
-  // Mini-app'te switchChain deneme
   const ensureBase = useCallback(async () => {
-    if (isMiniApp) return; // mini-app içinde no-op
     if (chainId !== base.id) {
       setShowNetworkWarning(true);
-      await switchChain(config, { chainId: base.id }).catch((e) => {
-        console.error("Failed to switch network:", e);
+      try {
+        await switchChain(config, { chainId: base.id });
+        setShowNetworkWarning(false);
+      } catch (error) {
+        console.error("Failed to switch network:", error);
         throw new Error("Please switch to Base network to continue");
-      });
-      setShowNetworkWarning(false);
+      }
     }
-  }, [chainId, config, isMiniApp]);
+  }, [chainId, config]);
 
   useEffect(() => {
-    if (address && chainId !== base.id) setShowNetworkWarning(true);
-    else setShowNetworkWarning(false);
+    if (address && chainId !== base.id) {
+      setShowNetworkWarning(true);
+    } else {
+      setShowNetworkWarning(false);
+    }
   }, [chainId, address]);
 
-  // -------- Helpers --------
+  // Check approval status
   const checkApprovalStatus = useCallback(async () => {
-    if (!address) return;
+    if (!address) {
+      return;
+    }
+
     setIsCheckingApproval(true);
     try {
-      await retryWithBackoff(() =>
-        readContract(config, {
+      await retryWithBackoff(async () => {
+        return await readContract(config, {
           address: COLLECTION_ADDR,
           abi: NFT_ABI,
           functionName: "isApprovedForAll",
           args: [address, CONTRACT_ADDR],
-          chainId: base.id,
-        })
-      );
+        });
+      });
+    } catch (error) {
+      console.error("Error checking approval status:", error);
     } finally {
       setIsCheckingApproval(false);
     }
   }, [config, address]);
 
+  // Check approval status for the displayed NFT only (highest token ID)
   const checkIndividualNFTApprovals = useCallback(async () => {
     if (!address || userNFTs.length === 0) {
       setNftApprovalStatus({});
       return;
     }
+
+    const approvalStatus: { [key: string]: boolean } = {};
+
+    // Get the highest token ID (the one we display)
     const highestTokenId = userNFTs.reduce((a, b) => (a > b ? a : b));
     const tokenIdStr = highestTokenId.toString();
 
+    // First check if user has approved all NFTs for the contract
     let isAllApproved = false;
     try {
-      isAllApproved = (await retryWithBackoff(() =>
-        readContract(config, {
+      isAllApproved = (await retryWithBackoff(async () => {
+        return await readContract(config, {
           address: COLLECTION_ADDR,
           abi: NFT_ABI,
           functionName: "isApprovedForAll",
           args: [address, CONTRACT_ADDR],
-          chainId: base.id,
-        })
-      )) as boolean;
-    } catch {}
+        });
+      })) as boolean;
+    } catch (error) {
+      console.error("Error checking isApprovedForAll:", error);
+      isAllApproved = false;
+    }
 
+    // If all are approved, the displayed NFT is approved
     if (isAllApproved) {
-      setNftApprovalStatus({ [tokenIdStr]: true });
-      return;
+      approvalStatus[tokenIdStr] = true;
+    } else {
+      // Check individual approval for the displayed NFT only
+      try {
+        const approvedAddress = (await retryWithBackoff(async () => {
+          return await readContract(config, {
+            address: COLLECTION_ADDR,
+            abi: NFT_ABI,
+            functionName: "getApproved",
+            args: [highestTokenId],
+          });
+        })) as string;
+
+        // Check if this specific NFT is approved for the contract
+        approvalStatus[tokenIdStr] =
+          approvedAddress.toLowerCase() === CONTRACT_ADDR.toLowerCase();
+      } catch (error) {
+        console.error(
+          `Error checking approval for token ${highestTokenId}:`,
+          error
+        );
+        approvalStatus[tokenIdStr] = false;
+      }
     }
 
-    try {
-      const approvedAddress = (await retryWithBackoff(() =>
-        readContract(config, {
-          address: COLLECTION_ADDR,
-          abi: NFT_ABI,
-          functionName: "getApproved",
-          args: [highestTokenId],
-          chainId: base.id,
-        })
-      )) as string;
-      setNftApprovalStatus({
-        [tokenIdStr]:
-          approvedAddress.toLowerCase() === CONTRACT_ADDR.toLowerCase(),
-      });
-    } catch {
-      setNftApprovalStatus({ [tokenIdStr]: false });
-    }
+    console.log(
+      "checkIndividualNFTApprovals result (displayed NFT only):",
+      approvalStatus
+    );
+    setNftApprovalStatus(approvalStatus);
   }, [config, address, userNFTs]);
 
+  // Check approval status when address changes
+  useEffect(() => {
+    checkApprovalStatus();
+  }, [checkApprovalStatus]);
+
+  // Check approval status when user NFTs change (new NFT acquired)
+  useEffect(() => {
+    if (userNFTs.length > 0) {
+      // Add delay to avoid rate limits
+      const timeoutId = setTimeout(() => {
+        checkApprovalStatus();
+        checkIndividualNFTApprovals();
+      }, 1000);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [userNFTs, checkApprovalStatus, checkIndividualNFTApprovals]);
+
+  // Fetch owned token ID
   const fetchOwnedTokenId = useCallback(async () => {
     if (!address) {
       setOwnedTokenId(null);
       return;
     }
+
     try {
-      const owned = (await retryWithBackoff(() =>
-        readContract(config, {
+      const owned: bigint[] = (await retryWithBackoff(async () => {
+        return (await readContract(config, {
           address: COLLECTION_ADDR,
           abi: NFT_ABI,
           functionName: "getNFTzBelongingToOwner",
           args: [address],
-          chainId: base.id,
-        })
-      )) as unknown as bigint[];
-      setOwnedTokenId(
-        owned?.length ? owned.reduce((a, b) => (a > b ? a : b)) : null
-      );
-    } catch {
+        })) as unknown as bigint[];
+      })) as bigint[];
+
+      if (owned && owned.length > 0) {
+        const tokenId = owned.reduce((a, b) => (a > b ? a : b));
+        setOwnedTokenId(tokenId);
+      } else {
+        setOwnedTokenId(null);
+      }
+    } catch (error) {
+      console.error("Error fetching owned token ID:", error);
       setOwnedTokenId(null);
     }
   }, [config, address]);
@@ -234,249 +267,368 @@ export default function Page() {
     fetchOwnedTokenId();
   }, [fetchOwnedTokenId]);
 
+  // Get phase info from contract
   const getPhaseInfo = useCallback(async () => {
     try {
-      const [currentPhase, eid, elapsed, remaining] = (await retryWithBackoff(
-        () =>
-          readContract(config, {
-            address: CONTRACT_ADDR,
-            abi: MARKET_ABI,
-            functionName: "getPhaseInfo",
-            args: [],
-            chainId: base.id,
-          })
-      )) as [string, bigint, bigint, bigint];
-      setPhaseInfo({ currentPhase, eid, elapsed, remaining });
+      const info = await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: CONTRACT_ADDR,
+          abi: MARKET_ABI,
+          functionName: "getPhaseInfo",
+          args: [],
+        })) as [string, bigint, bigint, bigint];
+      });
+
+      const [currentPhase, eid, elapsed, remaining] = info as [
+        string,
+        bigint,
+        bigint,
+        bigint
+      ];
+
+      setPhaseInfo({
+        currentPhase,
+        eid,
+        elapsed,
+        remaining,
+      });
+
       setRemainingTimeDisplay(Number(remaining));
-    } catch {}
+    } catch (error) {
+      console.error("Error getting phase info:", error);
+    }
   }, [config]);
 
+  // Get daily signers count
   const getDailySigners = useCallback(async () => {
     try {
-      const currentEpochStart = (await retryWithBackoff(() =>
-        readContract(config, {
+      // Get currentEpochStart and use it directly for partCount
+      const currentEpochStart = await retryWithBackoff(async () => {
+        return (await readContract(config, {
           address: CONTRACT_ADDR,
           abi: MARKET_ABI,
           functionName: "currentEpochStart",
           args: [],
-          chainId: base.id,
-        })
-      )) as bigint;
+        })) as bigint;
+      });
 
-      const signersCount = (await retryWithBackoff(() =>
-        readContract(config, {
+      const signersCount = await retryWithBackoff(async () => {
+        return (await readContract(config, {
           address: CONTRACT_ADDR,
           abi: MARKET_ABI,
           functionName: "partCount",
           args: [currentEpochStart],
-          chainId: base.id,
-        })
-      )) as bigint;
+        })) as bigint;
+      });
 
       setDailySigners(Number(signersCount));
-    } catch {}
+    } catch (error) {
+      console.error("Error getting daily signers:", error);
+    }
   }, [config]);
 
+  // Get daily vault amount
   const getDailyVault = useCallback(async () => {
     try {
-      const poolAccrued = (await retryWithBackoff(() =>
-        readContract(config, {
+      const poolAccrued = (await retryWithBackoff(async () => {
+        return (await readContract(config, {
           address: CONTRACT_ADDR,
           abi: MARKET_ABI,
           functionName: "poolAccrued",
           args: [],
-          chainId: base.id,
-        })
-      )) as bigint;
-      setDailyVault(parseFloat(formatEther(poolAccrued)).toFixed(8));
-    } catch {}
+        })) as bigint;
+      })) as bigint;
+
+      const etherAmount = formatEther(poolAccrued);
+      const etherNumber = parseFloat(etherAmount);
+      setDailyVault(etherNumber.toFixed(8));
+    } catch (error) {
+      console.error("Error getting daily vault:", error);
+    }
   }, [config]);
 
+  // Get current bid amount
   const getCurrentBid = useCallback(async () => {
     try {
-      const activeBidAmount = (await retryWithBackoff(() =>
-        readContract(config, {
+      const activeBidAmount = (await retryWithBackoff(async () => {
+        return (await readContract(config, {
           address: CONTRACT_ADDR,
           abi: MARKET_ABI,
           functionName: "activebidAM",
           args: [],
-          chainId: base.id,
-        })
-      )) as bigint;
-      setCurrentBid(parseFloat(formatEther(activeBidAmount)).toFixed(8));
-    } catch {}
+        })) as bigint;
+      })) as bigint;
+
+      // Convert wei to ether using viem's formatEther for precise conversion
+      const etherAmount = formatEther(activeBidAmount);
+      const etherNumber = parseFloat(etherAmount);
+      setCurrentBid(etherNumber.toFixed(8));
+    } catch (error) {
+      console.error("Error getting current bid:", error);
+    }
   }, [config]);
 
+  // Get active bidder address
   const getActiveBidder = useCallback(async () => {
     try {
-      const bidderAddress = (await retryWithBackoff(() =>
-        readContract(config, {
+      const bidderAddress = (await retryWithBackoff(async () => {
+        return (await readContract(config, {
           address: CONTRACT_ADDR,
           abi: MARKET_ABI,
           functionName: "activeBidder",
           args: [],
-          chainId: base.id,
-        })
-      )) as string;
+        })) as string;
+      })) as string;
 
       setActiveBidder(bidderAddress);
-      if (!bidderAddress || /^0x0{40}$/.test(bidderAddress)) {
-        setActiveBidderName("");
-        return;
-      }
 
-      // Basit kısaltma (ad çözümleme opsiyonel)
-      setActiveBidderName(
-        `${bidderAddress.slice(0, 6)}...${bidderAddress.slice(-4)}`
-      );
-    } catch {
+      // Try to resolve ENS/Base name
+      if (
+        bidderAddress &&
+        bidderAddress !== "0x0000000000000000000000000000000000000000"
+      ) {
+        try {
+          // Try Base name resolution first
+          const baseName = await retryWithBackoff(async () => {
+            return (await readContract(config, {
+              address: "0x4200000000000000000000000000000000000006", // Base Name Service
+              abi: [
+                {
+                  inputs: [{ name: "name", type: "string" }],
+                  name: "addr",
+                  outputs: [{ name: "", type: "address" }],
+                  stateMutability: "view",
+                  type: "function",
+                },
+              ],
+              functionName: "addr",
+              args: [bidderAddress],
+            })) as string;
+          });
+
+          if (
+            baseName &&
+            typeof baseName === "string" &&
+            baseName !== "0x0000000000000000000000000000000000000000"
+          ) {
+            setActiveBidderName(baseName);
+          } else {
+            // Fallback to shortened address
+            setActiveBidderName(
+              `${bidderAddress.slice(0, 6)}...${bidderAddress.slice(-4)}`
+            );
+          }
+        } catch {
+          // Fallback to shortened address
+          setActiveBidderName(
+            `${bidderAddress.slice(0, 6)}...${bidderAddress.slice(-4)}`
+          );
+        }
+      } else {
+        setActiveBidderName("");
+      }
+    } catch (error) {
+      console.error("Error getting active bidder:", error);
       setActiveBidder("");
       setActiveBidderName("");
     }
   }, [config]);
 
+  // Check if user has signed in current epoch
   const checkUserSignedStatus = useCallback(async () => {
-    if (!address || !phaseInfo || !ownedTokenId) {
+    if (!address || !phaseInfo) {
       setUserHasSigned(false);
       setUserHasClaimed(false);
       return;
     }
+
+    if (!ownedTokenId) {
+      setUserHasSigned(false);
+      setUserHasClaimed(false);
+      return;
+    }
+
     try {
-      const currentEpochStart = (await retryWithBackoff(() =>
-        readContract(config, {
+      const currentEpochStart = await retryWithBackoff(async () => {
+        return (await readContract(config, {
           address: CONTRACT_ADDR,
           abi: MARKET_ABI,
           functionName: "currentEpochStart",
           args: [],
-          chainId: base.id,
-        })
-      )) as bigint;
+        })) as bigint;
+      });
 
-      const signedTokenId = (await retryWithBackoff(() =>
-        readContract(config, {
+      const signedTokenId = await retryWithBackoff(async () => {
+        return (await readContract(config, {
           address: CONTRACT_ADDR,
           abi: MARKET_ABI,
           functionName: "mySignedToken",
           args: [currentEpochStart, address],
-          chainId: base.id,
-        })
-      )) as bigint;
+        })) as bigint;
+      });
 
-      const hasSigned = signedTokenId > BigInt(0);
+      const hasSigned = (signedTokenId as bigint) > BigInt(0);
       setUserHasSigned(hasSigned);
 
       const isSignPhase =
         phaseInfo.currentPhase.toLowerCase().includes("sign") ||
-        ["signing", "sign_phase"].includes(
-          phaseInfo.currentPhase.toLowerCase()
-        );
+        phaseInfo.currentPhase.toLowerCase() === "signing" ||
+        phaseInfo.currentPhase.toLowerCase() === "sign_phase";
 
       let claimedStatus = false;
+
       if (hasSigned && !isSignPhase) {
         try {
           await simulateContract(config, {
             address: CONTRACT_ADDR,
             abi: MARKET_ABI,
             functionName: "signOrClaim",
-            args: [ownedTokenId],
+            args: [BigInt(ownedTokenId)],
             account: address,
-            chainId: base.id,
           });
           claimedStatus = false;
-        } catch (e: unknown) {
-          const msg = ((e as Error)?.message || "").toLowerCase();
-          if (msg.includes("already claimed") || msg.includes("claimed"))
+        } catch (error: unknown) {
+          const errorMsg = (error as Error)?.message?.toLowerCase() || "";
+          if (
+            errorMsg.includes("already claimed") ||
+            errorMsg.includes("claimed")
+          ) {
             claimedStatus = true;
+          }
         }
+      } else {
+        claimedStatus = false;
       }
+
       setUserHasClaimed(claimedStatus);
-    } catch {
+    } catch (error) {
+      console.error("Error checking user signed status:", error);
       setUserHasSigned(false);
       setUserHasClaimed(false);
     }
   }, [config, address, phaseInfo, ownedTokenId]);
 
+  // Calculate yield per NFT
   const calculateYieldPerNFT = useCallback(() => {
-    const v = parseFloat(dailyVault),
-      s = dailySigners;
-    setYieldPerNFT(s > 0 && v > 0 ? (v / s).toFixed(8) : "0.00000000");
+    const vaultAmount = parseFloat(dailyVault);
+    const signersCount = dailySigners;
+
+    if (signersCount > 0 && vaultAmount > 0) {
+      const yieldPerNFTAmount = vaultAmount / signersCount;
+      setYieldPerNFT(yieldPerNFTAmount.toFixed(8));
+    } else {
+      setYieldPerNFT("0.00000000");
+    }
   }, [dailyVault, dailySigners]);
 
+  // Get user's NFTs
   const getUserNFTs = useCallback(async () => {
-    if (!address) {
+    if (!address || !config) {
       setUserNFTs([]);
       return;
     }
+
     try {
       const nfts: bigint[] = [];
+
+      // Get first 5 NFTs owned by user
       for (let i = 0; i < 5; i++) {
         try {
-          const tokenId = (await retryWithBackoff(() =>
-            readContract(config, {
+          const tokenId = (await retryWithBackoff(async () => {
+            return (await readContract(config, {
               address: COLLECTION_ADDR,
               abi: NFT_ABI,
               functionName: "tokenOfOwnerByIndex",
               args: [address, BigInt(i)],
-              chainId: base.id,
-            })
-          )) as bigint;
+            })) as bigint;
+          })) as bigint;
           nfts.push(tokenId);
         } catch {
+          // No more NFTs or error
           break;
         }
       }
+
       setUserNFTs(nfts);
-    } catch {
+    } catch (error) {
+      console.error("Error getting user NFTs:", error);
       setUserNFTs([]);
     }
   }, [address, config]);
 
+  // Get NFT image for the displayed NFT only (highest token ID)
   const getNFTImages = useCallback(async () => {
-    if (!userNFTs.length) {
+    if (!userNFTs.length || !config) {
       setNftImages({});
       return;
     }
+
+    const images: { [key: string]: string } = {};
+
+    // Get only the highest token ID (the one we display)
     const highestTokenId = userNFTs.reduce((a, b) => (a > b ? a : b));
     const tokenIdStr = highestTokenId.toString();
+
     try {
-      const tokenURI = (await retryWithBackoff(() =>
-        readContract(config, {
+      const tokenURI = (await retryWithBackoff(async () => {
+        return (await readContract(config, {
           address: COLLECTION_ADDR,
           abi: NFT_ABI,
           functionName: "tokenURI",
           args: [highestTokenId],
-          chainId: base.id,
-        })
-      )) as string;
+        })) as string;
+      })) as string;
 
+      // Decode base64 JSON
       if (tokenURI.startsWith("data:application/json;base64,")) {
-        const jsonData = JSON.parse(atob(tokenURI.split(",")[1]));
+        const base64Data = tokenURI.split(",")[1];
+        const jsonData = JSON.parse(atob(base64Data));
+
         if (jsonData.image_data) {
+          // Create data URL for SVG
           const svgDataUrl = `data:image/svg+xml;base64,${btoa(
             jsonData.image_data
           )}`;
-          setNftImages({ [tokenIdStr]: svgDataUrl });
+          images[tokenIdStr] = svgDataUrl;
         }
       }
-    } catch {}
+    } catch (error) {
+      console.error(`Error getting image for token ${highestTokenId}:`, error);
+    }
+
+    setNftImages(images);
   }, [userNFTs, config]);
 
+  // Update yield per NFT when vault or signers change
   useEffect(() => {
     calculateYieldPerNFT();
   }, [calculateYieldPerNFT]);
+
+  // Get NFT images when userNFTs change
   useEffect(() => {
     getNFTImages();
   }, [getNFTImages]);
+
+  // Check user signed status when address or phase changes
   useEffect(() => {
-    if (address && phaseInfo && ownedTokenId) checkUserSignedStatus();
+    if (address && phaseInfo && ownedTokenId) {
+      checkUserSignedStatus();
+    }
   }, [address, phaseInfo, ownedTokenId, checkUserSignedStatus]);
 
+  // Update phase info when component mounts and periodically
   useEffect(() => {
-    const fetchAll = async () => {
+    const fetchAllData = async () => {
       const now = Date.now();
-      if (now - lastFetchTime < CACHE_DURATION) return;
+
+      // Skip if we fetched recently (within cache duration)
+      if (now - lastFetchTime < CACHE_DURATION) {
+        return;
+      }
+
       setIsLoading(true);
       setRpcError(null);
+
       try {
         await Promise.allSettled([
           getPhaseInfo(),
@@ -489,16 +641,22 @@ export default function Page() {
           checkApprovalStatus(),
         ]);
         setLastFetchTime(now);
-      } catch (e) {
-        console.error(e);
+      } catch (error) {
+        console.error("Error fetching data:", error);
         setRpcError("Failed to load some data. Retrying...");
       } finally {
         setIsLoading(false);
       }
     };
-    fetchAll();
-    const id = setInterval(fetchAll, 5 * 60 * 1000);
-    return () => clearInterval(id);
+
+    fetchAllData();
+
+    // Update all data every 2 minutes (reduced frequency)
+    const interval = setInterval(fetchAllData, 2 * 60 * 1000);
+
+    return () => {
+      clearInterval(interval);
+    };
   }, [
     getPhaseInfo,
     getDailySigners,
@@ -512,46 +670,66 @@ export default function Page() {
     CACHE_DURATION,
   ]);
 
+  // Countdown timer - updates every second
   useEffect(() => {
-    const id = setInterval(() => {
+    const countdownInterval = setInterval(() => {
       setRemainingTimeDisplay((prev) => {
         if (prev <= 0) {
           setLastFetchTime(0);
           return 0;
         }
-        if (prev <= 120) setLastFetchTime(0);
+
+        if (prev <= 120) {
+          setLastFetchTime(0);
+        }
+
         return prev - 1;
       });
     }, 1000);
-    return () => clearInterval(id);
+
+    return () => {
+      clearInterval(countdownInterval);
+    };
   }, []);
 
-  const formatTimeRemaining = useCallback((sec: number) => {
-    const h = Math.floor(sec / 3600),
-      m = Math.floor((sec % 3600) / 60),
-      s = sec % 60;
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(
+  // Format time as HH:MM:SS
+  const formatTimeRemaining = useCallback((seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(
       2,
       "0"
-    )}:${String(s).padStart(2, "0")}`;
+    )}:${String(secs).padStart(2, "0")}`;
   }, []);
 
+  // Get button text based on phase and user's sign status
   const getSignButtonText = useCallback(() => {
     if (!phaseInfo) return "Daily Sign";
+
     const isSignPhase =
       phaseInfo.currentPhase.toLowerCase().includes("sign") ||
-      ["signing", "sign_phase"].includes(phaseInfo.currentPhase.toLowerCase());
+      phaseInfo.currentPhase.toLowerCase() === "signing" ||
+      phaseInfo.currentPhase.toLowerCase() === "sign_phase";
+
     if (isSignPhase) {
-      if (userHasSigned)
-        return remainingTimeDisplay < 60
-          ? "Refreshing..."
-          : `Claim: ${formatTimeRemaining(remainingTimeDisplay)}`;
-      return "Daily Sign";
+      if (userHasSigned) {
+        if (remainingTimeDisplay < 60) {
+          return "Refreshing...";
+        }
+        return `Claim: ${formatTimeRemaining(remainingTimeDisplay)}`;
+      } else {
+        return "Daily Sign";
+      }
+    } else {
+      if (userHasClaimed) {
+        return `Next sign: ${formatTimeRemaining(remainingTimeDisplay)}`;
+      } else if (userHasSigned) {
+        return "Claim";
+      } else {
+        return `Sign ended: ${formatTimeRemaining(remainingTimeDisplay)}`;
+      }
     }
-    if (userHasClaimed)
-      return `Next sign: ${formatTimeRemaining(remainingTimeDisplay)}`;
-    if (userHasSigned) return "Claim";
-    return `Sign ended: ${formatTimeRemaining(remainingTimeDisplay)}`;
   }, [
     phaseInfo,
     userHasSigned,
@@ -560,28 +738,55 @@ export default function Page() {
     formatTimeRemaining,
   ]);
 
+  // Check if button should be disabled
   const isSignButtonDisabled = useCallback(() => {
-    if (!phaseInfo || !address) return true;
+    if (!phaseInfo) return true;
+    if (!address) return true;
+
     const isSignPhase =
       phaseInfo.currentPhase.toLowerCase().includes("sign") ||
-      ["signing", "sign_phase"].includes(phaseInfo.currentPhase.toLowerCase());
-    if (remainingTimeDisplay < 30 && isSignPhase && userHasSigned) return true;
-    return isSignPhase ? userHasSigned : !userHasSigned || userHasClaimed;
+      phaseInfo.currentPhase.toLowerCase() === "signing" ||
+      phaseInfo.currentPhase.toLowerCase() === "sign_phase";
+
+    if (remainingTimeDisplay < 30 && isSignPhase && userHasSigned) {
+      return true;
+    }
+
+    if (isSignPhase) {
+      return userHasSigned;
+    } else {
+      return !userHasSigned || userHasClaimed;
+    }
   }, [phaseInfo, userHasSigned, userHasClaimed, address, remainingTimeDisplay]);
 
   const handleBidInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      let v = e.target.value.replace(/,/g, ".").replace(/[^0-9.]/g, "");
-      const i = v.indexOf(".");
-      if (i !== -1) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/\./g, "");
-      if (v.startsWith(".")) v = `0${v}`;
-      setBidInput(v);
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      let nextValue = event.target.value;
+      // Convert commas to dots
+      nextValue = nextValue.replace(/,/g, ".");
+      // Remove all characters except digits and dots
+      nextValue = nextValue.replace(/[^0-9.]/g, "");
+      // Keep only the first dot
+      const firstDotIndex = nextValue.indexOf(".");
+      if (firstDotIndex !== -1) {
+        nextValue =
+          nextValue.slice(0, firstDotIndex + 1) +
+          nextValue.slice(firstDotIndex + 1).replace(/\./g, "");
+      }
+      // If it starts with a dot, prefix 0
+      if (nextValue.startsWith(".")) {
+        nextValue = `0${nextValue}`;
+      }
+      setBidInput(nextValue);
     },
     []
   );
 
   const handleBid = useCallback(async () => {
-    if (!address) return toast.warning("Please connect your wallet first");
+    if (!address) {
+      toast.warning("Please connect your wallet first");
+      return;
+    }
     try {
       await ensureBase();
       const value = parseEther((bidInput || "0") as `${string}`);
@@ -591,27 +796,37 @@ export default function Page() {
         functionName: "placeBid",
         args: [],
         value,
-        chainId: base.id,
       });
       toast.success("Bid placed successfully! 🎉");
-    } catch (error: unknown) {
-      const msg = String((error as Error)?.message || error);
-      if (/network/i.test(msg))
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("network")) {
         toast.error(
           "Transaction cancelled: Wrong network. Please switch to Base."
         );
-      else if (/rate limited/i.test(msg)) {
+      } else if (
+        error instanceof Error &&
+        error.message.includes("rate limited")
+      ) {
         toast.error(
-          `Rate limited: ${msg}. Please wait a moment and try again.`,
+          `Rate limited: ${error.message}. Please wait a moment and try again.`,
           {
             duration: 5000,
-            action: { label: "Retry", onClick: () => handleBid() },
+            action: {
+              label: "Retry",
+              onClick: () => handleBid(),
+            },
           }
         );
       } else {
-        toast.error(`Transaction failed: ${msg}`, {
+        // Show the actual error message to the user
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        toast.error(`Transaction failed: ${errorMessage}`, {
           duration: 5000,
-          action: { label: "Retry", onClick: () => handleBid() },
+          action: {
+            label: "Retry",
+            onClick: () => handleBid(),
+          },
         });
       }
     }
@@ -619,80 +834,149 @@ export default function Page() {
 
   const handleSellNFT = useCallback(
     async (tokenId: bigint) => {
-      if (!address) return toast.warning("Please connect your wallet first");
+      if (!address) {
+        toast.warning("Please connect your wallet first");
+        return;
+      }
       try {
         await ensureBase();
-        if (userNFTs.length > 1)
-          return toast.error(
-            "You must hold only 1 NFT to sell. Please transfer other NFTs first."
-          );
-        const tokenIdStr = tokenId.toString();
-        const isApproved = nftApprovalStatus[tokenIdStr] === true;
 
-        if (!isApproved) {
-          setNftLoadingStatus((p) => ({ ...p, [tokenIdStr]: true }));
+        // Check if user has multiple NFTs
+        if (userNFTs.length > 1) {
+          toast.error(
+            "You must hold only 1 NFT to sell. Please transfer other NFTs to another wallet first."
+          );
+          return;
+        }
+
+        // Check if this specific NFT is approved
+        const tokenIdStr = tokenId.toString();
+        console.log("handleSellNFT called with tokenId:", tokenIdStr);
+        console.log(
+          "userNFTs:",
+          userNFTs.map((id) => id.toString())
+        );
+        const isThisNFTApproved = nftApprovalStatus[tokenIdStr] === true;
+
+        console.log(`NFT ${tokenIdStr} approval status:`, isThisNFTApproved);
+        console.log("Current nftApprovalStatus:", nftApprovalStatus);
+        console.log("Current nftLoadingStatus:", nftLoadingStatus);
+
+        // If not approved, automatically approve first
+        if (!isThisNFTApproved) {
+          // Set loading state for this specific NFT
+          setNftLoadingStatus((prev) => ({
+            ...prev,
+            [tokenIdStr]: true,
+          }));
+
           toast.info(
             `Approval required for Noun #${tokenIdStr}. Approving automatically...`
           );
+
           try {
             await retryWithBackoff(
-              () =>
-                writeContract(config, {
+              async () => {
+                return await writeContract(config, {
                   address: COLLECTION_ADDR,
                   abi: NFT_ABI,
                   functionName: "setApprovalForAll",
                   args: [CONTRACT_ADDR, true],
-                  chainId: base.id,
-                }),
+                });
+              },
               5,
               2000
+            ); // 5 retry, 2 second base delay
+
+            toast.info(
+              "Approval transaction sent. Waiting for confirmation..."
             );
-            await new Promise((r) => setTimeout(r, 5000));
-            const actually = await retryWithBackoff(() =>
-              readContract(config, {
+
+            // Wait for approval transaction to be confirmed
+            await new Promise((resolve) => setTimeout(resolve, 5000));
+
+            // Verify approval is actually set
+            const isActuallyApproved = await retryWithBackoff(async () => {
+              return await readContract(config, {
                 address: COLLECTION_ADDR,
                 abi: NFT_ABI,
                 functionName: "isApprovedForAll",
                 args: [address, CONTRACT_ADDR],
-                chainId: base.id,
-              })
-            );
-            if (actually) {
+              });
+            });
+
+            if (isActuallyApproved) {
               toast.success("Approval confirmed! ✅");
-              setNftApprovalStatus((p) => ({ ...p, [tokenIdStr]: true }));
+
+              // Update the specific NFT's approval status
+              setNftApprovalStatus((prev) => ({
+                ...prev,
+                [tokenIdStr]: true,
+              }));
+
+              // Update all NFT approval statuses
               await checkIndividualNFTApprovals();
             } else {
               throw new Error("Approval not confirmed on blockchain");
             }
+          } catch (error) {
+            console.error("Approval failed:", error);
+            if (
+              error instanceof Error &&
+              error.message.includes("rate limited")
+            ) {
+              toast.error("Rate limited. Please wait a moment and try again.");
+            } else {
+              toast.error("Approval failed. Please try again.");
+            }
+            throw error;
           } finally {
-            setNftLoadingStatus((p) => ({ ...p, [tokenIdStr]: false }));
+            // Clear loading state
+            setNftLoadingStatus((prev) => ({
+              ...prev,
+              [tokenIdStr]: false,
+            }));
           }
         }
 
+        // Sell the specific NFT
         toast.info(`Selling Noun #${tokenIdStr}...`);
         await writeContract(config, {
           address: CONTRACT_ADDR,
           abi: MARKET_ABI,
           functionName: "sellToHighest",
           args: [tokenId],
-          chainId: base.id,
         });
         toast.success(`Noun #${tokenIdStr} sold successfully! 🎉`);
-      } catch (error: unknown) {
-        const msg = String((error as Error)?.message || error);
-        if (/network/i.test(msg))
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("network")) {
           toast.error(
             "Transaction cancelled: Wrong network. Please switch to Base."
           );
-        else if (/rate limited/i.test(msg)) {
-          toast.error(`Rate limited: ${msg}`, {
-            duration: 5000,
-            action: { label: "Retry", onClick: () => handleSellNFT(tokenId) },
-          });
+        } else if (
+          error instanceof Error &&
+          error.message.includes("rate limited")
+        ) {
+          toast.error(
+            `Rate limited: ${error.message}. Please wait a moment and try again.`,
+            {
+              duration: 5000,
+              action: {
+                label: "Retry",
+                onClick: () => handleSellNFT(tokenId),
+              },
+            }
+          );
         } else {
-          toast.error(`Sell failed: ${msg}`, {
+          // Show the actual error message to the user
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          toast.error(`Sell failed: ${errorMessage}`, {
             duration: 5000,
-            action: { label: "Retry", onClick: () => handleSellNFT(tokenId) },
+            action: {
+              label: "Retry",
+              onClick: () => handleSellNFT(tokenId),
+            },
           });
         }
       }
@@ -701,41 +985,52 @@ export default function Page() {
       config,
       ensureBase,
       address,
-      userNFTs,
       nftApprovalStatus,
+      nftLoadingStatus,
       checkIndividualNFTApprovals,
     ]
   );
 
   const handleSign = useCallback(async () => {
-    if (!address) return toast.warning("Please connect your wallet first");
+    if (!address) {
+      toast.warning("Please connect your wallet first");
+      return;
+    }
+
     try {
       await ensureBase();
-      const owned = (await retryWithBackoff(() =>
-        readContract(config, {
+
+      const owned: bigint[] = (await retryWithBackoff(async () => {
+        return (await readContract(config, {
           address: COLLECTION_ADDR,
           abi: NFT_ABI,
           functionName: "getNFTzBelongingToOwner",
           args: [address],
-          chainId: base.id,
-        })
-      )) as unknown as bigint[];
-      if (!owned?.length) return toast.error("No NFTs owned");
-      if (owned.length > 1)
-        return toast.warning("You must hodl only 1 vrnouns in your wallet");
+        })) as unknown as bigint[];
+      })) as bigint[];
+
+      if (!owned || owned.length === 0) {
+        toast.error("No NFTs owned");
+        return;
+      }
+
+      if (owned.length > 1) {
+        toast.warning("You must hodl only 1 vrnouns in your wallet");
+        return;
+      }
+
       const tokenId = owned.reduce((a, b) => (a > b ? a : b));
+
       const isSignPhase =
         phaseInfo?.currentPhase.toLowerCase().includes("sign") ||
-        ["signing", "sign_phase"].includes(
-          phaseInfo?.currentPhase.toLowerCase() || ""
-        );
+        phaseInfo?.currentPhase.toLowerCase() === "signing" ||
+        phaseInfo?.currentPhase.toLowerCase() === "sign_phase";
 
       await writeContract(config, {
         address: CONTRACT_ADDR,
         abi: MARKET_ABI,
         functionName: "signOrClaim",
         args: [tokenId],
-        chainId: base.id,
       });
 
       if (isSignPhase) {
@@ -750,21 +1045,35 @@ export default function Page() {
         checkUserSignedStatus();
         getPhaseInfo();
       }, 2000);
-    } catch (error: unknown) {
-      const msg = String((error as Error)?.message || error);
-      if (/network/i.test(msg))
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("network")) {
         toast.error(
           "Transaction cancelled: Wrong network. Please switch to Base."
         );
-      else if (/rate limited/i.test(msg)) {
-        toast.error(`Rate limited: ${msg}`, {
-          duration: 5000,
-          action: { label: "Retry", onClick: () => handleSign() },
-        });
+      } else if (
+        error instanceof Error &&
+        error.message.includes("rate limited")
+      ) {
+        toast.error(
+          `Rate limited: ${error.message}. Please wait a moment and try again.`,
+          {
+            duration: 5000,
+            action: {
+              label: "Retry",
+              onClick: () => handleSign(),
+            },
+          }
+        );
       } else {
-        toast.error(`Sign/Claim failed: ${msg}`, {
+        // Show the actual error message to the user
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        toast.error(`Sign/Claim failed: ${errorMessage}`, {
           duration: 5000,
-          action: { label: "Retry", onClick: () => handleSign() },
+          action: {
+            label: "Retry",
+            onClick: () => handleSign(),
+          },
         });
       }
     }
@@ -785,96 +1094,73 @@ export default function Page() {
             <div className="flex items-center space-x-6">
               <Logo className="h-24 w-auto mt-1" />
             </div>
+
             <div>
-              {isMiniApp ? (
-                isConnected ? (
-                  <div
-                    className="px-6 py-2 border-2 border-gray-400 rounded-full text-sm"
-                    style={{
-                      color: "rgb(9,9,11)",
-                      fontSize: 15,
-                      fontWeight: 500,
-                    }}
-                  >
-                    Connected via Farcaster
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => {
-                      const fc =
-                        connectors.find((c) =>
-                          (c.name || "").toLowerCase().includes("farcaster")
-                        ) ||
-                        connectors.find((c) =>
-                          (c.name || "").toLowerCase().includes("embedded")
-                        ) ||
-                        connectors[0];
-                      if (fc) connect({ connector: fc });
-                    }}
-                    className="px-6 py-2 border-2 border-gray-400 rounded-full text-sm !bg-transparent"
-                    style={{
-                      color: "rgb(9,9,11)",
-                      fontSize: 15,
-                      fontWeight: 500,
-                    }}
-                  >
-                    Connect (Farcaster)
-                  </button>
-                )
-              ) : (
-                <ConnectButton.Custom>
-                  {({
-                    account,
-                    chain,
-                    openAccountModal,
-                    openChainModal,
-                    openConnectModal,
-                    mounted,
-                  }) => {
-                    const ready = mounted;
-                    const connected = ready && account && chain;
-                    return (
-                      <div
-                        {...(!ready && {
-                          "aria-hidden": true,
-                          style: {
-                            opacity: 0,
-                            pointerEvents: "none",
-                            userSelect: "none",
-                          },
-                        })}
-                      >
-                        {!connected ? (
-                          <button
-                            onClick={openConnectModal}
-                            type="button"
-                            className="px-6 py-2 border-2 border-gray-400 rounded-full text-sm !bg-transparent"
-                            style={{
-                              color: "rgb(9,9,11)",
-                              fontSize: 15,
-                              fontWeight: 500,
-                            }}
-                          >
-                            Connect Wallet
-                          </button>
-                        ) : chain.unsupported ? (
-                          <button
-                            onClick={openChainModal}
-                            type="button"
-                            className="px-4 py-2 border-2 border-red-400 rounded-full text-sm bg-red-100 text-red-600 font-bold"
-                          >
-                            Wrong Network
-                          </button>
-                        ) : (
+              <ConnectButton.Custom>
+                {({
+                  account,
+                  chain,
+                  openAccountModal,
+                  openChainModal,
+                  openConnectModal,
+                  mounted,
+                }) => {
+                  const ready = mounted;
+                  const connected = ready && account && chain;
+
+                  return (
+                    <div
+                      {...(!ready && {
+                        "aria-hidden": true,
+                        style: {
+                          opacity: 0,
+                          pointerEvents: "none",
+                          userSelect: "none",
+                        },
+                      })}
+                    >
+                      {(() => {
+                        if (!connected) {
+                          return (
+                            <button
+                              onClick={openConnectModal}
+                              type="button"
+                              className="px-6 py-2 border-2 border-gray-400 rounded-full hover:bg-transparent transition text-sm !bg-transparent"
+                              style={{
+                                color: "rgb(9, 9, 11)",
+                                fontSize: "15px",
+                                letterSpacing: "-0.01em",
+                                fontWeight: "500",
+                              }}
+                            >
+                              Connect Wallet
+                            </button>
+                          );
+                        }
+
+                        if (chain.unsupported) {
+                          return (
+                            <button
+                              onClick={openChainModal}
+                              type="button"
+                              className="px-4 py-2 border-2 border-red-400 rounded-full hover:bg-red-50 transition text-sm bg-red-100 text-red-600 font-bold"
+                            >
+                              Wrong Network
+                            </button>
+                          );
+                        }
+
+                        return (
                           <div className="flex gap-2">
                             <button
                               onClick={openAccountModal}
                               type="button"
-                              className="px-6 py-2 border-2 border-gray-400 rounded-full text-sm !bg-transparent flex items-center gap-2"
+                              className="px-6 py-2 border-2 border-gray-400 rounded-full hover:bg-transparent transition text-sm !bg-transparent flex items-center gap-2"
                               style={{
-                                color: "rgb(9,9,11)",
-                                fontSize: 15,
-                                fontWeight: 500,
+                                color: "rgb(9, 9, 11)",
+                                fontSize: "15px",
+                                letterSpacing: "-0.01em",
+                                fontWeight: "500",
                               }}
                             >
                               {chain.hasIcon && chain.iconUrl && (
@@ -888,12 +1174,12 @@ export default function Page() {
                               {account.displayName}
                             </button>
                           </div>
-                        )}
-                      </div>
-                    );
-                  }}
-                </ConnectButton.Custom>
-              )}
+                        );
+                      })()}
+                    </div>
+                  );
+                }}
+              </ConnectButton.Custom>
             </div>
           </div>
         </header>
