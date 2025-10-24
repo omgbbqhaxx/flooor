@@ -2,8 +2,14 @@
 const nextConfig = {
   output: "export",
   trailingSlash: true,
-  images: {
-    unoptimized: true,
+  images: { unoptimized: true },
+  async rewrites() {
+    return [
+      {
+        source: "/.well-known/farcaster.json",
+        destination: "/well-known/farcaster.json",
+      },
+    ];
   },
 };
 
