@@ -1,0 +1,9 @@
+{
+  "git.enabled": true,
+  "git.autofetch": true,
+  "git.confirmSync": false,
+  "git.autoRepositoryDetection": true,
+  "git.detectSubmodules": true,
+  "git.path": null,
+  "github.gitProtocol": "ssh"
+}
