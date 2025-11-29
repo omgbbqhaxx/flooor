@@ -1746,6 +1746,15 @@ export default function Page() {
                 >
                   Flooor
                 </a>
+
+                <a
+                  href="https://snapshot.org/#/s:vrnouns.eth"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-white transition-colors font-oldschool font-bold"
+                >
+                  Snapshot
+                </a>
               </div>
             </div>
 
