@@ -69,6 +69,12 @@ import NFT_ABI from "@/app/abi/nft.json";
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
 
+// ============================================================================
+// MINIMUM PRICE CONFIGURATION (in ETH)
+// Change this value to adjust the minimum bid and sell price
+// ============================================================================
+const MINIMUM_BID_FOR_SELL = 0.01; // Placeholder - adjust as needed
+
 export default function Page() {
   //const calls = []; // to be populated with buyFloor call later
   const [bidInput, setBidInput] = useState("");
@@ -789,6 +795,16 @@ export default function Page() {
     }
     try {
       await ensureBase();
+
+      // Check if bid amount is below minimum
+      const bidAmount = parseFloat(bidInput || "0");
+      if (bidAmount < MINIMUM_BID_FOR_SELL) {
+        toast.error(
+          `Bid amount must be at least ${MINIMUM_BID_FOR_SELL} ETH. You cannot bid below this price.`
+        );
+        return;
+      }
+
       const value = parseEther((bidInput || "0") as `${string}`);
       await writeContract(config, {
         address: CONTRACT_ADDR,
@@ -840,6 +856,15 @@ export default function Page() {
       }
       try {
         await ensureBase();
+
+        // Check if current bid is below minimum price for selling
+        const currentBidNumber = parseFloat(currentBid);
+        if (currentBidNumber < MINIMUM_BID_FOR_SELL) {
+          toast.error(
+            `You cannot sell below this price. The current bid (${currentBid} ETH) is below the minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH.`
+          );
+          return;
+        }
 
         // Check if user has multiple NFTs
         if (userNFTs.length > 1) {
@@ -988,6 +1013,8 @@ export default function Page() {
       nftApprovalStatus,
       nftLoadingStatus,
       checkIndividualNFTApprovals,
+      currentBid,
+      userNFTs,
     ]
   );
 
@@ -1627,7 +1654,7 @@ export default function Page() {
                     <input
                       type="text"
                       inputMode="decimal"
-                      placeholder="Ξ 0.00"
+                      placeholder={`minimum Ξ ${MINIMUM_BID_FOR_SELL}`}
                       className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg font-oldschool text-lg bg-white text-black placeholder-gray-400 caret-black focus:border-black focus:outline-none transition-colors"
                       value={bidInput}
                       onChange={handleBidInputChange}
