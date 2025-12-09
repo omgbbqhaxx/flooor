@@ -10,6 +10,7 @@
     "description": "A game-theory NFT marketplace where holders collect daily royalties.",
     "splashImageUrl": "https://flooor.fun/splash.png",
     "primaryCategory": "finance",
+    "tags": ["rewards", "nft", "warpcast", "earn"],
     "splashBackgroundColor": "#F3322C"
   },
   "accountAssociation": {
