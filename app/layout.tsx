@@ -53,6 +53,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={oldschoolGrotesk.variable}>
       <head>
+        <meta name="base:app_id" content="6938998fe6be54f5ed71d4bf" />
         <script
           async
           src="https://www.googletagmanager.com/gtag/js?id=G-5B3B1SJBNH"
