@@ -54,6 +54,20 @@ export default function RootLayout({
     <html lang="en" className={oldschoolGrotesk.variable}>
       <head>
         <meta name="base:app_id" content="6938998fe6be54f5ed71d4bf" />
+        <meta
+          name="fc:miniapp"
+          content={JSON.stringify({
+            version: "next",
+            imageUrl: "https://flooor.fun/bg.png",
+            button: {
+              title: "Open App",
+              action: {
+                type: "launch_frame",
+                url: "https://flooor.fun",
+              },
+            },
+          })}
+        />
         <script
           async
           src="https://www.googletagmanager.com/gtag/js?id=G-5B3B1SJBNH"
