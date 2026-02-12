@@ -15,10 +15,7 @@
       "marketplace",
       "nft-marketplace",
       "royalties",
-      "warpcast",
-      "floor-price",
-      "claim",
-      "earn"
+      "floor-price"
     ],
     "splashBackgroundColor": "#F3322C"
   },
