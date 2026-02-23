@@ -19,6 +19,11 @@ import { Toaster } from "sonner";
 import "@rainbow-me/rainbowkit/styles.css";
 import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
 import { sdk } from "@farcaster/miniapp-sdk";
+import { Attribution } from "ox/erc8021";
+
+const DATA_SUFFIX = Attribution.toDataSuffix({
+  codes: ["bc_uzb9vqpt"],
+});
 
 const rpcTransports = fallback([
   http("https://base-mainnet.g.alchemy.com/v2/R11AN4bze2Uyhg3V6KZ7m"),
@@ -56,6 +61,7 @@ const config = createConfig({
   chains: [base],
   connectors: [...connectors, farcasterMiniApp()],
   transports: { [base.id]: rpcTransports },
+  dataSuffix: DATA_SUFFIX,
   ssr: true,
 });
 
