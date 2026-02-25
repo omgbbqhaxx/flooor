@@ -681,14 +681,12 @@ export default function Page() {
     const countdownInterval = setInterval(() => {
       setRemainingTimeDisplay((prev) => {
         if (prev <= 0) {
-          setLastFetchTime(0);
           return 0;
         }
-
-        if (prev <= 120) {
+        // Only trigger fetch when transitioning from 1 to 0 (phase change)
+        if (prev === 1) {
           setLastFetchTime(0);
         }
-
         return prev - 1;
       });
     }, 1000);
