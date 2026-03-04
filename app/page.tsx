@@ -14,7 +14,11 @@ import {
 } from "wagmi/actions";
 import { base } from "wagmi/chains";
 import { parseEther, formatEther } from "viem";
+import { Attribution } from "ox/erc8021";
 import Image from "next/image";
+
+const BUILDER_CODE = "bc_uzb9vqpt";
+const DATA_SUFFIX = Attribution.toDataSuffix({ codes: [BUILDER_CODE] });
 import blockies from "blockies";
 
 // Retry utility with exponential backoff
@@ -810,6 +814,7 @@ export default function Page() {
         functionName: "placeBid",
         args: [],
         value,
+        dataSuffix: DATA_SUFFIX,
       });
       toast.success("Bid placed successfully! 🎉");
     } catch (error) {
@@ -905,6 +910,7 @@ export default function Page() {
                   abi: NFT_ABI,
                   functionName: "setApprovalForAll",
                   args: [CONTRACT_ADDR, true],
+                  dataSuffix: DATA_SUFFIX,
                 });
               },
               5,
@@ -969,6 +975,7 @@ export default function Page() {
           abi: MARKET_ABI,
           functionName: "sellToHighest",
           args: [tokenId],
+          dataSuffix: DATA_SUFFIX,
         });
         toast.success(`Noun #${tokenIdStr} sold successfully! 🎉`);
       } catch (error) {
@@ -1056,6 +1063,7 @@ export default function Page() {
         abi: MARKET_ABI,
         functionName: "signOrClaim",
         args: [tokenId],
+        dataSuffix: DATA_SUFFIX,
       });
 
       if (isSignPhase) {
