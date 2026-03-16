@@ -25,7 +25,7 @@ import blockies from "blockies";
 const retryWithBackoff = async (
   fn: () => Promise<unknown>,
   maxRetries: number = 3,
-  baseDelay: number = 1000
+  baseDelay: number = 1000,
 ): Promise<unknown> => {
   let lastError: Error;
 
@@ -57,7 +57,7 @@ const retryWithBackoff = async (
       // Exponential backoff: 1s, 2s, 4s
       const delay = baseDelay * Math.pow(2, attempt);
       console.log(
-        `Retry attempt ${attempt + 1}/${maxRetries + 1} after ${delay}ms delay`
+        `Retry attempt ${attempt + 1}/${maxRetries + 1} after ${delay}ms delay`,
       );
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
@@ -77,7 +77,7 @@ const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
 // MINIMUM PRICE CONFIGURATION (in ETH)
 // Change this value to adjust the minimum bid and sell price
 // ============================================================================
-const MINIMUM_BID_FOR_SELL = 0.0025; // Placeholder - adjust as needed
+const MINIMUM_BID_FOR_SELL = 0.0015; // Placeholder - adjust as needed
 
 export default function Page() {
   //const calls = []; // to be populated with buyFloor call later
@@ -212,7 +212,7 @@ export default function Page() {
       } catch (error) {
         console.error(
           `Error checking approval for token ${highestTokenId}:`,
-          error
+          error,
         );
         approvalStatus[tokenIdStr] = false;
       }
@@ -220,7 +220,7 @@ export default function Page() {
 
     console.log(
       "checkIndividualNFTApprovals result (displayed NFT only):",
-      approvalStatus
+      approvalStatus,
     );
     setNftApprovalStatus(approvalStatus);
   }, [config, address, userNFTs]);
@@ -293,7 +293,7 @@ export default function Page() {
         string,
         bigint,
         bigint,
-        bigint
+        bigint,
       ];
 
       setPhaseInfo({
@@ -425,13 +425,13 @@ export default function Page() {
           } else {
             // Fallback to shortened address
             setActiveBidderName(
-              `${bidderAddress.slice(0, 6)}...${bidderAddress.slice(-4)}`
+              `${bidderAddress.slice(0, 6)}...${bidderAddress.slice(-4)}`,
             );
           }
         } catch {
           // Fallback to shortened address
           setActiveBidderName(
-            `${bidderAddress.slice(0, 6)}...${bidderAddress.slice(-4)}`
+            `${bidderAddress.slice(0, 6)}...${bidderAddress.slice(-4)}`,
           );
         }
       } else {
@@ -597,7 +597,7 @@ export default function Page() {
         if (jsonData.image_data) {
           // Create data URL for SVG
           const svgDataUrl = `data:image/svg+xml;base64,${btoa(
-            jsonData.image_data
+            jsonData.image_data,
           )}`;
           images[tokenIdStr] = svgDataUrl;
         }
@@ -707,7 +707,7 @@ export default function Page() {
     const secs = seconds % 60;
     return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(
       2,
-      "0"
+      "0",
     )}:${String(secs).padStart(2, "0")}`;
   }, []);
 
@@ -787,7 +787,7 @@ export default function Page() {
       }
       setBidInput(nextValue);
     },
-    []
+    [],
   );
 
   const handleBid = useCallback(async () => {
@@ -802,7 +802,7 @@ export default function Page() {
       const bidAmount = parseFloat(bidInput || "0");
       if (bidAmount < MINIMUM_BID_FOR_SELL) {
         toast.error(
-          `Bid amount must be at least ${MINIMUM_BID_FOR_SELL} ETH. You cannot bid below this price.`
+          `Bid amount must be at least ${MINIMUM_BID_FOR_SELL} ETH. You cannot bid below this price.`,
         );
         return;
       }
@@ -820,7 +820,7 @@ export default function Page() {
     } catch (error) {
       if (error instanceof Error && error.message.includes("network")) {
         toast.error(
-          "Transaction cancelled: Wrong network. Please switch to Base."
+          "Transaction cancelled: Wrong network. Please switch to Base.",
         );
       } else if (
         error instanceof Error &&
@@ -834,7 +834,7 @@ export default function Page() {
               label: "Retry",
               onClick: () => handleBid(),
             },
-          }
+          },
         );
       } else {
         // Show the actual error message to the user
@@ -864,7 +864,7 @@ export default function Page() {
         const currentBidNumber = parseFloat(currentBid);
         if (currentBidNumber < MINIMUM_BID_FOR_SELL) {
           toast.error(
-            `You cannot sell below this price. The current bid (${currentBid} ETH) is below the minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH.`
+            `You cannot sell below this price. The current bid (${currentBid} ETH) is below the minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH.`,
           );
           return;
         }
@@ -872,7 +872,7 @@ export default function Page() {
         // Check if user has multiple NFTs
         if (userNFTs.length > 1) {
           toast.error(
-            "You must hold only 1 NFT to sell. Please transfer other NFTs to another wallet first."
+            "You must hold only 1 NFT to sell. Please transfer other NFTs to another wallet first.",
           );
           return;
         }
@@ -882,7 +882,7 @@ export default function Page() {
         console.log("handleSellNFT called with tokenId:", tokenIdStr);
         console.log(
           "userNFTs:",
-          userNFTs.map((id) => id.toString())
+          userNFTs.map((id) => id.toString()),
         );
         const isThisNFTApproved = nftApprovalStatus[tokenIdStr] === true;
 
@@ -899,7 +899,7 @@ export default function Page() {
           }));
 
           toast.info(
-            `Approval required for Noun #${tokenIdStr}. Approving automatically...`
+            `Approval required for Noun #${tokenIdStr}. Approving automatically...`,
           );
 
           try {
@@ -914,11 +914,11 @@ export default function Page() {
                 });
               },
               5,
-              2000
+              2000,
             ); // 5 retry, 2 second base delay
 
             toast.info(
-              "Approval transaction sent. Waiting for confirmation..."
+              "Approval transaction sent. Waiting for confirmation...",
             );
 
             // Wait for approval transaction to be confirmed
@@ -981,7 +981,7 @@ export default function Page() {
       } catch (error) {
         if (error instanceof Error && error.message.includes("network")) {
           toast.error(
-            "Transaction cancelled: Wrong network. Please switch to Base."
+            "Transaction cancelled: Wrong network. Please switch to Base.",
           );
         } else if (
           error instanceof Error &&
@@ -995,7 +995,7 @@ export default function Page() {
                 label: "Retry",
                 onClick: () => handleSellNFT(tokenId),
               },
-            }
+            },
           );
         } else {
           // Show the actual error message to the user
@@ -1020,7 +1020,7 @@ export default function Page() {
       checkIndividualNFTApprovals,
       currentBid,
       userNFTs,
-    ]
+    ],
   );
 
   const handleSign = useCallback(async () => {
@@ -1081,7 +1081,7 @@ export default function Page() {
     } catch (error) {
       if (error instanceof Error && error.message.includes("network")) {
         toast.error(
-          "Transaction cancelled: Wrong network. Please switch to Base."
+          "Transaction cancelled: Wrong network. Please switch to Base.",
         );
       } else if (
         error instanceof Error &&
@@ -1095,7 +1095,7 @@ export default function Page() {
               label: "Retry",
               onClick: () => handleSign(),
             },
-          }
+          },
         );
       } else {
         // Show the actual error message to the user
@@ -1480,7 +1480,7 @@ export default function Page() {
                                       } catch (error) {
                                         console.error(
                                           "Error drawing blockie:",
-                                          error
+                                          error,
                                         );
                                       }
                                     }
@@ -1502,7 +1502,7 @@ export default function Page() {
                             {activeBidderName ||
                               `${activeBidder.slice(
                                 0,
-                                6
+                                6,
                               )}...${activeBidder.slice(-4)}`}
                             <svg
                               className="w-3 h-3 ml-1"
@@ -1542,18 +1542,18 @@ export default function Page() {
                         {/* Show only the highest token ID NFT */}
                         {(() => {
                           const highestTokenId = userNFTs.reduce((a, b) =>
-                            a > b ? a : b
+                            a > b ? a : b,
                           );
                           const tokenIdStr = highestTokenId.toString();
                           const moreCount = userNFTs.length - 1;
 
                           console.log(
                             "Displaying NFT - userNFTs:",
-                            userNFTs.map((id) => id.toString())
+                            userNFTs.map((id) => id.toString()),
                           );
                           console.log(
                             "Displaying NFT - highestTokenId:",
-                            tokenIdStr
+                            tokenIdStr,
                           );
 
                           return (
