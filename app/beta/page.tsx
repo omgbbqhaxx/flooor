@@ -11,6 +11,7 @@ import {
   readContract,
   switchChain,
   simulateContract,
+  getPublicClient,
 } from "wagmi/actions";
 import { base } from "wagmi/chains";
 import { parseEther, formatEther } from "viem";
@@ -85,6 +86,17 @@ export default function BetaPage() {
   const chainId = useChainId();
   const { address } = useAccount();
   const [showNetworkWarning, setShowNetworkWarning] = useState(false);
+  const [salesFilter, setSalesFilter] = useState<"week" | "month">("week");
+  const [recentSales, setRecentSales] = useState<{
+    tokenId: string;
+    amount: string;
+    seller: string;
+    buyer: string;
+    txHash: string;
+    blockNumber: bigint;
+    timestamp?: number;
+  }[]>([]);
+  const [salesLoading, setSalesLoading] = useState(false);
 
   const CACHE_DURATION = 5 * 60 * 1000;
 
@@ -370,6 +382,66 @@ export default function BetaPage() {
       console.error("Error checking user signed status:", error);
     }
   }, [config, address, phaseInfo, ownedTokenId]);
+
+  const getSalesHistory = useCallback(async (filter: "week" | "month") => {
+    setSalesLoading(true);
+    try {
+      const publicClient = getPublicClient(config, { chainId: base.id });
+      if (!publicClient) return;
+
+      const latestBlock = await publicClient.getBlockNumber();
+      // Base ~2 sn/blok: 1 hafta = 302400, 1 ay = 1296000
+      const blockRange = filter === "week" ? BigInt(302400) : BigInt(1296000);
+      const fromBlock = latestBlock > blockRange ? latestBlock - blockRange : BigInt(0);
+
+      const logs = await publicClient.getLogs({
+        address: CONTRACT_ADDR,
+        event: {
+          name: "SaleSettled",
+          type: "event",
+          inputs: [
+            { indexed: true, name: "seller", type: "address" },
+            { indexed: true, name: "buyer", type: "address" },
+            { indexed: true, name: "tokenId", type: "uint256" },
+            { indexed: false, name: "amount", type: "uint256" },
+          ],
+        },
+        fromBlock,
+        toBlock: "latest",
+      });
+
+      // Blok timestamp'lerini al (son 5 ile sınırla, fazlası için block numarası yeterli)
+      const sales = await Promise.all(
+        logs.reverse().map(async (log) => {
+          const args = log.args as { seller: string; buyer: string; tokenId: bigint; amount: bigint };
+          let timestamp: number | undefined;
+          try {
+            const block = await publicClient.getBlock({ blockNumber: log.blockNumber });
+            timestamp = Number(block.timestamp);
+          } catch { /* timestamp opsiyonel */ }
+          return {
+            tokenId: args.tokenId.toString(),
+            amount: parseFloat(formatEther(args.amount)).toFixed(6),
+            seller: args.seller,
+            buyer: args.buyer,
+            txHash: log.transactionHash ?? "",
+            blockNumber: log.blockNumber,
+            timestamp,
+          };
+        })
+      );
+
+      setRecentSales(sales);
+    } catch (error) {
+      console.error("Error fetching sales history:", error);
+    } finally {
+      setSalesLoading(false);
+    }
+  }, [config]);
+
+  useEffect(() => {
+    getSalesHistory(salesFilter);
+  }, [salesFilter, getSalesHistory]);
 
   const calculateYieldPerNFT = useCallback(() => {
     const vaultAmount = parseFloat(dailyVault);
@@ -988,6 +1060,171 @@ export default function BetaPage() {
             </div>
 
           </div>
+        </div>
+
+        {/* Recent Sales */}
+        <div className="mt-24 pt-16" style={{ borderTop: "1px solid #e0e0e0" }}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div>
+              <h2 className="text-3xl font-extrabold" style={{ color: "#1a1a1a" }}>Recent Sales</h2>
+              <p className="text-sm mt-1" style={{ color: "#888" }}>
+                {recentSales.length} sale{recentSales.length !== 1 ? "s" : ""} found
+              </p>
+            </div>
+            {/* Filter Toggle */}
+            <div className="flex rounded-xl overflow-hidden" style={{ border: "1px solid #e0e0e0" }}>
+              <button
+                onClick={() => setSalesFilter("week")}
+                className="px-5 py-2 text-sm font-bold transition-colors"
+                style={salesFilter === "week"
+                  ? { backgroundColor: "#1a1a1a", color: "#fff" }
+                  : { backgroundColor: "#fff", color: "#888" }}
+              >
+                7 Days
+              </button>
+              <button
+                onClick={() => setSalesFilter("month")}
+                className="px-5 py-2 text-sm font-bold transition-colors"
+                style={salesFilter === "month"
+                  ? { backgroundColor: "#1a1a1a", color: "#fff" }
+                  : { backgroundColor: "#fff", color: "#888" }}
+              >
+                30 Days
+              </button>
+            </div>
+          </div>
+
+          {/* Summary Stats */}
+          {recentSales.length > 0 && (
+            <div className="grid grid-cols-3 gap-4 mb-8">
+              <div className="rounded-2xl p-5" style={{ backgroundColor: "#f7f7f7" }}>
+                <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#888" }}>Total Sales</p>
+                <p className="text-2xl font-extrabold" style={{ color: "#1a1a1a" }}>{recentSales.length}</p>
+              </div>
+              <div className="rounded-2xl p-5" style={{ backgroundColor: "#f7f7f7" }}>
+                <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#888" }}>Total Volume</p>
+                <div className="flex items-center gap-1">
+                  <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" style={{ color: "#1a1a1a" }}>
+                    <path d="M12 1.75L5.75 12.25L12 16L18.25 12.25L12 1.75Z" />
+                    <path d="M5.75 13.75L12 17.5L18.25 13.75L12 22.25L5.75 13.75Z" />
+                  </svg>
+                  <p className="text-2xl font-extrabold" style={{ color: "#1a1a1a" }}>
+                    {recentSales.reduce((sum, s) => sum + parseFloat(s.amount), 0).toFixed(4)}
+                  </p>
+                </div>
+              </div>
+              <div className="rounded-2xl p-5" style={{ backgroundColor: "#f7f7f7" }}>
+                <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#888" }}>Avg Price</p>
+                <div className="flex items-center gap-1">
+                  <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" style={{ color: "#1a1a1a" }}>
+                    <path d="M12 1.75L5.75 12.25L12 16L18.25 12.25L12 1.75Z" />
+                    <path d="M5.75 13.75L12 17.5L18.25 13.75L12 22.25L5.75 13.75Z" />
+                  </svg>
+                  <p className="text-2xl font-extrabold" style={{ color: "#1a1a1a" }}>
+                    {(recentSales.reduce((sum, s) => sum + parseFloat(s.amount), 0) / recentSales.length).toFixed(4)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Sales Table */}
+          {salesLoading ? (
+            <div className="flex items-center justify-center py-16 gap-3" style={{ color: "#888" }}>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-400"></div>
+              <span className="text-sm font-semibold">Loading sales history...</span>
+            </div>
+          ) : recentSales.length === 0 ? (
+            <div className="text-center py-16" style={{ color: "#aaa" }}>
+              <p className="text-sm font-semibold">No sales found in this period</p>
+            </div>
+          ) : (
+            <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid #e0e0e0" }}>
+              {/* Table Header */}
+              <div className="grid grid-cols-5 px-5 py-3 text-xs font-bold uppercase tracking-widest" style={{ backgroundColor: "#f7f7f7", color: "#888", borderBottom: "1px solid #e0e0e0" }}>
+                <span>NFT</span>
+                <span>Price</span>
+                <span>Seller</span>
+                <span>Buyer</span>
+                <span className="text-right">Date</span>
+              </div>
+              {/* Rows */}
+              {recentSales.map((sale, i) => (
+                <div
+                  key={`${sale.txHash}-${i}`}
+                  className="grid grid-cols-5 px-5 py-4 items-center text-sm transition-colors hover:bg-gray-50"
+                  style={{ borderBottom: i < recentSales.length - 1 ? "1px solid #f0f0f0" : "none" }}
+                >
+                  {/* NFT */}
+                  <a
+                    href={`https://opensea.io/assets/base/${COLLECTION_ADDR}/${sale.tokenId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold hover:underline"
+                    style={{ color: "#4965f0" }}
+                  >
+                    #{sale.tokenId}
+                  </a>
+
+                  {/* Price */}
+                  <div className="flex items-center gap-1 font-extrabold" style={{ color: "#1a1a1a" }}>
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 1.75L5.75 12.25L12 16L18.25 12.25L12 1.75Z" />
+                      <path d="M5.75 13.75L12 17.5L18.25 13.75L12 22.25L5.75 13.75Z" />
+                    </svg>
+                    {sale.amount}
+                  </div>
+
+                  {/* Seller */}
+                  <a
+                    href={`https://basescan.org/address/${sale.seller}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-xs hover:underline truncate"
+                    style={{ color: "#555" }}
+                  >
+                    {sale.seller.slice(0, 6)}...{sale.seller.slice(-4)}
+                  </a>
+
+                  {/* Buyer */}
+                  <a
+                    href={`https://basescan.org/address/${sale.buyer}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-xs hover:underline truncate"
+                    style={{ color: "#555" }}
+                  >
+                    {sale.buyer.slice(0, 6)}...{sale.buyer.slice(-4)}
+                  </a>
+
+                  {/* Date / Tx */}
+                  <div className="text-right">
+                    {sale.timestamp ? (
+                      <a
+                        href={`https://basescan.org/tx/${sale.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs hover:underline"
+                        style={{ color: "#aaa" }}
+                      >
+                        {new Date(sale.timestamp * 1000).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })}
+                      </a>
+                    ) : (
+                      <a
+                        href={`https://basescan.org/tx/${sale.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-mono hover:underline"
+                        style={{ color: "#aaa" }}
+                      >
+                        #{sale.blockNumber.toString()}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Info Cards — nouns.wtf style full-width section */}
