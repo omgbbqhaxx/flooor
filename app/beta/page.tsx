@@ -547,11 +547,16 @@ export default function BetaPage() {
         dataSuffix: DATA_SUFFIX,
       });
       toast.success("Bid placed successfully!");
+      // Bid sonrası anında güncelle
+      setTimeout(() => {
+        getCurrentBid();
+        getActiveBidder();
+      }, 2000);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       toast.error(`Transaction failed: ${errorMessage}`, { duration: 5000, action: { label: "Retry", onClick: () => handleBid() } });
     }
-  }, [config, ensureBase, bidInput, address]);
+  }, [config, ensureBase, bidInput, address, getCurrentBid, getActiveBidder]);
 
   const handleSellNFT = useCallback(async (tokenId: bigint) => {
     if (!address) { toast.warning("Please connect your wallet first"); return; }
@@ -612,11 +617,18 @@ export default function BetaPage() {
         dataSuffix: DATA_SUFFIX,
       });
       toast.success(`Noun #${tokenIdStr} sold successfully!`);
+      // Satış sonrası anında güncelle
+      setTimeout(() => {
+        getCurrentBid();
+        getActiveBidder();
+        getDailyVault();
+        getUserNFTs();
+      }, 2000);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       toast.error(`Sell failed: ${errorMessage}`, { duration: 5000, action: { label: "Retry", onClick: () => handleSellNFT(tokenId) } });
     }
-  }, [config, ensureBase, address, nftApprovalStatus, nftLoadingStatus, checkIndividualNFTApprovals, currentBid, userNFTs]);
+  }, [config, ensureBase, address, nftApprovalStatus, nftLoadingStatus, checkIndividualNFTApprovals, currentBid, userNFTs, getCurrentBid, getActiveBidder, getDailyVault, getUserNFTs]);
 
   const handleSign = useCallback(async () => {
     if (!address) { toast.warning("Please connect your wallet first"); return; }
@@ -953,12 +965,26 @@ export default function BetaPage() {
                 style={{ backgroundColor: "#f0f0f0", color: "#555" }}>
                 Base App
               </a>
-              {isLoading && (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ backgroundColor: "#f0f0f0", color: "#888" }}>
-                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
-                  Loading...
-                </div>
-              )}
+              <button
+                onClick={() => {
+                  setLastFetchTime(0);
+                  setIsLoading(true);
+                  Promise.allSettled([
+                    getPhaseInfo(), getDailySigners(), getDailyVault(),
+                    getCurrentBid(), getActiveBidder(), checkUserSignedStatus(),
+                    getUserNFTs(), checkApprovalStatus(),
+                  ]).finally(() => setIsLoading(false));
+                }}
+                disabled={isLoading}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                style={{ backgroundColor: "#f0f0f0", color: isLoading ? "#aaa" : "#555", cursor: isLoading ? "not-allowed" : "pointer" }}
+              >
+                {isLoading ? (
+                  <><div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div> Refreshing...</>
+                ) : (
+                  <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg> Refresh</>
+                )}
+              </button>
             </div>
 
           </div>
