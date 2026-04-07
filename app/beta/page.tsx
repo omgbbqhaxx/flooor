@@ -14,7 +14,7 @@ import {
   getPublicClient,
 } from "wagmi/actions";
 import { base } from "wagmi/chains";
-import { parseEther, formatEther } from "viem";
+import { parseEther, formatEther, parseAbiItem } from "viem";
 import { Attribution } from "ox/erc8021";
 import Image from "next/image";
 
@@ -53,6 +53,9 @@ import MARKET_ABI from "@/app/abi/market.json";
 import NFT_ABI from "@/app/abi/nft.json";
 
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
+const SALE_SETTLED_EVENT = parseAbiItem(
+  "event SaleSettled(address indexed seller, address indexed buyer, uint256 indexed tokenId, uint256 amount)"
+);
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
 const MINIMUM_BID_FOR_SELL = 0.0015;
 
@@ -86,7 +89,6 @@ export default function BetaPage() {
   const chainId = useChainId();
   const { address } = useAccount();
   const [showNetworkWarning, setShowNetworkWarning] = useState(false);
-  const [salesFilter, setSalesFilter] = useState<"week" | "month">("week");
   const [recentSales, setRecentSales] = useState<{
     tokenId: string;
     amount: string;
@@ -385,17 +387,6 @@ export default function BetaPage() {
 
   const getSalesHistory = useCallback(async (filter: "week" | "month") => {
     setSalesLoading(true);
-    const SALE_EVENT = {
-      name: "SaleSettled",
-      type: "event",
-      inputs: [
-        { indexed: true, name: "seller", type: "address" },
-        { indexed: true, name: "buyer", type: "address" },
-        { indexed: true, name: "tokenId", type: "uint256" },
-        { indexed: false, name: "amount", type: "uint256" },
-      ],
-    } as const;
-
     try {
       const publicClient = getPublicClient(config, { chainId: base.id });
       if (!publicClient) return;
@@ -422,7 +413,7 @@ export default function BetaPage() {
           batch.map(([from, to]) =>
             publicClient.getLogs({
               address: CONTRACT_ADDR,
-              event: SALE_EVENT,
+              event: SALE_SETTLED_EVENT,
               fromBlock: from,
               toBlock: to,
             }).catch(() => [])
@@ -468,9 +459,9 @@ export default function BetaPage() {
     }
   }, [config]);
 
-  useEffect(() => {
-    getSalesHistory(salesFilter);
-  }, [salesFilter, getSalesHistory]);
+  // Sadece mount'ta bir kez çalışır
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { getSalesHistory("week"); }, []);
 
   const calculateYieldPerNFT = useCallback(() => {
     const vaultAmount = parseFloat(dailyVault);
@@ -568,7 +559,8 @@ export default function BetaPage() {
     fetchAllData();
     const interval = setInterval(fetchAllData, 2 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [getPhaseInfo, getDailySigners, getDailyVault, getCurrentBid, getActiveBidder, checkUserSignedStatus, getUserNFTs, checkApprovalStatus, lastFetchTime, CACHE_DURATION]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastFetchTime]);
 
   useEffect(() => {
     const countdownInterval = setInterval(() => {
@@ -1093,34 +1085,11 @@ export default function BetaPage() {
 
         {/* Recent Sales */}
         <div className="mt-24 pt-16" style={{ borderTop: "1px solid #e0e0e0" }}>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-            <div>
-              <h2 className="text-3xl font-extrabold" style={{ color: "#1a1a1a" }}>Recent Sales</h2>
-              <p className="text-sm mt-1" style={{ color: "#888" }}>
-                {recentSales.length} sale{recentSales.length !== 1 ? "s" : ""} found
-              </p>
-            </div>
-            {/* Filter Toggle */}
-            <div className="flex rounded-xl overflow-hidden" style={{ border: "1px solid #e0e0e0" }}>
-              <button
-                onClick={() => setSalesFilter("week")}
-                className="px-5 py-2 text-sm font-bold transition-colors"
-                style={salesFilter === "week"
-                  ? { backgroundColor: "#1a1a1a", color: "#fff" }
-                  : { backgroundColor: "#fff", color: "#888" }}
-              >
-                7 Days
-              </button>
-              <button
-                onClick={() => setSalesFilter("month")}
-                className="px-5 py-2 text-sm font-bold transition-colors"
-                style={salesFilter === "month"
-                  ? { backgroundColor: "#1a1a1a", color: "#fff" }
-                  : { backgroundColor: "#fff", color: "#888" }}
-              >
-                30 Days
-              </button>
-            </div>
+          <div className="mb-8">
+            <h2 className="text-3xl font-extrabold" style={{ color: "#1a1a1a" }}>Recent Sales</h2>
+            <p className="text-sm mt-1" style={{ color: "#888" }}>
+              Last 7 days · {recentSales.length} sale{recentSales.length !== 1 ? "s" : ""} found
+            </p>
           </div>
 
           {/* Summary Stats */}
