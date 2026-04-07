@@ -14,7 +14,7 @@ import {
   getPublicClient,
 } from "wagmi/actions";
 import { base } from "wagmi/chains";
-import { parseEther, formatEther, parseAbiItem } from "viem";
+import { parseEther, formatEther, toEventSelector } from "viem";
 import { Attribution } from "ox/erc8021";
 import Image from "next/image";
 
@@ -53,9 +53,10 @@ import MARKET_ABI from "@/app/abi/market.json";
 import NFT_ABI from "@/app/abi/nft.json";
 
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
-const SALE_SETTLED_EVENT = parseAbiItem(
+const SALE_SETTLED_TOPIC = toEventSelector(
   "event SaleSettled(address indexed seller, address indexed buyer, uint256 indexed tokenId, uint256 amount)"
 );
+const BASESCAN_API_KEY = "Q6E6GKAD8N4MEKT4XQK1MXNEMV6TYIW52D";
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
 const MINIMUM_BID_FOR_SELL = 0.0015;
 
@@ -385,71 +386,47 @@ export default function BetaPage() {
     }
   }, [config, address, phaseInfo, ownedTokenId]);
 
-  const getSalesHistory = useCallback(async (filter: "week" | "month") => {
+  const getSalesHistory = useCallback(async () => {
     setSalesLoading(true);
     try {
+      // Basescan API — tek request, timestamp dahil, hızlı
       const publicClient = getPublicClient(config, { chainId: base.id });
       if (!publicClient) return;
-
       const latestBlock = await publicClient.getBlockNumber();
-      // Base ~2 sn/blok: 1 hafta ≈ 302400, 1 ay ≈ 1296000
-      const blockRange = filter === "week" ? BigInt(302400) : BigInt(1296000);
-      const fromBlock = latestBlock > blockRange ? latestBlock - blockRange : BigInt(0);
+      const fromBlock = latestBlock > BigInt(302400) ? latestBlock - BigInt(302400) : BigInt(0);
 
-      // RPC genellikle tek seferde max ~2000 blok destekler, parçalara böl
-      const CHUNK = BigInt(2000);
-      const chunks: [bigint, bigint][] = [];
-      for (let cur = fromBlock; cur <= latestBlock; cur += CHUNK + BigInt(1)) {
-        const end = cur + CHUNK > latestBlock ? latestBlock : cur + CHUNK;
-        chunks.push([cur, end]);
+      const url = `https://api.basescan.org/api?module=logs&action=getLogs` +
+        `&address=${CONTRACT_ADDR}` +
+        `&topic0=${SALE_SETTLED_TOPIC}` +
+        `&fromBlock=${fromBlock}` +
+        `&toBlock=latest` +
+        `&apikey=${BASESCAN_API_KEY}`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (data.status !== "1" || !Array.isArray(data.result)) {
+        setRecentSales([]);
+        return;
       }
 
-      // 10'lu batch'ler halinde paralel çek, rate-limit aşmamak için aralarında küçük bekleme
-      const allLogs: { blockNumber: bigint; transactionHash: string | null; args: unknown }[] = [];
-      const BATCH = 10;
-      for (let i = 0; i < chunks.length; i += BATCH) {
-        const batch = chunks.slice(i, i + BATCH);
-        const results = await Promise.all(
-          batch.map(([from, to]) =>
-            publicClient.getLogs({
-              address: CONTRACT_ADDR,
-              event: SALE_SETTLED_EVENT,
-              fromBlock: from,
-              toBlock: to,
-            }).catch(() => [])
-          )
-        );
-        allLogs.push(...results.flat());
-        // Batch'ler arası kısa bekleme
-        if (i + BATCH < chunks.length) {
-          await new Promise((r) => setTimeout(r, 200));
-        }
-      }
-
-      // En yeniden en eskiye sırala
-      const sorted = allLogs.sort((a, b) => (a.blockNumber > b.blockNumber ? -1 : 1));
-
-      // Timestamp al — tüm loglar için paralel, max 20 ile sınırla
-      const limited = sorted.slice(0, 50);
-      const sales = await Promise.all(
-        limited.map(async (log) => {
-          const args = log.args as { seller: string; buyer: string; tokenId: bigint; amount: bigint };
-          let timestamp: number | undefined;
-          try {
-            const block = await publicClient.getBlock({ blockNumber: log.blockNumber });
-            timestamp = Number(block.timestamp);
-          } catch { /* opsiyonel */ }
-          return {
-            tokenId: args.tokenId.toString(),
-            amount: parseFloat(formatEther(args.amount)).toFixed(6),
-            seller: args.seller,
-            buyer: args.buyer,
-            txHash: log.transactionHash ?? "",
-            blockNumber: log.blockNumber,
-            timestamp,
-          };
-        })
-      );
+      // En yeniden en eskiye
+      const logs = [...data.result].reverse();
+      const sales = logs.slice(0, 50).map((log: {
+        topics: string[];
+        data: string;
+        transactionHash: string;
+        blockNumber: string;
+        timeStamp: string;
+      }) => ({
+        tokenId: BigInt(log.topics[3]).toString(),
+        amount: parseFloat(formatEther(BigInt(log.data))).toFixed(6),
+        seller: `0x${log.topics[1].slice(26)}`,
+        buyer: `0x${log.topics[2].slice(26)}`,
+        txHash: log.transactionHash,
+        blockNumber: BigInt(log.blockNumber),
+        timestamp: parseInt(log.timeStamp, 16),
+      }));
 
       setRecentSales(sales);
     } catch (error) {
@@ -461,7 +438,7 @@ export default function BetaPage() {
 
   // Sadece mount'ta bir kez çalışır
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { getSalesHistory("week"); }, []);
+  useEffect(() => { getSalesHistory(); }, []);
 
   const calculateYieldPerNFT = useCallback(() => {
     const vaultAmount = parseFloat(dailyVault);
