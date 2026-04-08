@@ -11,10 +11,9 @@ import {
   readContract,
   switchChain,
   simulateContract,
-  getPublicClient,
 } from "wagmi/actions";
 import { base } from "wagmi/chains";
-import { parseEther, formatEther, toEventSelector } from "viem";
+import { parseEther, formatEther } from "viem";
 import { Attribution } from "ox/erc8021";
 import Image from "next/image";
 
@@ -34,7 +33,8 @@ const retryWithBackoff = async (
     } catch (error) {
       lastError = error as Error;
       if (attempt === maxRetries) throw lastError;
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       const isRetryableError =
         errorMessage.includes("429") ||
         errorMessage.includes("Too Many Requests") ||
@@ -53,18 +53,18 @@ import MARKET_ABI from "@/app/abi/market.json";
 import NFT_ABI from "@/app/abi/nft.json";
 
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
-const SALE_SETTLED_TOPIC = toEventSelector(
-  "event SaleSettled(address indexed seller, address indexed buyer, uint256 indexed tokenId, uint256 amount)"
-);
-const BASESCAN_API_KEY = "Q6E6GKAD8N4MEKT4XQK1MXNEMV6TYIW52D";
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
 const MINIMUM_BID_FOR_SELL = 0.0015;
 
 export default function BetaPage() {
   const [bidInput, setBidInput] = useState("");
   const [isCheckingApproval, setIsCheckingApproval] = useState(false);
-  const [nftApprovalStatus, setNftApprovalStatus] = useState<{ [key: string]: boolean }>({});
-  const [nftLoadingStatus, setNftLoadingStatus] = useState<{ [key: string]: boolean }>({});
+  const [nftApprovalStatus, setNftApprovalStatus] = useState<{
+    [key: string]: boolean;
+  }>({});
+  const [nftLoadingStatus, setNftLoadingStatus] = useState<{
+    [key: string]: boolean;
+  }>({});
   const [phaseInfo, setPhaseInfo] = useState<{
     currentPhase: string;
     eid: bigint;
@@ -82,26 +82,12 @@ export default function BetaPage() {
   const [ownedTokenId, setOwnedTokenId] = useState<bigint | null>(null);
   const [userNFTs, setUserNFTs] = useState<bigint[]>([]);
   const [nftImages, setNftImages] = useState<{ [key: string]: string }>({});
-  const [, setRpcError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [lastFetchTime, setLastFetchTime] = useState<number>(0);
   const [remainingTimeDisplay, setRemainingTimeDisplay] = useState<number>(0);
   const config = useConfig();
   const chainId = useChainId();
   const { address } = useAccount();
   const [showNetworkWarning, setShowNetworkWarning] = useState(false);
-  const [recentSales, setRecentSales] = useState<{
-    tokenId: string;
-    amount: string;
-    seller: string;
-    buyer: string;
-    txHash: string;
-    blockNumber: bigint;
-    timestamp?: number;
-  }[]>([]);
-  const [salesLoading, setSalesLoading] = useState(false);
-
-  const CACHE_DURATION = 5 * 60 * 1000;
 
   const ensureBase = useCallback(async () => {
     if (chainId !== base.id) {
@@ -177,16 +163,22 @@ export default function BetaPage() {
             args: [highestTokenId],
           });
         })) as string;
-        approvalStatus[tokenIdStr] = approvedAddress.toLowerCase() === CONTRACT_ADDR.toLowerCase();
+        approvalStatus[tokenIdStr] =
+          approvedAddress.toLowerCase() === CONTRACT_ADDR.toLowerCase();
       } catch (error) {
-        console.error(`Error checking approval for token ${highestTokenId}:`, error);
+        console.error(
+          `Error checking approval for token ${highestTokenId}:`,
+          error,
+        );
         approvalStatus[tokenIdStr] = false;
       }
     }
     setNftApprovalStatus(approvalStatus);
   }, [config, address, userNFTs]);
 
-  useEffect(() => { checkApprovalStatus(); }, [checkApprovalStatus]);
+  useEffect(() => {
+    checkApprovalStatus();
+  }, [checkApprovalStatus]);
 
   useEffect(() => {
     if (userNFTs.length > 0) {
@@ -199,7 +191,10 @@ export default function BetaPage() {
   }, [userNFTs, checkApprovalStatus, checkIndividualNFTApprovals]);
 
   const fetchOwnedTokenId = useCallback(async () => {
-    if (!address) { setOwnedTokenId(null); return; }
+    if (!address) {
+      setOwnedTokenId(null);
+      return;
+    }
     try {
       const owned: bigint[] = (await retryWithBackoff(async () => {
         return (await readContract(config, {
@@ -221,7 +216,9 @@ export default function BetaPage() {
     }
   }, [config, address]);
 
-  useEffect(() => { fetchOwnedTokenId(); }, [fetchOwnedTokenId]);
+  useEffect(() => {
+    fetchOwnedTokenId();
+  }, [fetchOwnedTokenId]);
 
   const getPhaseInfo = useCallback(async () => {
     try {
@@ -233,7 +230,12 @@ export default function BetaPage() {
           args: [],
         })) as [string, bigint, bigint, bigint];
       });
-      const [currentPhase, eid, elapsed, remaining] = info as [string, bigint, bigint, bigint];
+      const [currentPhase, eid, elapsed, remaining] = info as [
+        string,
+        bigint,
+        bigint,
+        bigint,
+      ];
       setPhaseInfo({ currentPhase, eid, elapsed, remaining });
       setRemainingTimeDisplay(Number(remaining));
     } catch (error) {
@@ -308,23 +310,42 @@ export default function BetaPage() {
         })) as string;
       })) as string;
       setActiveBidder(bidderAddress);
-      if (bidderAddress && bidderAddress !== "0x0000000000000000000000000000000000000000") {
+      if (
+        bidderAddress &&
+        bidderAddress !== "0x0000000000000000000000000000000000000000"
+      ) {
         try {
           const baseName = await retryWithBackoff(async () => {
             return (await readContract(config, {
               address: "0x4200000000000000000000000000000000000006",
-              abi: [{ inputs: [{ name: "name", type: "string" }], name: "addr", outputs: [{ name: "", type: "address" }], stateMutability: "view", type: "function" }],
+              abi: [
+                {
+                  inputs: [{ name: "name", type: "string" }],
+                  name: "addr",
+                  outputs: [{ name: "", type: "address" }],
+                  stateMutability: "view",
+                  type: "function",
+                },
+              ],
               functionName: "addr",
               args: [bidderAddress],
             })) as string;
           });
-          if (baseName && typeof baseName === "string" && baseName !== "0x0000000000000000000000000000000000000000") {
+          if (
+            baseName &&
+            typeof baseName === "string" &&
+            baseName !== "0x0000000000000000000000000000000000000000"
+          ) {
             setActiveBidderName(baseName);
           } else {
-            setActiveBidderName(`${bidderAddress.slice(0, 6)}...${bidderAddress.slice(-4)}`);
+            setActiveBidderName(
+              `${bidderAddress.slice(0, 6)}...${bidderAddress.slice(-4)}`,
+            );
           }
         } catch {
-          setActiveBidderName(`${bidderAddress.slice(0, 6)}...${bidderAddress.slice(-4)}`);
+          setActiveBidderName(
+            `${bidderAddress.slice(0, 6)}...${bidderAddress.slice(-4)}`,
+          );
         }
       } else {
         setActiveBidderName("");
@@ -386,60 +407,6 @@ export default function BetaPage() {
     }
   }, [config, address, phaseInfo, ownedTokenId]);
 
-  const getSalesHistory = useCallback(async () => {
-    setSalesLoading(true);
-    try {
-      // Basescan API — tek request, timestamp dahil, hızlı
-      const publicClient = getPublicClient(config, { chainId: base.id });
-      if (!publicClient) return;
-      const latestBlock = await publicClient.getBlockNumber();
-      const fromBlock = latestBlock > BigInt(302400) ? latestBlock - BigInt(302400) : BigInt(0);
-
-      const url = `https://api.basescan.org/api?module=logs&action=getLogs` +
-        `&address=${CONTRACT_ADDR}` +
-        `&topic0=${SALE_SETTLED_TOPIC}` +
-        `&fromBlock=${fromBlock}` +
-        `&toBlock=latest` +
-        `&apikey=${BASESCAN_API_KEY}`;
-
-      const res = await fetch(url);
-      const data = await res.json();
-
-      if (data.status !== "1" || !Array.isArray(data.result)) {
-        setRecentSales([]);
-        return;
-      }
-
-      // En yeniden en eskiye
-      const logs = [...data.result].reverse();
-      const sales = logs.slice(0, 50).map((log: {
-        topics: string[];
-        data: string;
-        transactionHash: string;
-        blockNumber: string;
-        timeStamp: string;
-      }) => ({
-        tokenId: BigInt(log.topics[3]).toString(),
-        amount: parseFloat(formatEther(BigInt(log.data))).toFixed(6),
-        seller: `0x${log.topics[1].slice(26)}`,
-        buyer: `0x${log.topics[2].slice(26)}`,
-        txHash: log.transactionHash,
-        blockNumber: BigInt(log.blockNumber),
-        timestamp: parseInt(log.timeStamp, 16),
-      }));
-
-      setRecentSales(sales);
-    } catch (error) {
-      console.error("Error fetching sales history:", error);
-    } finally {
-      setSalesLoading(false);
-    }
-  }, [config]);
-
-  // Sadece mount'ta bir kez çalışır
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { getSalesHistory(); }, []);
-
   const calculateYieldPerNFT = useCallback(() => {
     const vaultAmount = parseFloat(dailyVault);
     const signersCount = dailySigners;
@@ -451,7 +418,10 @@ export default function BetaPage() {
   }, [dailyVault, dailySigners]);
 
   const getUserNFTs = useCallback(async () => {
-    if (!address || !config) { setUserNFTs([]); return; }
+    if (!address || !config) {
+      setUserNFTs([]);
+      return;
+    }
     try {
       const nfts: bigint[] = [];
       for (let i = 0; i < 5; i++) {
@@ -465,7 +435,9 @@ export default function BetaPage() {
             })) as bigint;
           })) as bigint;
           nfts.push(tokenId);
-        } catch { break; }
+        } catch {
+          break;
+        }
       }
       setUserNFTs(nfts);
     } catch (error) {
@@ -475,7 +447,10 @@ export default function BetaPage() {
   }, [address, config]);
 
   const getNFTImages = useCallback(async () => {
-    if (!userNFTs.length || !config) { setNftImages({}); return; }
+    if (!userNFTs.length || !config) {
+      setNftImages({});
+      return;
+    }
     const images: { [key: string]: string } = {};
     const highestTokenId = userNFTs.reduce((a, b) => (a > b ? a : b));
     const tokenIdStr = highestTokenId.toString();
@@ -492,7 +467,8 @@ export default function BetaPage() {
         const base64Data = tokenURI.split(",")[1];
         const jsonData = JSON.parse(atob(base64Data));
         if (jsonData.image_data) {
-          images[tokenIdStr] = `data:image/svg+xml;base64,${btoa(jsonData.image_data)}`;
+          images[tokenIdStr] =
+            `data:image/svg+xml;base64,${btoa(jsonData.image_data)}`;
         }
       }
     } catch (error) {
@@ -501,49 +477,45 @@ export default function BetaPage() {
     setNftImages(images);
   }, [userNFTs, config]);
 
-  useEffect(() => { calculateYieldPerNFT(); }, [calculateYieldPerNFT]);
-  useEffect(() => { getNFTImages(); }, [getNFTImages]);
+  useEffect(() => {
+    calculateYieldPerNFT();
+  }, [calculateYieldPerNFT]);
+  useEffect(() => {
+    getNFTImages();
+  }, [getNFTImages]);
 
   useEffect(() => {
-    if (address && phaseInfo && ownedTokenId) { checkUserSignedStatus(); }
+    if (address && phaseInfo && ownedTokenId) {
+      checkUserSignedStatus();
+    }
   }, [address, phaseInfo, ownedTokenId, checkUserSignedStatus]);
 
   useEffect(() => {
     const fetchAllData = async () => {
-      const now = Date.now();
-      if (now - lastFetchTime < CACHE_DURATION) return;
       setIsLoading(true);
-      setRpcError(null);
-      try {
-        await Promise.allSettled([
-          getPhaseInfo(),
-          getDailySigners(),
-          getDailyVault(),
-          getCurrentBid(),
-          getActiveBidder(),
-          checkUserSignedStatus(),
-          getUserNFTs(),
-          checkApprovalStatus(),
-        ]);
-        setLastFetchTime(now);
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        setRpcError("Failed to load some data. Retrying...");
-      } finally {
-        setIsLoading(false);
-      }
+      await Promise.allSettled([
+        getPhaseInfo(),
+        getDailySigners(),
+        getDailyVault(),
+        getCurrentBid(),
+        getActiveBidder(),
+        checkUserSignedStatus(),
+        getUserNFTs(),
+        checkApprovalStatus(),
+      ]);
+      setIsLoading(false);
     };
     fetchAllData();
     const interval = setInterval(fetchAllData, 2 * 60 * 1000);
     return () => clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastFetchTime]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const countdownInterval = setInterval(() => {
       setRemainingTimeDisplay((prev) => {
         if (prev <= 0) return 0;
-        if (prev === 1) setLastFetchTime(0);
+        if (prev === 1) getPhaseInfo();
         return prev - 1;
       });
     }, 1000);
@@ -571,11 +543,18 @@ export default function BetaPage() {
         return "Daily Sign";
       }
     } else {
-      if (userHasClaimed) return `Next sign: ${formatTimeRemaining(remainingTimeDisplay)}`;
+      if (userHasClaimed)
+        return `Next sign: ${formatTimeRemaining(remainingTimeDisplay)}`;
       else if (userHasSigned) return "Claim";
       else return `Sign ended: ${formatTimeRemaining(remainingTimeDisplay)}`;
     }
-  }, [phaseInfo, userHasSigned, userHasClaimed, remainingTimeDisplay, formatTimeRemaining]);
+  }, [
+    phaseInfo,
+    userHasSigned,
+    userHasClaimed,
+    remainingTimeDisplay,
+    formatTimeRemaining,
+  ]);
 
   const isSignButtonDisabled = useCallback(() => {
     if (!phaseInfo || !address) return true;
@@ -588,18 +567,28 @@ export default function BetaPage() {
     else return !userHasSigned || userHasClaimed;
   }, [phaseInfo, userHasSigned, userHasClaimed, address, remainingTimeDisplay]);
 
-  const handleBidInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    let nextValue = event.target.value.replace(/,/g, ".").replace(/[^0-9.]/g, "");
-    const firstDotIndex = nextValue.indexOf(".");
-    if (firstDotIndex !== -1) {
-      nextValue = nextValue.slice(0, firstDotIndex + 1) + nextValue.slice(firstDotIndex + 1).replace(/\./g, "");
-    }
-    if (nextValue.startsWith(".")) nextValue = `0${nextValue}`;
-    setBidInput(nextValue);
-  }, []);
+  const handleBidInputChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      let nextValue = event.target.value
+        .replace(/,/g, ".")
+        .replace(/[^0-9.]/g, "");
+      const firstDotIndex = nextValue.indexOf(".");
+      if (firstDotIndex !== -1) {
+        nextValue =
+          nextValue.slice(0, firstDotIndex + 1) +
+          nextValue.slice(firstDotIndex + 1).replace(/\./g, "");
+      }
+      if (nextValue.startsWith(".")) nextValue = `0${nextValue}`;
+      setBidInput(nextValue);
+    },
+    [],
+  );
 
   const handleBid = useCallback(async () => {
-    if (!address) { toast.warning("Please connect your wallet first"); return; }
+    if (!address) {
+      toast.warning("Please connect your wallet first");
+      return;
+    }
     try {
       await ensureBase();
       const bidAmount = parseFloat(bidInput || "0");
@@ -623,85 +612,121 @@ export default function BetaPage() {
         getActiveBidder();
       }, 2000);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      toast.error(`Transaction failed: ${errorMessage}`, { duration: 5000, action: { label: "Retry", onClick: () => handleBid() } });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      toast.error(`Transaction failed: ${errorMessage}`, {
+        duration: 5000,
+        action: { label: "Retry", onClick: () => handleBid() },
+      });
     }
   }, [config, ensureBase, bidInput, address, getCurrentBid, getActiveBidder]);
 
-  const handleSellNFT = useCallback(async (tokenId: bigint) => {
-    if (!address) { toast.warning("Please connect your wallet first"); return; }
-    try {
-      await ensureBase();
-      const currentBidNumber = parseFloat(currentBid);
-      if (currentBidNumber < MINIMUM_BID_FOR_SELL) {
-        toast.error(`Current bid (${currentBid} ETH) is below minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH.`);
+  const handleSellNFT = useCallback(
+    async (tokenId: bigint) => {
+      if (!address) {
+        toast.warning("Please connect your wallet first");
         return;
       }
-      if (userNFTs.length > 1) {
-        toast.error("You must hold only 1 NFT to sell.");
-        return;
-      }
-      const tokenIdStr = tokenId.toString();
-      const isThisNFTApproved = nftApprovalStatus[tokenIdStr] === true;
-      if (!isThisNFTApproved) {
-        setNftLoadingStatus((prev) => ({ ...prev, [tokenIdStr]: true }));
-        toast.info(`Approving Noun #${tokenIdStr}...`);
-        try {
-          await retryWithBackoff(async () => {
-            return await writeContract(config, {
-              address: COLLECTION_ADDR,
-              abi: NFT_ABI,
-              functionName: "setApprovalForAll",
-              args: [CONTRACT_ADDR, true],
-              dataSuffix: DATA_SUFFIX,
-            });
-          }, 5, 2000);
-          await new Promise((resolve) => setTimeout(resolve, 5000));
-          const isActuallyApproved = await retryWithBackoff(async () => {
-            return await readContract(config, {
-              address: COLLECTION_ADDR,
-              abi: NFT_ABI,
-              functionName: "isApprovedForAll",
-              args: [address, CONTRACT_ADDR],
-            });
-          });
-          if (isActuallyApproved) {
-            toast.success("Approval confirmed!");
-            setNftApprovalStatus((prev) => ({ ...prev, [tokenIdStr]: true }));
-            await checkIndividualNFTApprovals();
-          } else {
-            throw new Error("Approval not confirmed on blockchain");
-          }
-        } catch (error) {
-          toast.error("Approval failed. Please try again.");
-          throw error;
-        } finally {
-          setNftLoadingStatus((prev) => ({ ...prev, [tokenIdStr]: false }));
+      try {
+        await ensureBase();
+        const currentBidNumber = parseFloat(currentBid);
+        if (currentBidNumber < MINIMUM_BID_FOR_SELL) {
+          toast.error(
+            `Current bid (${currentBid} ETH) is below minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH.`,
+          );
+          return;
         }
+        if (userNFTs.length > 1) {
+          toast.error("You must hold only 1 NFT to sell.");
+          return;
+        }
+        const tokenIdStr = tokenId.toString();
+        const isThisNFTApproved = nftApprovalStatus[tokenIdStr] === true;
+        if (!isThisNFTApproved) {
+          setNftLoadingStatus((prev) => ({ ...prev, [tokenIdStr]: true }));
+          toast.info(`Approving Noun #${tokenIdStr}...`);
+          try {
+            await retryWithBackoff(
+              async () => {
+                return await writeContract(config, {
+                  address: COLLECTION_ADDR,
+                  abi: NFT_ABI,
+                  functionName: "setApprovalForAll",
+                  args: [CONTRACT_ADDR, true],
+                  dataSuffix: DATA_SUFFIX,
+                });
+              },
+              5,
+              2000,
+            );
+            await new Promise((resolve) => setTimeout(resolve, 5000));
+            const isActuallyApproved = await retryWithBackoff(async () => {
+              return await readContract(config, {
+                address: COLLECTION_ADDR,
+                abi: NFT_ABI,
+                functionName: "isApprovedForAll",
+                args: [address, CONTRACT_ADDR],
+              });
+            });
+            if (isActuallyApproved) {
+              toast.success("Approval confirmed!");
+              setNftApprovalStatus((prev) => ({ ...prev, [tokenIdStr]: true }));
+              await checkIndividualNFTApprovals();
+            } else {
+              throw new Error("Approval not confirmed on blockchain");
+            }
+          } catch (error) {
+            toast.error("Approval failed. Please try again.");
+            throw error;
+          } finally {
+            setNftLoadingStatus((prev) => ({ ...prev, [tokenIdStr]: false }));
+          }
+        }
+        await writeContract(config, {
+          address: CONTRACT_ADDR,
+          abi: MARKET_ABI,
+          functionName: "sellToHighest",
+          args: [tokenId],
+          dataSuffix: DATA_SUFFIX,
+        });
+        toast.success(`Noun #${tokenIdStr} sold successfully!`);
+        // Satış sonrası anında güncelle
+        setTimeout(() => {
+          getCurrentBid();
+          getActiveBidder();
+          getDailyVault();
+          getUserNFTs();
+        }, 2000);
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        toast.error(`Sell failed: ${errorMessage}`, {
+          duration: 5000,
+          action: { label: "Retry", onClick: () => handleSellNFT(tokenId) },
+        });
       }
-      await writeContract(config, {
-        address: CONTRACT_ADDR,
-        abi: MARKET_ABI,
-        functionName: "sellToHighest",
-        args: [tokenId],
-        dataSuffix: DATA_SUFFIX,
-      });
-      toast.success(`Noun #${tokenIdStr} sold successfully!`);
-      // Satış sonrası anında güncelle
-      setTimeout(() => {
-        getCurrentBid();
-        getActiveBidder();
-        getDailyVault();
-        getUserNFTs();
-      }, 2000);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      toast.error(`Sell failed: ${errorMessage}`, { duration: 5000, action: { label: "Retry", onClick: () => handleSellNFT(tokenId) } });
-    }
-  }, [config, ensureBase, address, nftApprovalStatus, nftLoadingStatus, checkIndividualNFTApprovals, currentBid, userNFTs, getCurrentBid, getActiveBidder, getDailyVault, getUserNFTs]);
+    },
+    [
+      config,
+      ensureBase,
+      address,
+      nftApprovalStatus,
+      nftLoadingStatus,
+      checkIndividualNFTApprovals,
+      currentBid,
+      userNFTs,
+      getCurrentBid,
+      getActiveBidder,
+      getDailyVault,
+      getUserNFTs,
+    ],
+  );
 
   const handleSign = useCallback(async () => {
-    if (!address) { toast.warning("Please connect your wallet first"); return; }
+    if (!address) {
+      toast.warning("Please connect your wallet first");
+      return;
+    }
     try {
       await ensureBase();
       const owned: bigint[] = (await retryWithBackoff(async () => {
@@ -712,8 +737,14 @@ export default function BetaPage() {
           args: [address],
         })) as unknown as bigint[];
       })) as bigint[];
-      if (!owned || owned.length === 0) { toast.error("No NFTs owned"); return; }
-      if (owned.length > 1) { toast.warning("You must hodl only 1 vrnouns in your wallet"); return; }
+      if (!owned || owned.length === 0) {
+        toast.error("No NFTs owned");
+        return;
+      }
+      if (owned.length > 1) {
+        toast.warning("You must hodl only 1 vrnouns in your wallet");
+        return;
+      }
       const tokenId = owned.reduce((a, b) => (a > b ? a : b));
       const isSignPhase =
         phaseInfo?.currentPhase.toLowerCase().includes("sign") ||
@@ -733,12 +764,26 @@ export default function BetaPage() {
         setUserHasClaimed(true);
         toast.success("Claim successful!");
       }
-      setTimeout(() => { checkUserSignedStatus(); getPhaseInfo(); }, 2000);
+      setTimeout(() => {
+        checkUserSignedStatus();
+        getPhaseInfo();
+      }, 2000);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      toast.error(`Sign/Claim failed: ${errorMessage}`, { duration: 5000, action: { label: "Retry", onClick: () => handleSign() } });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      toast.error(`Sign/Claim failed: ${errorMessage}`, {
+        duration: 5000,
+        action: { label: "Retry", onClick: () => handleSign() },
+      });
     }
-  }, [config, ensureBase, phaseInfo, address, checkUserSignedStatus, getPhaseInfo]);
+  }, [
+    config,
+    ensureBase,
+    phaseInfo,
+    address,
+    checkUserSignedStatus,
+    getPhaseInfo,
+  ]);
 
   const isSignPhase =
     phaseInfo?.currentPhase.toLowerCase().includes("sign") ||
@@ -746,50 +791,115 @@ export default function BetaPage() {
     phaseInfo?.currentPhase.toLowerCase() === "sign_phase";
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#ffffff", color: "#1a1a1a" }}>
-
+    <div
+      className="min-h-screen"
+      style={{ backgroundColor: "#ffffff", color: "#1a1a1a" }}
+    >
       {/* Header — nouns.wtf style */}
-      <header style={{ backgroundColor: "#e8e8e8", borderBottom: "1px solid #d5d5d5" }}>
+      <header
+        style={{
+          backgroundColor: "#e8e8e8",
+          borderBottom: "1px solid #d5d5d5",
+        }}
+      >
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-8">
             <Logo className="h-10 w-auto" />
-            <nav className="hidden md:flex items-center gap-6 text-sm font-semibold" style={{ color: "#444" }}>
-              <a href="https://vrnouns.gitbook.io/flooor/documentation/documentation-en" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">Docs</a>
-              <a href="https://snapshot.org/#/s:vrnouns.eth" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">DAO</a>
-              <a href="https://opensea.io/collection/vrnouns" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">VRNouns</a>
+            <nav
+              className="hidden md:flex items-center gap-6 text-sm font-semibold"
+              style={{ color: "#444" }}
+            >
+              <a
+                href="https://vrnouns.gitbook.io/flooor/documentation/documentation-en"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-black transition-colors"
+              >
+                Docs
+              </a>
+              <a
+                href="https://snapshot.org/#/s:vrnouns.eth"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-black transition-colors"
+              >
+                DAO
+              </a>
+              <a
+                href="https://opensea.io/collection/vrnouns"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-black transition-colors"
+              >
+                VRNouns
+              </a>
             </nav>
           </div>
           <div className="flex items-center gap-4">
             {/* Phase badge */}
             {phaseInfo && (
-              <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${isSignPhase ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
-                <span className={`w-2 h-2 rounded-full ${isSignPhase ? "bg-green-500" : "bg-amber-500"}`}></span>
+              <div
+                className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${isSignPhase ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}
+              >
+                <span
+                  className={`w-2 h-2 rounded-full ${isSignPhase ? "bg-green-500" : "bg-amber-500"}`}
+                ></span>
                 {isSignPhase ? "SIGN PHASE" : "CLAIM PHASE"}
               </div>
             )}
             <ConnectButton.Custom>
-              {({ account, chain, openAccountModal, openChainModal, openConnectModal, mounted }) => {
+              {({
+                account,
+                chain,
+                openAccountModal,
+                openChainModal,
+                openConnectModal,
+                mounted,
+              }) => {
                 const ready = mounted;
                 const connected = ready && account && chain;
                 return (
-                  <div {...(!ready && { "aria-hidden": true, style: { opacity: 0, pointerEvents: "none", userSelect: "none" } })}>
+                  <div
+                    {...(!ready && {
+                      "aria-hidden": true,
+                      style: {
+                        opacity: 0,
+                        pointerEvents: "none",
+                        userSelect: "none",
+                      },
+                    })}
+                  >
                     {!connected ? (
-                      <button onClick={openConnectModal} type="button"
+                      <button
+                        onClick={openConnectModal}
+                        type="button"
                         className="px-5 py-2 font-bold text-sm transition-colors rounded-lg"
-                        style={{ backgroundColor: "#1a1a1a", color: "#fff" }}>
+                        style={{ backgroundColor: "#1a1a1a", color: "#fff" }}
+                      >
                         Connect Wallet
                       </button>
                     ) : chain.unsupported ? (
-                      <button onClick={openChainModal} type="button"
-                        className="px-4 py-2 rounded-lg font-bold text-sm bg-red-100 text-red-600 border border-red-300">
+                      <button
+                        onClick={openChainModal}
+                        type="button"
+                        className="px-4 py-2 rounded-lg font-bold text-sm bg-red-100 text-red-600 border border-red-300"
+                      >
                         Wrong Network
                       </button>
                     ) : (
-                      <button onClick={openAccountModal} type="button"
+                      <button
+                        onClick={openAccountModal}
+                        type="button"
                         className="px-5 py-2 font-bold text-sm rounded-lg border transition-colors flex items-center gap-2"
-                        style={{ borderColor: "#ccc", backgroundColor: "#fff" }}>
+                        style={{ borderColor: "#ccc", backgroundColor: "#fff" }}
+                      >
                         {chain.hasIcon && chain.iconUrl && (
-                          <Image alt={chain.name ?? "Chain icon"} src={chain.iconUrl} width={16} height={16} />
+                          <Image
+                            alt={chain.name ?? "Chain icon"}
+                            src={chain.iconUrl}
+                            width={16}
+                            height={16}
+                          />
                         )}
                         {account.displayName}
                       </button>
@@ -806,8 +916,13 @@ export default function BetaPage() {
       {showNetworkWarning && address && (
         <div className="bg-red-50 border-b border-red-200 py-3 px-6">
           <div className="max-w-6xl mx-auto flex items-center justify-between">
-            <span className="text-red-700 font-semibold text-sm">Wrong network — please switch to Base</span>
-            <button onClick={() => ensureBase()} className="px-4 py-1.5 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors">
+            <span className="text-red-700 font-semibold text-sm">
+              Wrong network — please switch to Base
+            </span>
+            <button
+              onClick={() => ensureBase()}
+              className="px-4 py-1.5 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors"
+            >
               Switch to Base
             </button>
           </div>
@@ -815,15 +930,17 @@ export default function BetaPage() {
       )}
 
       <main className="max-w-6xl mx-auto px-6 py-12">
-
         {/* Hero: Two-column layout — nouns.wtf style */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-
           {/* Left: NFT Image */}
           <div>
-            <a href="https://opensea.io/collection/vrnouns" target="_blank" rel="noopener noreferrer"
+            <a
+              href="https://opensea.io/collection/vrnouns"
+              target="_blank"
+              rel="noopener noreferrer"
               className="block rounded-2xl overflow-hidden hover:opacity-95 transition-opacity"
-              style={{ border: "1px solid #e0e0e0" }}>
+              style={{ border: "1px solid #e0e0e0" }}
+            >
               <Image
                 src="/bg.png"
                 alt="VRNouns Collection"
@@ -837,70 +954,127 @@ export default function BetaPage() {
 
           {/* Right: Auction Info */}
           <div className="flex flex-col gap-6">
-
             {/* Title */}
             <div>
-              <p className="text-sm font-semibold uppercase tracking-widest mb-1" style={{ color: "#888" }}>
-                {isSignPhase ? "Sign Phase" : "Claim Phase"} · Epoch #{phaseInfo ? phaseInfo.eid.toString() : "—"}
+              <p
+                className="text-sm font-semibold uppercase tracking-widest mb-1"
+                style={{ color: "#888" }}
+              >
+                {isSignPhase ? "Sign Phase" : "Claim Phase"} · Epoch #
+                {phaseInfo ? phaseInfo.eid.toString() : "—"}
               </p>
-              <h1 className="text-4xl font-extrabold leading-tight" style={{ color: "#1a1a1a" }}>
+              <h1
+                className="text-4xl font-extrabold leading-tight"
+                style={{ color: "#1a1a1a" }}
+              >
                 VRNouns
               </h1>
             </div>
 
             {/* Current Bid */}
-            <div style={{ borderTop: "1px solid #e0e0e0", paddingTop: "1.5rem" }}>
-              <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#888" }}>Current bid</p>
+            <div
+              style={{ borderTop: "1px solid #e0e0e0", paddingTop: "1.5rem" }}
+            >
+              <p
+                className="text-xs font-semibold uppercase tracking-widest mb-1"
+                style={{ color: "#888" }}
+              >
+                Current bid
+              </p>
               <div className="flex items-baseline gap-2">
-                <svg className="w-8 h-8" viewBox="0 0 24 24" fill="currentColor" style={{ color: "#1a1a1a" }}>
+                <svg
+                  className="w-8 h-8"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  style={{ color: "#1a1a1a" }}
+                >
                   <path d="M12 1.75L5.75 12.25L12 16L18.25 12.25L12 1.75Z" />
                   <path d="M5.75 13.75L12 17.5L18.25 13.75L12 22.25L5.75 13.75Z" />
                 </svg>
-                <span className="text-5xl font-extrabold" style={{ color: "#1a1a1a" }}>{currentBid}</span>
+                <span
+                  className="text-5xl font-extrabold"
+                  style={{ color: "#1a1a1a" }}
+                >
+                  {currentBid}
+                </span>
               </div>
-              {activeBidder && activeBidder !== "0x0000000000000000000000000000000000000000" && (
-                <div className="flex items-center gap-2 mt-2">
-                  <div className="w-5 h-5 rounded-full overflow-hidden">
-                    <canvas
-                      ref={(canvas) => {
-                        if (canvas && activeBidder) {
-                          try {
-                            const blockieCanvas = blockies({ seed: activeBidder.toLowerCase(), size: 8, scale: 4 });
-                            const ctx = canvas.getContext("2d");
-                            if (ctx) { canvas.width = 32; canvas.height = 32; ctx.drawImage(blockieCanvas, 0, 0); }
-                          } catch (e) { console.error(e); }
-                        }
-                      }}
-                      className="w-full h-full"
-                    />
+              {activeBidder &&
+                activeBidder !==
+                  "0x0000000000000000000000000000000000000000" && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="w-5 h-5 rounded-full overflow-hidden">
+                      <canvas
+                        ref={(canvas) => {
+                          if (canvas && activeBidder) {
+                            try {
+                              const blockieCanvas = blockies({
+                                seed: activeBidder.toLowerCase(),
+                                size: 8,
+                                scale: 4,
+                              });
+                              const ctx = canvas.getContext("2d");
+                              if (ctx) {
+                                canvas.width = 32;
+                                canvas.height = 32;
+                                ctx.drawImage(blockieCanvas, 0, 0);
+                              }
+                            } catch (e) {
+                              console.error(e);
+                            }
+                          }
+                        }}
+                        className="w-full h-full"
+                      />
+                    </div>
+                    <a
+                      href={`https://basescan.org/address/${activeBidder}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-semibold hover:underline"
+                      style={{ color: "#4965f0" }}
+                    >
+                      {activeBidderName ||
+                        `${activeBidder.slice(0, 6)}...${activeBidder.slice(-4)}`}
+                    </a>
                   </div>
-                  <a href={`https://basescan.org/address/${activeBidder}`} target="_blank" rel="noopener noreferrer"
-                    className="text-sm font-semibold hover:underline" style={{ color: "#4965f0" }}>
-                    {activeBidderName || `${activeBidder.slice(0, 6)}...${activeBidder.slice(-4)}`}
-                  </a>
-                </div>
-              )}
+                )}
             </div>
 
             {/* Timer */}
-            <div style={{ borderTop: "1px solid #e0e0e0", paddingTop: "1.5rem" }}>
-              <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#888" }}>
-                {isSignPhase ? "Sign window closes in" : "Claim window closes in"}
+            <div
+              style={{ borderTop: "1px solid #e0e0e0", paddingTop: "1.5rem" }}
+            >
+              <p
+                className="text-xs font-semibold uppercase tracking-widest mb-1"
+                style={{ color: "#888" }}
+              >
+                {isSignPhase
+                  ? "Sign window closes in"
+                  : "Claim window closes in"}
               </p>
-              <p className="text-3xl font-extrabold tabular-nums" style={{ color: "#1a1a1a" }}>
+              <p
+                className="text-3xl font-extrabold tabular-nums"
+                style={{ color: "#1a1a1a" }}
+              >
                 {formatTimeRemaining(remainingTimeDisplay)}
               </p>
             </div>
 
             {/* Bid Input + Button */}
-            <div style={{ borderTop: "1px solid #e0e0e0", paddingTop: "1.5rem" }}>
+            <div
+              style={{ borderTop: "1px solid #e0e0e0", paddingTop: "1.5rem" }}
+            >
               <div className="flex gap-3">
                 <input
                   type="text"
                   inputMode="decimal"
                   placeholder={`Ξ ${MINIMUM_BID_FOR_SELL} or more`}
                   className="flex-1 px-4 py-3 rounded-xl text-base font-semibold focus:outline-none transition-colors"
-                  style={{ border: "2px solid #d0d0d0", backgroundColor: "#fafafa", color: "#1a1a1a" }}
+                  style={{
+                    border: "2px solid #d0d0d0",
+                    backgroundColor: "#fafafa",
+                    color: "#1a1a1a",
+                  }}
                   value={bidInput}
                   onChange={handleBidInputChange}
                 />
@@ -912,7 +1086,9 @@ export default function BetaPage() {
                   Bid
                 </button>
               </div>
-              <p className="text-xs mt-2" style={{ color: "#aaa" }}>Minimum bid: Ξ {MINIMUM_BID_FOR_SELL}</p>
+              <p className="text-xs mt-2" style={{ color: "#aaa" }}>
+                Minimum bid: Ξ {MINIMUM_BID_FOR_SELL}
+              </p>
             </div>
 
             {/* Sign / Claim Button */}
@@ -920,335 +1096,404 @@ export default function BetaPage() {
               onClick={handleSign}
               disabled={isSignButtonDisabled()}
               className="w-full py-3 rounded-xl font-bold text-base transition-colors"
-              style={isSignButtonDisabled()
-                ? { backgroundColor: "#e8e8e8", color: "#aaa", cursor: "not-allowed" }
-                : { backgroundColor: isSignPhase ? "#1a1a1a" : "#f0a500", color: isSignPhase ? "#fff" : "#1a1a1a" }}
+              style={
+                isSignButtonDisabled()
+                  ? {
+                      backgroundColor: "#e8e8e8",
+                      color: "#aaa",
+                      cursor: "not-allowed",
+                    }
+                  : {
+                      backgroundColor: isSignPhase ? "#1a1a1a" : "#f0a500",
+                      color: isSignPhase ? "#fff" : "#1a1a1a",
+                    }
+              }
             >
               {getSignButtonText()}
             </button>
 
             {/* Stats Row */}
-            <div className="grid grid-cols-3 gap-4" style={{ borderTop: "1px solid #e0e0e0", paddingTop: "1.5rem" }}>
+            <div
+              className="grid grid-cols-3 gap-4"
+              style={{ borderTop: "1px solid #e0e0e0", paddingTop: "1.5rem" }}
+            >
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#888" }}>Signers</p>
-                <p className="text-2xl font-extrabold" style={{ color: "#1a1a1a" }}>{dailySigners}</p>
+                <p
+                  className="text-xs font-semibold uppercase tracking-widest mb-1"
+                  style={{ color: "#888" }}
+                >
+                  Signers
+                </p>
+                <p
+                  className="text-2xl font-extrabold"
+                  style={{ color: "#1a1a1a" }}
+                >
+                  {dailySigners}
+                </p>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#888" }}>Vault</p>
+                <p
+                  className="text-xs font-semibold uppercase tracking-widest mb-1"
+                  style={{ color: "#888" }}
+                >
+                  Vault
+                </p>
                 <div className="flex items-center gap-1">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" style={{ color: "#1a1a1a" }}>
+                  <svg
+                    className="w-4 h-4"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    style={{ color: "#1a1a1a" }}
+                  >
                     <path d="M12 1.75L5.75 12.25L12 16L18.25 12.25L12 1.75Z" />
                     <path d="M5.75 13.75L12 17.5L18.25 13.75L12 22.25L5.75 13.75Z" />
                   </svg>
-                  <p className="text-xl font-extrabold" style={{ color: "#1a1a1a" }}>{dailyVault}</p>
+                  <p
+                    className="text-xl font-extrabold"
+                    style={{ color: "#1a1a1a" }}
+                  >
+                    {dailyVault}
+                  </p>
                 </div>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#888" }}>Yield/NFT</p>
+                <p
+                  className="text-xs font-semibold uppercase tracking-widest mb-1"
+                  style={{ color: "#888" }}
+                >
+                  Yield/NFT
+                </p>
                 <div className="flex items-center gap-1">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" style={{ color: "#1a1a1a" }}>
+                  <svg
+                    className="w-4 h-4"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    style={{ color: "#1a1a1a" }}
+                  >
                     <path d="M12 1.75L5.75 12.25L12 16L18.25 12.25L12 1.75Z" />
                     <path d="M5.75 13.75L12 17.5L18.25 13.75L12 22.25L5.75 13.75Z" />
                   </svg>
-                  <p className="text-xl font-extrabold" style={{ color: "#1a1a1a" }}>{yieldPerNFT}</p>
+                  <p
+                    className="text-xl font-extrabold"
+                    style={{ color: "#1a1a1a" }}
+                  >
+                    {yieldPerNFT}
+                  </p>
                 </div>
               </div>
             </div>
 
             {/* Your NFTs */}
             {address && (
-              <div style={{ borderTop: "1px solid #e0e0e0", paddingTop: "1.5rem" }}>
-                <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "#888" }}>Your NFTs — click to sell</p>
+              <div
+                style={{ borderTop: "1px solid #e0e0e0", paddingTop: "1.5rem" }}
+              >
+                <p
+                  className="text-xs font-semibold uppercase tracking-widest mb-3"
+                  style={{ color: "#888" }}
+                >
+                  Your NFTs — click to sell
+                </p>
                 {isCheckingApproval && (
-                  <div className="flex items-center gap-2 text-sm" style={{ color: "#888" }}>
+                  <div
+                    className="flex items-center gap-2 text-sm"
+                    style={{ color: "#888" }}
+                  >
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
                     Checking approval...
                   </div>
                 )}
-                {userNFTs.length > 0 ? (() => {
-                  const highestTokenId = userNFTs.reduce((a, b) => (a > b ? a : b));
-                  const tokenIdStr = highestTokenId.toString();
-                  const moreCount = userNFTs.length - 1;
-                  return (
-                    <div className="flex items-center gap-4">
-                      <div
-                        className="relative w-16 h-16 rounded-xl overflow-hidden cursor-pointer group transition-all"
-                        style={{ border: "2px solid #e0e0e0" }}
-                        onClick={() => handleSellNFT(highestTokenId)}
-                        title={`Sell Noun #${tokenIdStr}`}
-                      >
-                        {userNFTs.length > 1 && (
-                          <div className="absolute top-0 left-0 right-0 bg-red-500 text-white text-xs px-1 py-0.5 text-center font-bold z-10">
-                            Hold 1 only
+                {userNFTs.length > 0 ? (
+                  (() => {
+                    const highestTokenId = userNFTs.reduce((a, b) =>
+                      a > b ? a : b,
+                    );
+                    const tokenIdStr = highestTokenId.toString();
+                    const moreCount = userNFTs.length - 1;
+                    return (
+                      <div className="flex items-center gap-4">
+                        <div
+                          className="relative w-16 h-16 rounded-xl overflow-hidden cursor-pointer group transition-all"
+                          style={{ border: "2px solid #e0e0e0" }}
+                          onClick={() => handleSellNFT(highestTokenId)}
+                          title={`Sell Noun #${tokenIdStr}`}
+                        >
+                          {userNFTs.length > 1 && (
+                            <div className="absolute top-0 left-0 right-0 bg-red-500 text-white text-xs px-1 py-0.5 text-center font-bold z-10">
+                              Hold 1 only
+                            </div>
+                          )}
+                          {nftImages[tokenIdStr] ? (
+                            <Image
+                              src={nftImages[tokenIdStr]}
+                              alt={`Noun ${tokenIdStr}`}
+                              width={64}
+                              height={64}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div
+                              className="w-full h-full flex items-center justify-center"
+                              style={{ backgroundColor: "#f0f0f0" }}
+                            >
+                              <span
+                                className="text-xs font-bold"
+                                style={{ color: "#666" }}
+                              >
+                                #{tokenIdStr}
+                              </span>
+                            </div>
+                          )}
+                          {nftLoadingStatus[tokenIdStr] && (
+                            <div className="absolute inset-0 bg-blue-500 bg-opacity-80 flex items-center justify-center">
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                            </div>
+                          )}
+                          {!nftApprovalStatus[tokenIdStr] &&
+                            !nftLoadingStatus[tokenIdStr] && (
+                              <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                                <span className="text-white text-xs font-bold">
+                                  Approve
+                                </span>
+                              </div>
+                            )}
+                          {nftApprovalStatus[tokenIdStr] &&
+                            !nftLoadingStatus[tokenIdStr] && (
+                              <div className="absolute inset-0 bg-green-500 bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
+                                <span className="text-white text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                                  Sell
+                                </span>
+                              </div>
+                            )}
+                          <div className="absolute bottom-0.5 left-0.5 bg-black bg-opacity-70 text-white text-xs px-1 rounded font-bold">
+                            #{tokenIdStr}
                           </div>
-                        )}
-                        {nftImages[tokenIdStr] ? (
-                          <Image src={nftImages[tokenIdStr]} alt={`Noun ${tokenIdStr}`} width={64} height={64} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: "#f0f0f0" }}>
-                            <span className="text-xs font-bold" style={{ color: "#666" }}>#{tokenIdStr}</span>
-                          </div>
-                        )}
-                        {nftLoadingStatus[tokenIdStr] && (
-                          <div className="absolute inset-0 bg-blue-500 bg-opacity-80 flex items-center justify-center">
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                          </div>
-                        )}
-                        {!nftApprovalStatus[tokenIdStr] && !nftLoadingStatus[tokenIdStr] && (
-                          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">Approve</span>
-                          </div>
-                        )}
-                        {nftApprovalStatus[tokenIdStr] && !nftLoadingStatus[tokenIdStr] && (
-                          <div className="absolute inset-0 bg-green-500 bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
-                            <span className="text-white text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity">Sell</span>
-                          </div>
-                        )}
-                        <div className="absolute bottom-0.5 left-0.5 bg-black bg-opacity-70 text-white text-xs px-1 rounded font-bold">
-                          #{tokenIdStr}
+                        </div>
+                        <div>
+                          <p
+                            className="font-bold text-sm"
+                            style={{ color: "#1a1a1a" }}
+                          >
+                            Noun #{tokenIdStr}
+                          </p>
+                          {moreCount > 0 && (
+                            <p className="text-xs" style={{ color: "#aaa" }}>
+                              +{moreCount} more NFT{moreCount > 1 ? "s" : ""}
+                            </p>
+                          )}
+                          <p
+                            className="text-xs mt-1"
+                            style={{
+                              color: nftApprovalStatus[tokenIdStr]
+                                ? "#22c55e"
+                                : "#f59e0b",
+                            }}
+                          >
+                            {nftApprovalStatus[tokenIdStr]
+                              ? "Approved — ready to sell"
+                              : "Approval required"}
+                          </p>
                         </div>
                       </div>
-                      <div>
-                        <p className="font-bold text-sm" style={{ color: "#1a1a1a" }}>Noun #{tokenIdStr}</p>
-                        {moreCount > 0 && <p className="text-xs" style={{ color: "#aaa" }}>+{moreCount} more NFT{moreCount > 1 ? "s" : ""}</p>}
-                        <p className="text-xs mt-1" style={{ color: nftApprovalStatus[tokenIdStr] ? "#22c55e" : "#f59e0b" }}>
-                          {nftApprovalStatus[tokenIdStr] ? "Approved — ready to sell" : "Approval required"}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })() : (
-                  <p className="text-sm" style={{ color: "#aaa" }}>No VRNouns found in wallet</p>
+                    );
+                  })()
+                ) : (
+                  <p className="text-sm" style={{ color: "#aaa" }}>
+                    No VRNouns found in wallet
+                  </p>
                 )}
               </div>
             )}
 
             {/* Quick links */}
-            <div className="flex flex-wrap gap-3" style={{ borderTop: "1px solid #e0e0e0", paddingTop: "1.5rem" }}>
-              <a href="https://farcaster.xyz/miniapps/pIFtRBsgnWAF/flooorfun" target="_blank" rel="noopener noreferrer"
+            <div
+              className="flex flex-wrap gap-3"
+              style={{ borderTop: "1px solid #e0e0e0", paddingTop: "1.5rem" }}
+            >
+              <a
+                href="https://farcaster.xyz/miniapps/pIFtRBsgnWAF/flooorfun"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-                style={{ backgroundColor: "#f0f0f0", color: "#555" }}>
+                style={{ backgroundColor: "#f0f0f0", color: "#555" }}
+              >
                 Farcaster Mini App
               </a>
-              <a href="https://base.app/app/flooor.fun" target="_blank" rel="noopener noreferrer"
+              <a
+                href="https://base.app/app/flooor.fun"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-                style={{ backgroundColor: "#f0f0f0", color: "#555" }}>
+                style={{ backgroundColor: "#f0f0f0", color: "#555" }}
+              >
                 Base App
               </a>
               <button
                 onClick={() => {
-                  setLastFetchTime(0);
                   setIsLoading(true);
                   Promise.allSettled([
-                    getPhaseInfo(), getDailySigners(), getDailyVault(),
-                    getCurrentBid(), getActiveBidder(), checkUserSignedStatus(),
-                    getUserNFTs(), checkApprovalStatus(),
+                    getPhaseInfo(),
+                    getDailySigners(),
+                    getDailyVault(),
+                    getCurrentBid(),
+                    getActiveBidder(),
+                    checkUserSignedStatus(),
+                    getUserNFTs(),
+                    checkApprovalStatus(),
                   ]).finally(() => setIsLoading(false));
                 }}
                 disabled={isLoading}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-                style={{ backgroundColor: "#f0f0f0", color: isLoading ? "#aaa" : "#555", cursor: isLoading ? "not-allowed" : "pointer" }}
+                style={{
+                  backgroundColor: "#f0f0f0",
+                  color: isLoading ? "#aaa" : "#555",
+                  cursor: isLoading ? "not-allowed" : "pointer",
+                }}
               >
                 {isLoading ? (
-                  <><div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div> Refreshing...</>
+                  <>
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>{" "}
+                    Refreshing...
+                  </>
                 ) : (
-                  <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg> Refresh</>
+                  <>
+                    <svg
+                      className="w-3 h-3"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    </svg>{" "}
+                    Refresh
+                  </>
                 )}
               </button>
             </div>
-
           </div>
-        </div>
-
-        {/* Recent Sales */}
-        <div className="mt-24 pt-16" style={{ borderTop: "1px solid #e0e0e0" }}>
-          <div className="mb-8">
-            <h2 className="text-3xl font-extrabold" style={{ color: "#1a1a1a" }}>Recent Sales</h2>
-            <p className="text-sm mt-1" style={{ color: "#888" }}>
-              Last 7 days · {recentSales.length} sale{recentSales.length !== 1 ? "s" : ""} found
-            </p>
-          </div>
-
-          {/* Summary Stats */}
-          {recentSales.length > 0 && (
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              <div className="rounded-2xl p-5" style={{ backgroundColor: "#f7f7f7" }}>
-                <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#888" }}>Total Sales</p>
-                <p className="text-2xl font-extrabold" style={{ color: "#1a1a1a" }}>{recentSales.length}</p>
-              </div>
-              <div className="rounded-2xl p-5" style={{ backgroundColor: "#f7f7f7" }}>
-                <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#888" }}>Total Volume</p>
-                <div className="flex items-center gap-1">
-                  <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" style={{ color: "#1a1a1a" }}>
-                    <path d="M12 1.75L5.75 12.25L12 16L18.25 12.25L12 1.75Z" />
-                    <path d="M5.75 13.75L12 17.5L18.25 13.75L12 22.25L5.75 13.75Z" />
-                  </svg>
-                  <p className="text-2xl font-extrabold" style={{ color: "#1a1a1a" }}>
-                    {recentSales.reduce((sum, s) => sum + parseFloat(s.amount), 0).toFixed(4)}
-                  </p>
-                </div>
-              </div>
-              <div className="rounded-2xl p-5" style={{ backgroundColor: "#f7f7f7" }}>
-                <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#888" }}>Avg Price</p>
-                <div className="flex items-center gap-1">
-                  <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" style={{ color: "#1a1a1a" }}>
-                    <path d="M12 1.75L5.75 12.25L12 16L18.25 12.25L12 1.75Z" />
-                    <path d="M5.75 13.75L12 17.5L18.25 13.75L12 22.25L5.75 13.75Z" />
-                  </svg>
-                  <p className="text-2xl font-extrabold" style={{ color: "#1a1a1a" }}>
-                    {(recentSales.reduce((sum, s) => sum + parseFloat(s.amount), 0) / recentSales.length).toFixed(4)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Sales Table */}
-          {salesLoading ? (
-            <div className="flex items-center justify-center py-16 gap-3" style={{ color: "#888" }}>
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-400"></div>
-              <span className="text-sm font-semibold">Loading sales history...</span>
-            </div>
-          ) : recentSales.length === 0 ? (
-            <div className="text-center py-16" style={{ color: "#aaa" }}>
-              <p className="text-sm font-semibold">No sales found in this period</p>
-            </div>
-          ) : (
-            <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid #e0e0e0" }}>
-              {/* Table Header */}
-              <div className="grid grid-cols-5 px-5 py-3 text-xs font-bold uppercase tracking-widest" style={{ backgroundColor: "#f7f7f7", color: "#888", borderBottom: "1px solid #e0e0e0" }}>
-                <span>NFT</span>
-                <span>Price</span>
-                <span>Seller</span>
-                <span>Buyer</span>
-                <span className="text-right">Date</span>
-              </div>
-              {/* Rows */}
-              {recentSales.map((sale, i) => (
-                <div
-                  key={`${sale.txHash}-${i}`}
-                  className="grid grid-cols-5 px-5 py-4 items-center text-sm transition-colors hover:bg-gray-50"
-                  style={{ borderBottom: i < recentSales.length - 1 ? "1px solid #f0f0f0" : "none" }}
-                >
-                  {/* NFT */}
-                  <a
-                    href={`https://opensea.io/assets/base/${COLLECTION_ADDR}/${sale.tokenId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-bold hover:underline"
-                    style={{ color: "#4965f0" }}
-                  >
-                    #{sale.tokenId}
-                  </a>
-
-                  {/* Price */}
-                  <div className="flex items-center gap-1 font-extrabold" style={{ color: "#1a1a1a" }}>
-                    <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 1.75L5.75 12.25L12 16L18.25 12.25L12 1.75Z" />
-                      <path d="M5.75 13.75L12 17.5L18.25 13.75L12 22.25L5.75 13.75Z" />
-                    </svg>
-                    {sale.amount}
-                  </div>
-
-                  {/* Seller */}
-                  <a
-                    href={`https://basescan.org/address/${sale.seller}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-mono text-xs hover:underline truncate"
-                    style={{ color: "#555" }}
-                  >
-                    {sale.seller.slice(0, 6)}...{sale.seller.slice(-4)}
-                  </a>
-
-                  {/* Buyer */}
-                  <a
-                    href={`https://basescan.org/address/${sale.buyer}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-mono text-xs hover:underline truncate"
-                    style={{ color: "#555" }}
-                  >
-                    {sale.buyer.slice(0, 6)}...{sale.buyer.slice(-4)}
-                  </a>
-
-                  {/* Date / Tx */}
-                  <div className="text-right">
-                    {sale.timestamp ? (
-                      <a
-                        href={`https://basescan.org/tx/${sale.txHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs hover:underline"
-                        style={{ color: "#aaa" }}
-                      >
-                        {new Date(sale.timestamp * 1000).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })}
-                      </a>
-                    ) : (
-                      <a
-                        href={`https://basescan.org/tx/${sale.txHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs font-mono hover:underline"
-                        style={{ color: "#aaa" }}
-                      >
-                        #{sale.blockNumber.toString()}
-                      </a>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Info Cards — nouns.wtf style full-width section */}
         <div className="mt-24 pt-16" style={{ borderTop: "1px solid #e0e0e0" }}>
-          <h2 className="text-3xl font-extrabold text-center mb-12" style={{ color: "#1a1a1a" }}>
+          <h2
+            className="text-3xl font-extrabold text-center mb-12"
+            style={{ color: "#1a1a1a" }}
+          >
             Royalties to the community.
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="rounded-2xl p-8 flex flex-col justify-between min-h-48" style={{ backgroundColor: "#63A0F9" }}>
+            <div
+              className="rounded-2xl p-8 flex flex-col justify-between min-h-48"
+              style={{ backgroundColor: "#63A0F9" }}
+            >
               <p className="text-lg font-bold leading-snug">
-                Light stake (sign) with your NFT. 5% of all royalties are shared with signers.
+                Light stake (sign) with your NFT. 5% of all royalties are shared
+                with signers.
               </p>
             </div>
-            <div className="rounded-2xl p-8 flex flex-col justify-between min-h-48" style={{ backgroundColor: "#FFC110" }}>
+            <div
+              className="rounded-2xl p-8 flex flex-col justify-between min-h-48"
+              style={{ backgroundColor: "#FFC110" }}
+            >
               <p className="text-lg font-bold leading-snug">
                 No more listing. Just bid or sell.
               </p>
             </div>
-            <div className="rounded-2xl p-8 flex flex-col justify-between min-h-48" style={{ backgroundColor: "#FE500C" }}>
+            <div
+              className="rounded-2xl p-8 flex flex-col justify-between min-h-48"
+              style={{ backgroundColor: "#FE500C" }}
+            >
               <p className="text-lg font-bold leading-snug">
-                Built on game theory — designed so the whole group wins together.
+                Built on game theory — designed so the whole group wins
+                together.
               </p>
             </div>
           </div>
         </div>
-
       </main>
 
       {/* Footer */}
-      <footer style={{ borderTop: "1px solid #e0e0e0", backgroundColor: "#fafafa", marginTop: "6rem" }}>
+      <footer
+        style={{
+          borderTop: "1px solid #e0e0e0",
+          backgroundColor: "#fafafa",
+          marginTop: "6rem",
+        }}
+      >
         <div className="max-w-6xl mx-auto px-6 py-10 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
             <Logo className="h-8 w-auto" />
-            <span className="font-bold text-sm" style={{ color: "#888" }}>flooor.fun</span>
+            <span className="font-bold text-sm" style={{ color: "#888" }}>
+              flooor.fun
+            </span>
           </div>
-          <div className="flex flex-wrap items-center gap-6 text-sm font-semibold" style={{ color: "#888" }}>
-            <a href="https://vrnouns.gitbook.io/flooor/documentation/documentation-en" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">Docs</a>
-            <a href="https://github.com/omgbbqhaxx/flooor" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">GitHub</a>
-            <a href="https://x.com/vrnouns" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">X</a>
-            <a href="https://basescan.org/address/0xbb56a9359df63014b3347585565d6f80ac6305fd#readContract" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">VRNouns</a>
-            <a href="https://basescan.org/address/0xf6b2c2411a101db46c8513ddaef10b11184c58ff#readContract" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">Flooor</a>
-            <a href="https://snapshot.org/#/s:vrnouns.eth" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">Snapshot</a>
+          <div
+            className="flex flex-wrap items-center gap-6 text-sm font-semibold"
+            style={{ color: "#888" }}
+          >
+            <a
+              href="https://vrnouns.gitbook.io/flooor/documentation/documentation-en"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-black transition-colors"
+            >
+              Docs
+            </a>
+            <a
+              href="https://github.com/omgbbqhaxx/flooor"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-black transition-colors"
+            >
+              GitHub
+            </a>
+            <a
+              href="https://x.com/vrnouns"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-black transition-colors"
+            >
+              X
+            </a>
+            <a
+              href="https://basescan.org/address/0xbb56a9359df63014b3347585565d6f80ac6305fd#readContract"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-black transition-colors"
+            >
+              VRNouns
+            </a>
+            <a
+              href="https://basescan.org/address/0xf6b2c2411a101db46c8513ddaef10b11184c58ff#readContract"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-black transition-colors"
+            >
+              Flooor
+            </a>
+            <a
+              href="https://snapshot.org/#/s:vrnouns.eth"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-black transition-colors"
+            >
+              Snapshot
+            </a>
           </div>
         </div>
-        <div className="border-t py-4 text-center text-xs" style={{ borderColor: "#e0e0e0", color: "#bbb" }}>
-          © 2025 flooor.fun · CC0 Licensed · Front-end v1.0.18 · Contract v1.0 · Beta
+        <div
+          className="border-t py-4 text-center text-xs"
+          style={{ borderColor: "#e0e0e0", color: "#bbb" }}
+        >
+          © 2025 flooor.fun · CC0 Licensed · Front-end v1.0.18 · Contract v1.0 ·
+          Beta
         </div>
       </footer>
-
     </div>
   );
 }
