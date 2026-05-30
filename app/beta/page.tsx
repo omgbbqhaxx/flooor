@@ -88,6 +88,30 @@ export default function BetaPage() {
   const chainId = useChainId();
   const { address } = useAccount();
   const [showNetworkWarning, setShowNetworkWarning] = useState(false);
+  const [ethPrice, setEthPrice] = useState<number | null>(null);
+
+  const fetchEthPrice = useCallback(async () => {
+    try {
+      const res = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT");
+      const data = await res.json();
+      setEthPrice(parseFloat(data.price));
+    } catch {
+      // silently fail, price stays null
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchEthPrice();
+    const interval = setInterval(fetchEthPrice, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchEthPrice]);
+
+  const toUsd = useCallback((eth: string) => {
+    if (!ethPrice) return null;
+    const val = parseFloat(eth) * ethPrice;
+    if (isNaN(val) || val === 0) return null;
+    return val < 0.01 ? `$${val.toFixed(4)}` : `$${val.toFixed(2)}`;
+  }, [ethPrice]);
 
   const ensureBase = useCallback(async () => {
     if (chainId !== base.id) {
@@ -997,6 +1021,11 @@ export default function BetaPage() {
                 >
                   {currentBid}
                 </span>
+                {toUsd(currentBid) && (
+                  <span className="text-xl font-semibold" style={{ color: "#888" }}>
+                    {toUsd(currentBid)}
+                  </span>
+                )}
               </div>
               {activeBidder &&
                 activeBidder !==
@@ -1155,6 +1184,9 @@ export default function BetaPage() {
                     {dailyVault}
                   </p>
                 </div>
+                {toUsd(dailyVault) && (
+                  <p className="text-xs mt-0.5" style={{ color: "#888" }}>{toUsd(dailyVault)}</p>
+                )}
               </div>
               <div>
                 <p
@@ -1180,6 +1212,9 @@ export default function BetaPage() {
                     {yieldPerNFT}
                   </p>
                 </div>
+                {toUsd(yieldPerNFT) && (
+                  <p className="text-xs mt-0.5" style={{ color: "#888" }}>{toUsd(yieldPerNFT)}</p>
+                )}
               </div>
             </div>
 
@@ -1204,99 +1239,77 @@ export default function BetaPage() {
                   </div>
                 )}
                 {userNFTs.length > 0 ? (
-                  (() => {
-                    const highestTokenId = userNFTs.reduce((a, b) =>
-                      a > b ? a : b,
-                    );
-                    const tokenIdStr = highestTokenId.toString();
-                    const moreCount = userNFTs.length - 1;
-                    return (
-                      <div className="flex items-center gap-4">
-                        <div
-                          className="relative w-16 h-16 rounded-xl overflow-hidden cursor-pointer group transition-all"
-                          style={{ border: "2px solid #e0e0e0" }}
-                          onClick={() => handleSellNFT(highestTokenId)}
-                          title={`Sell Noun #${tokenIdStr}`}
-                        >
-                          {userNFTs.length > 1 && (
-                            <div className="absolute top-0 left-0 right-0 bg-red-500 text-white text-xs px-1 py-0.5 text-center font-bold z-10">
-                              Hold 1 only
-                            </div>
-                          )}
-                          {nftImages[tokenIdStr] ? (
-                            <Image
-                              src={nftImages[tokenIdStr]}
-                              alt={`Noun ${tokenIdStr}`}
-                              width={64}
-                              height={64}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div
-                              className="w-full h-full flex items-center justify-center"
-                              style={{ backgroundColor: "#f0f0f0" }}
-                            >
-                              <span
-                                className="text-xs font-bold"
-                                style={{ color: "#666" }}
-                              >
-                                #{tokenIdStr}
-                              </span>
-                            </div>
-                          )}
-                          {nftLoadingStatus[tokenIdStr] && (
-                            <div className="absolute inset-0 bg-blue-500 bg-opacity-80 flex items-center justify-center">
-                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                            </div>
-                          )}
-                          {!nftApprovalStatus[tokenIdStr] &&
-                            !nftLoadingStatus[tokenIdStr] && (
-                              <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                                <span className="text-white text-xs font-bold">
-                                  Approve
-                                </span>
-                              </div>
-                            )}
-                          {nftApprovalStatus[tokenIdStr] &&
-                            !nftLoadingStatus[tokenIdStr] && (
-                              <div className="absolute inset-0 bg-green-500 bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
-                                <span className="text-white text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity">
-                                  Sell
-                                </span>
-                              </div>
-                            )}
-                          <div className="absolute bottom-0.5 left-0.5 bg-black bg-opacity-70 text-white text-xs px-1 rounded font-bold">
-                            #{tokenIdStr}
-                          </div>
-                        </div>
-                        <div>
-                          <p
-                            className="font-bold text-sm"
-                            style={{ color: "#1a1a1a" }}
+                  <div className="flex flex-wrap gap-3">
+                    {userNFTs.map((tokenId) => {
+                      const tokenIdStr = tokenId.toString();
+                      return (
+                        <div key={tokenIdStr} className="flex flex-col items-center gap-1">
+                          <div
+                            className="relative w-16 h-16 rounded-xl overflow-hidden cursor-pointer group transition-all"
+                            style={{ border: "2px solid #e0e0e0" }}
+                            onClick={() => handleSellNFT(tokenId)}
+                            title={`Sell Noun #${tokenIdStr}`}
                           >
-                            Noun #{tokenIdStr}
-                          </p>
-                          {moreCount > 0 && (
-                            <p className="text-xs" style={{ color: "#aaa" }}>
-                              +{moreCount} more NFT{moreCount > 1 ? "s" : ""}
-                            </p>
-                          )}
+                            {nftImages[tokenIdStr] ? (
+                              <Image
+                                src={nftImages[tokenIdStr]}
+                                alt={`Noun ${tokenIdStr}`}
+                                width={64}
+                                height={64}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div
+                                className="w-full h-full flex items-center justify-center"
+                                style={{ backgroundColor: "#f0f0f0" }}
+                              >
+                                <span
+                                  className="text-xs font-bold"
+                                  style={{ color: "#666" }}
+                                >
+                                  #{tokenIdStr}
+                                </span>
+                              </div>
+                            )}
+                            {nftLoadingStatus[tokenIdStr] && (
+                              <div className="absolute inset-0 bg-blue-500 bg-opacity-80 flex items-center justify-center">
+                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                              </div>
+                            )}
+                            {!nftApprovalStatus[tokenIdStr] &&
+                              !nftLoadingStatus[tokenIdStr] && (
+                                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                                  <span className="text-white text-xs font-bold">
+                                    Approve
+                                  </span>
+                                </div>
+                              )}
+                            {nftApprovalStatus[tokenIdStr] &&
+                              !nftLoadingStatus[tokenIdStr] && (
+                                <div className="absolute inset-0 bg-green-500 bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
+                                  <span className="text-white text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                                    Sell
+                                  </span>
+                                </div>
+                              )}
+                            <div className="absolute bottom-0.5 left-0.5 bg-black bg-opacity-70 text-white text-xs px-1 rounded font-bold">
+                              #{tokenIdStr}
+                            </div>
+                          </div>
                           <p
-                            className="text-xs mt-1"
+                            className="text-xs"
                             style={{
                               color: nftApprovalStatus[tokenIdStr]
                                 ? "#22c55e"
                                 : "#f59e0b",
                             }}
                           >
-                            {nftApprovalStatus[tokenIdStr]
-                              ? "Approved — ready to sell"
-                              : "Approval required"}
+                            {nftApprovalStatus[tokenIdStr] ? "Ready" : "Approve"}
                           </p>
                         </div>
-                      </div>
-                    );
-                  })()
+                      );
+                    })}
+                  </div>
                 ) : (
                   <p className="text-sm" style={{ color: "#aaa" }}>
                     No VRNouns found in wallet
