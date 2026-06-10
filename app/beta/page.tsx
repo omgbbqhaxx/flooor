@@ -56,6 +56,13 @@ const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
 const MINIMUM_BID_FOR_SELL = 0.0015;
 
+const EthGlyph = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 1.75L5.75 12.25L12 16L18.25 12.25L12 1.75Z" />
+    <path d="M5.75 13.75L12 17.5L18.25 13.75L12 22.25L5.75 13.75Z" />
+  </svg>
+);
+
 export default function BetaPage() {
   const [bidInput, setBidInput] = useState("");
   const [isCheckingApproval, setIsCheckingApproval] = useState(false);
@@ -112,6 +119,14 @@ export default function BetaPage() {
     if (isNaN(val) || val === 0) return null;
     return val < 0.01 ? `$${val.toFixed(4)}` : `$${val.toFixed(2)}`;
   }, [ethPrice]);
+
+  const fmtEth = useCallback((eth: string) => {
+    const n = parseFloat(eth);
+    if (!n || isNaN(n)) return "0";
+    if (n >= 1) return n.toFixed(3);
+    if (n >= 0.001) return n.toFixed(4);
+    return n.toFixed(6);
+  }, []);
 
   const ensureBase = useCallback(async () => {
     if (chainId !== base.id) {
@@ -508,6 +523,11 @@ export default function BetaPage() {
     getNFTImages();
   }, [getNFTImages]);
 
+  // Cüzdan bağlandığı anda NFT'leri otomatik yükle — refresh gerekmez
+  useEffect(() => {
+    getUserNFTs();
+  }, [getUserNFTs]);
+
   useEffect(() => {
     if (address && phaseInfo && ownedTokenId) {
       checkUserSignedStatus();
@@ -553,8 +573,11 @@ export default function BetaPage() {
     return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   }, []);
 
+  // Yield per NFT'nin USD karşılığı — buton metinlerinde kullanılır
+  const yieldUsd = toUsd(yieldPerNFT) ?? "$0.00";
+
   const getSignButtonText = useCallback(() => {
-    if (!phaseInfo) return "Daily Sign";
+    if (!phaseInfo) return `Daily Sign & Earn ${yieldUsd}`;
     const isSignPhase =
       phaseInfo.currentPhase.toLowerCase().includes("sign") ||
       phaseInfo.currentPhase.toLowerCase() === "signing" ||
@@ -564,12 +587,12 @@ export default function BetaPage() {
         if (remainingTimeDisplay < 60) return "Refreshing...";
         return `Claim: ${formatTimeRemaining(remainingTimeDisplay)}`;
       } else {
-        return "Daily Sign";
+        return `Daily Sign & Earn ${yieldUsd}`;
       }
     } else {
       if (userHasClaimed)
         return `Next sign: ${formatTimeRemaining(remainingTimeDisplay)}`;
-      else if (userHasSigned) return "Claim";
+      else if (userHasSigned) return `Claim ${yieldUsd}`;
       else return `Sign ended: ${formatTimeRemaining(remainingTimeDisplay)}`;
     }
   }, [
@@ -578,6 +601,7 @@ export default function BetaPage() {
     userHasClaimed,
     remainingTimeDisplay,
     formatTimeRemaining,
+    yieldUsd,
   ]);
 
   const isSignButtonDisabled = useCallback(() => {
@@ -814,24 +838,54 @@ export default function BetaPage() {
     phaseInfo?.currentPhase.toLowerCase() === "signing" ||
     phaseInfo?.currentPhase.toLowerCase() === "sign_phase";
 
+  // Claim'e hazır durum — buton yeşil "para" rengine döner
+  const isClaimReady =
+    !!phaseInfo && !isSignPhase && userHasSigned && !userHasClaimed;
+
+  const handleRefresh = useCallback(() => {
+    setIsLoading(true);
+    Promise.allSettled([
+      getPhaseInfo(),
+      getDailySigners(),
+      getDailyVault(),
+      getCurrentBid(),
+      getActiveBidder(),
+      checkUserSignedStatus(),
+      getUserNFTs(),
+      checkApprovalStatus(),
+    ]).finally(() => setIsLoading(false));
+  }, [
+    getPhaseInfo,
+    getDailySigners,
+    getDailyVault,
+    getCurrentBid,
+    getActiveBidder,
+    checkUserSignedStatus,
+    getUserNFTs,
+    checkApprovalStatus,
+  ]);
+
   return (
     <div
-      className="min-h-screen"
-      style={{ backgroundColor: "#ffffff", color: "#1a1a1a" }}
+      className="min-h-screen relative z-10"
+      style={{ backgroundColor: "#F7F6F3", color: "#141414" }}
     >
-      {/* Header — nouns.wtf style */}
+      {/* Header */}
       <header
+        className="sticky top-0 z-50"
         style={{
-          backgroundColor: "#e8e8e8",
-          borderBottom: "1px solid #d5d5d5",
+          backgroundColor: "rgba(255,255,255,0.82)",
+          backdropFilter: "blur(14px)",
+          WebkitBackdropFilter: "blur(14px)",
+          borderBottom: "1px solid #ECEAE4",
         }}
       >
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-5 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-8">
-            <Logo className="h-10 w-auto" />
+            <Logo className="h-9 w-auto" />
             <nav
               className="hidden md:flex items-center gap-6 text-sm font-semibold"
-              style={{ color: "#444" }}
+              style={{ color: "#6B6862" }}
             >
               <a
                 href="https://vrnouns.gitbook.io/flooor/documentation/documentation-en"
@@ -859,14 +913,19 @@ export default function BetaPage() {
               </a>
             </nav>
           </div>
-          <div className="flex items-center gap-4">
-            {/* Phase badge */}
+          <div className="flex items-center gap-3">
             {phaseInfo && (
               <div
-                className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${isSignPhase ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}
+                className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${
+                  isSignPhase
+                    ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                    : "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
+                }`}
               >
                 <span
-                  className={`w-2 h-2 rounded-full ${isSignPhase ? "bg-green-500" : "bg-amber-500"}`}
+                  className={`w-2 h-2 rounded-full animate-pulse ${
+                    isSignPhase ? "bg-emerald-500" : "bg-amber-500"
+                  }`}
                 ></span>
                 {isSignPhase ? "SIGN PHASE" : "CLAIM PHASE"}
               </div>
@@ -897,8 +956,12 @@ export default function BetaPage() {
                       <button
                         onClick={openConnectModal}
                         type="button"
-                        className="px-5 py-2 font-bold text-sm transition-colors rounded-lg"
-                        style={{ backgroundColor: "#1a1a1a", color: "#fff" }}
+                        className="px-5 py-2.5 font-bold text-sm rounded-full transition-all hover:opacity-85 active:scale-[0.98]"
+                        style={{
+                          backgroundColor: "#141414",
+                          color: "#fff",
+                          boxShadow: "0 6px 16px -6px rgba(0,0,0,0.35)",
+                        }}
                       >
                         Connect Wallet
                       </button>
@@ -906,7 +969,7 @@ export default function BetaPage() {
                       <button
                         onClick={openChainModal}
                         type="button"
-                        className="px-4 py-2 rounded-lg font-bold text-sm bg-red-100 text-red-600 border border-red-300"
+                        className="px-4 py-2 rounded-full font-bold text-sm bg-red-50 text-red-600 ring-1 ring-red-200"
                       >
                         Wrong Network
                       </button>
@@ -914,8 +977,11 @@ export default function BetaPage() {
                       <button
                         onClick={openAccountModal}
                         type="button"
-                        className="px-5 py-2 font-bold text-sm rounded-lg border transition-colors flex items-center gap-2"
-                        style={{ borderColor: "#ccc", backgroundColor: "#fff" }}
+                        className="px-4 py-2 font-bold text-sm rounded-full transition-all flex items-center gap-2 hover:bg-white"
+                        style={{
+                          border: "1px solid #E2DFD8",
+                          backgroundColor: "#FDFDFB",
+                        }}
                       >
                         {chain.hasIcon && chain.iconUrl && (
                           <Image
@@ -945,7 +1011,7 @@ export default function BetaPage() {
             </span>
             <button
               onClick={() => ensureBase()}
-              className="px-4 py-1.5 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors"
+              className="px-4 py-1.5 bg-red-600 text-white rounded-full text-sm font-bold hover:bg-red-700 transition-colors"
             >
               Switch to Base
             </button>
@@ -953,17 +1019,21 @@ export default function BetaPage() {
         </div>
       )}
 
-      <main className="max-w-6xl mx-auto px-6 py-12">
-        {/* Hero: Two-column layout — nouns.wtf style */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+      <main className="max-w-6xl mx-auto px-5 sm:px-6 pt-10 pb-20">
+        {/* Hero */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-start">
           {/* Left: NFT Image */}
-          <div>
+          <div className="lg:sticky lg:top-24">
             <a
               href="https://opensea.io/collection/vrnouns"
               target="_blank"
               rel="noopener noreferrer"
-              className="block rounded-2xl overflow-hidden hover:opacity-95 transition-opacity"
-              style={{ border: "1px solid #e0e0e0" }}
+              className="block rounded-3xl overflow-hidden transition-all duration-300 hover:-translate-y-1"
+              style={{
+                border: "1px solid #E8E5DF",
+                boxShadow: "0 30px 70px -30px rgba(20,20,20,0.25)",
+                backgroundColor: "#fff",
+              }}
             >
               <Image
                 src="/bg.png"
@@ -974,64 +1044,95 @@ export default function BetaPage() {
                 className="w-full h-auto object-cover"
               />
             </a>
+            <p
+              className="mt-3 text-center text-xs font-semibold"
+              style={{ color: "#A8A29E" }}
+            >
+              VRNouns on Base · CC0
+            </p>
           </div>
 
           {/* Right: Auction Info */}
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-5">
             {/* Title */}
             <div>
               <p
-                className="text-sm font-semibold uppercase tracking-widest mb-1"
-                style={{ color: "#888" }}
+                className="text-xs font-bold uppercase tracking-[0.2em] mb-2"
+                style={{ color: "#A8A29E" }}
               >
                 {isSignPhase ? "Sign Phase" : "Claim Phase"} · Epoch #
                 {phaseInfo ? phaseInfo.eid.toString() : "—"}
               </p>
               <h1
-                className="text-4xl font-extrabold leading-tight"
-                style={{ color: "#1a1a1a" }}
+                className="text-5xl font-extrabold tracking-tight leading-none"
+                style={{ color: "#141414" }}
               >
                 VRNouns
               </h1>
             </div>
 
-            {/* Current Bid */}
+            {/* Bid + Timer card */}
             <div
-              style={{ borderTop: "1px solid #e0e0e0", paddingTop: "1.5rem" }}
+              className="rounded-3xl p-6"
+              style={{
+                backgroundColor: "#fff",
+                border: "1px solid #ECEAE4",
+                boxShadow: "0 18px 44px -28px rgba(20,20,20,0.18)",
+              }}
             >
-              <p
-                className="text-xs font-semibold uppercase tracking-widest mb-1"
-                style={{ color: "#888" }}
-              >
-                Current bid
-              </p>
-              <div className="flex items-baseline gap-2">
-                <svg
-                  className="w-8 h-8"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  style={{ color: "#1a1a1a" }}
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <p
+                    className="text-xs font-bold uppercase tracking-widest mb-2"
+                    style={{ color: "#A8A29E" }}
+                  >
+                    Current bid
+                  </p>
+                  <div className="flex items-baseline gap-1.5">
+                    <EthGlyph className="w-6 h-6 self-center" />
+                    <span
+                      className="text-4xl font-extrabold tabular-nums tracking-tight"
+                      style={{ color: "#141414" }}
+                    >
+                      {fmtEth(currentBid)}
+                    </span>
+                  </div>
+                  {toUsd(currentBid) && (
+                    <p
+                      className="text-sm font-semibold mt-1"
+                      style={{ color: "#A8A29E" }}
+                    >
+                      {toUsd(currentBid)}
+                    </p>
+                  )}
+                </div>
+                <div
+                  className="pl-6"
+                  style={{ borderLeft: "1px solid #ECEAE4" }}
                 >
-                  <path d="M12 1.75L5.75 12.25L12 16L18.25 12.25L12 1.75Z" />
-                  <path d="M5.75 13.75L12 17.5L18.25 13.75L12 22.25L5.75 13.75Z" />
-                </svg>
-                <span
-                  className="text-5xl font-extrabold"
-                  style={{ color: "#1a1a1a" }}
-                >
-                  {currentBid}
-                </span>
-                {toUsd(currentBid) && (
-                  <span className="text-xl font-semibold" style={{ color: "#888" }}>
-                    {toUsd(currentBid)}
-                  </span>
-                )}
+                  <p
+                    className="text-xs font-bold uppercase tracking-widest mb-2"
+                    style={{ color: "#A8A29E" }}
+                  >
+                    {isSignPhase ? "Sign closes in" : "Claim closes in"}
+                  </p>
+                  <p
+                    className="text-4xl font-extrabold tabular-nums tracking-tight"
+                    style={{ color: "#141414" }}
+                  >
+                    {formatTimeRemaining(remainingTimeDisplay)}
+                  </p>
+                </div>
               </div>
+
               {activeBidder &&
                 activeBidder !==
                   "0x0000000000000000000000000000000000000000" && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <div className="w-5 h-5 rounded-full overflow-hidden">
+                  <div
+                    className="flex items-center gap-2 mt-5 pt-4"
+                    style={{ borderTop: "1px solid #F1EFE9" }}
+                  >
+                    <div className="w-6 h-6 rounded-full overflow-hidden ring-1 ring-black/5">
                       <canvas
                         ref={(canvas) => {
                           if (canvas && activeBidder) {
@@ -1055,67 +1156,56 @@ export default function BetaPage() {
                         className="w-full h-full"
                       />
                     </div>
+                    <span
+                      className="text-xs font-semibold uppercase tracking-wider"
+                      style={{ color: "#A8A29E" }}
+                    >
+                      Highest bidder
+                    </span>
                     <a
                       href={`https://basescan.org/address/${activeBidder}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm font-semibold hover:underline"
-                      style={{ color: "#4965f0" }}
+                      className="text-sm font-bold hover:underline ml-auto"
+                      style={{ color: "#3B63F3" }}
                     >
                       {activeBidderName ||
                         `${activeBidder.slice(0, 6)}...${activeBidder.slice(-4)}`}
                     </a>
                   </div>
                 )}
-            </div>
 
-            {/* Timer */}
-            <div
-              style={{ borderTop: "1px solid #e0e0e0", paddingTop: "1.5rem" }}
-            >
-              <p
-                className="text-xs font-semibold uppercase tracking-widest mb-1"
-                style={{ color: "#888" }}
-              >
-                {isSignPhase
-                  ? "Sign window closes in"
-                  : "Claim window closes in"}
-              </p>
-              <p
-                className="text-3xl font-extrabold tabular-nums"
-                style={{ color: "#1a1a1a" }}
-              >
-                {formatTimeRemaining(remainingTimeDisplay)}
-              </p>
-            </div>
-
-            {/* Bid Input + Button */}
-            <div
-              style={{ borderTop: "1px solid #e0e0e0", paddingTop: "1.5rem" }}
-            >
-              <div className="flex gap-3">
+              {/* Bid input */}
+              <div className="mt-5 flex gap-2">
                 <input
                   type="text"
                   inputMode="decimal"
                   placeholder={`Ξ ${MINIMUM_BID_FOR_SELL} or more`}
-                  className="flex-1 px-4 py-3 rounded-xl text-base font-semibold focus:outline-none transition-colors"
+                  className="flex-1 px-4 py-3 rounded-2xl text-base font-semibold focus:outline-none transition-all focus:ring-2 focus:ring-black/10"
                   style={{
-                    border: "2px solid #d0d0d0",
-                    backgroundColor: "#fafafa",
-                    color: "#1a1a1a",
+                    border: "1px solid #E2DFD8",
+                    backgroundColor: "#FAF9F6",
+                    color: "#141414",
                   }}
                   value={bidInput}
                   onChange={handleBidInputChange}
                 />
                 <button
                   onClick={handleBid}
-                  className="px-8 py-3 rounded-xl font-bold text-base transition-colors"
-                  style={{ backgroundColor: "#1a1a1a", color: "#fff" }}
+                  className="px-8 py-3 rounded-2xl font-bold text-base transition-all hover:opacity-85 active:scale-[0.98]"
+                  style={{
+                    backgroundColor: "#141414",
+                    color: "#fff",
+                    boxShadow: "0 8px 20px -8px rgba(0,0,0,0.4)",
+                  }}
                 >
                   Bid
                 </button>
               </div>
-              <p className="text-xs mt-2" style={{ color: "#aaa" }}>
+              <p
+                className="text-xs font-medium mt-2"
+                style={{ color: "#B8B3AC" }}
+              >
                 Minimum bid: Ξ {MINIMUM_BID_FOR_SELL}
               </p>
             </div>
@@ -1124,96 +1214,100 @@ export default function BetaPage() {
             <button
               onClick={handleSign}
               disabled={isSignButtonDisabled()}
-              className="w-full py-3 rounded-xl font-bold text-base transition-colors"
+              className="w-full py-4 rounded-2xl font-extrabold text-lg transition-all active:scale-[0.99] hover:opacity-90"
               style={
                 isSignButtonDisabled()
                   ? {
-                      backgroundColor: "#e8e8e8",
-                      color: "#aaa",
+                      backgroundColor: "#ECEAE4",
+                      color: "#A8A29E",
                       cursor: "not-allowed",
                     }
-                  : {
-                      backgroundColor: isSignPhase ? "#1a1a1a" : "#f0a500",
-                      color: isSignPhase ? "#fff" : "#1a1a1a",
-                    }
+                  : isClaimReady
+                    ? {
+                        backgroundColor: "#16A34A",
+                        color: "#fff",
+                        boxShadow: "0 14px 34px -12px rgba(22,163,74,0.55)",
+                      }
+                    : {
+                        backgroundColor: "#141414",
+                        color: "#fff",
+                        boxShadow: "0 14px 34px -14px rgba(0,0,0,0.45)",
+                      }
               }
             >
               {getSignButtonText()}
             </button>
 
             {/* Stats Row */}
-            <div
-              className="grid grid-cols-3 gap-4"
-              style={{ borderTop: "1px solid #e0e0e0", paddingTop: "1.5rem" }}
-            >
-              <div>
+            <div className="grid grid-cols-3 gap-3">
+              <div
+                className="rounded-2xl p-4"
+                style={{ backgroundColor: "#fff", border: "1px solid #ECEAE4" }}
+              >
                 <p
-                  className="text-xs font-semibold uppercase tracking-widest mb-1"
-                  style={{ color: "#888" }}
+                  className="text-[10px] font-bold uppercase tracking-widest mb-1.5"
+                  style={{ color: "#A8A29E" }}
                 >
                   Signers
                 </p>
                 <p
-                  className="text-2xl font-extrabold"
-                  style={{ color: "#1a1a1a" }}
+                  className="text-2xl font-extrabold tabular-nums"
+                  style={{ color: "#141414" }}
                 >
                   {dailySigners}
                 </p>
               </div>
-              <div>
+              <div
+                className="rounded-2xl p-4"
+                style={{ backgroundColor: "#fff", border: "1px solid #ECEAE4" }}
+              >
                 <p
-                  className="text-xs font-semibold uppercase tracking-widest mb-1"
-                  style={{ color: "#888" }}
+                  className="text-[10px] font-bold uppercase tracking-widest mb-1.5"
+                  style={{ color: "#A8A29E" }}
                 >
                   Vault
                 </p>
-                <div className="flex items-center gap-1">
-                  <svg
-                    className="w-4 h-4"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    style={{ color: "#1a1a1a" }}
-                  >
-                    <path d="M12 1.75L5.75 12.25L12 16L18.25 12.25L12 1.75Z" />
-                    <path d="M5.75 13.75L12 17.5L18.25 13.75L12 22.25L5.75 13.75Z" />
-                  </svg>
-                  <p
-                    className="text-xl font-extrabold"
-                    style={{ color: "#1a1a1a" }}
-                  >
-                    {dailyVault}
-                  </p>
-                </div>
+                <p
+                  className="text-base sm:text-2xl font-extrabold tabular-nums whitespace-nowrap"
+                  style={{ color: "#141414" }}
+                >
+                  Ξ{fmtEth(dailyVault)}
+                </p>
                 {toUsd(dailyVault) && (
-                  <p className="text-xs mt-0.5" style={{ color: "#888" }}>{toUsd(dailyVault)}</p>
+                  <p
+                    className="text-xs font-semibold mt-0.5"
+                    style={{ color: "#A8A29E" }}
+                  >
+                    {toUsd(dailyVault)}
+                  </p>
                 )}
               </div>
-              <div>
+              <div
+                className="rounded-2xl p-4"
+                style={{
+                  backgroundColor: "#F0FDF4",
+                  border: "1px solid #BBF7D0",
+                }}
+              >
                 <p
-                  className="text-xs font-semibold uppercase tracking-widest mb-1"
-                  style={{ color: "#888" }}
+                  className="text-[10px] font-bold uppercase tracking-widest mb-1.5"
+                  style={{ color: "#15803D" }}
                 >
-                  Yield/NFT
+                  Yield / NFT
                 </p>
-                <div className="flex items-center gap-1">
-                  <svg
-                    className="w-4 h-4"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    style={{ color: "#1a1a1a" }}
-                  >
-                    <path d="M12 1.75L5.75 12.25L12 16L18.25 12.25L12 1.75Z" />
-                    <path d="M5.75 13.75L12 17.5L18.25 13.75L12 22.25L5.75 13.75Z" />
-                  </svg>
-                  <p
-                    className="text-xl font-extrabold"
-                    style={{ color: "#1a1a1a" }}
-                  >
-                    {yieldPerNFT}
-                  </p>
-                </div>
+                <p
+                  className="text-base sm:text-2xl font-extrabold tabular-nums whitespace-nowrap"
+                  style={{ color: "#15803D" }}
+                >
+                  Ξ{fmtEth(yieldPerNFT)}
+                </p>
                 {toUsd(yieldPerNFT) && (
-                  <p className="text-xs mt-0.5" style={{ color: "#888" }}>{toUsd(yieldPerNFT)}</p>
+                  <p
+                    className="text-xs font-bold mt-0.5"
+                    style={{ color: "#16A34A" }}
+                  >
+                    {toUsd(yieldPerNFT)}
+                  </p>
                 )}
               </div>
             </div>
@@ -1221,32 +1315,44 @@ export default function BetaPage() {
             {/* Your NFTs */}
             {address && (
               <div
-                style={{ borderTop: "1px solid #e0e0e0", paddingTop: "1.5rem" }}
+                className="rounded-3xl p-6"
+                style={{
+                  backgroundColor: "#fff",
+                  border: "1px solid #ECEAE4",
+                }}
               >
-                <p
-                  className="text-xs font-semibold uppercase tracking-widest mb-3"
-                  style={{ color: "#888" }}
-                >
-                  Your NFTs — click to sell
-                </p>
-                {isCheckingApproval && (
-                  <div
-                    className="flex items-center gap-2 text-sm"
-                    style={{ color: "#888" }}
+                <div className="flex items-center justify-between mb-4">
+                  <p
+                    className="text-xs font-bold uppercase tracking-widest"
+                    style={{ color: "#A8A29E" }}
                   >
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
-                    Checking approval...
-                  </div>
-                )}
+                    Your NFTs
+                  </p>
+                  {isCheckingApproval && (
+                    <div
+                      className="flex items-center gap-2 text-xs font-semibold"
+                      style={{ color: "#A8A29E" }}
+                    >
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+                      Checking approval...
+                    </div>
+                  )}
+                </div>
                 {userNFTs.length > 0 ? (
-                  <div className="flex flex-wrap gap-3">
+                  <div className="flex flex-wrap gap-4">
                     {userNFTs.map((tokenId) => {
                       const tokenIdStr = tokenId.toString();
                       return (
-                        <div key={tokenIdStr} className="flex flex-col items-center gap-1">
+                        <div
+                          key={tokenIdStr}
+                          className="flex flex-col items-center gap-1.5"
+                        >
                           <div
-                            className="relative w-16 h-16 rounded-xl overflow-hidden cursor-pointer group transition-all"
-                            style={{ border: "2px solid #e0e0e0" }}
+                            className="relative w-24 h-24 rounded-2xl overflow-hidden cursor-pointer group transition-all hover:scale-[1.03]"
+                            style={{
+                              border: "1px solid #E8E5DF",
+                              boxShadow: "0 10px 24px -14px rgba(0,0,0,0.25)",
+                            }}
                             onClick={() => handleSellNFT(tokenId)}
                             title={`Sell Noun #${tokenIdStr}`}
                           >
@@ -1254,31 +1360,31 @@ export default function BetaPage() {
                               <Image
                                 src={nftImages[tokenIdStr]}
                                 alt={`Noun ${tokenIdStr}`}
-                                width={64}
-                                height={64}
+                                width={96}
+                                height={96}
                                 className="w-full h-full object-cover"
                               />
                             ) : (
                               <div
                                 className="w-full h-full flex items-center justify-center"
-                                style={{ backgroundColor: "#f0f0f0" }}
+                                style={{ backgroundColor: "#F1EFE9" }}
                               >
                                 <span
-                                  className="text-xs font-bold"
-                                  style={{ color: "#666" }}
+                                  className="text-sm font-bold"
+                                  style={{ color: "#6B6862" }}
                                 >
                                   #{tokenIdStr}
                                 </span>
                               </div>
                             )}
                             {nftLoadingStatus[tokenIdStr] && (
-                              <div className="absolute inset-0 bg-blue-500 bg-opacity-80 flex items-center justify-center">
+                              <div className="absolute inset-0 bg-blue-500/80 flex items-center justify-center">
                                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                               </div>
                             )}
                             {!nftApprovalStatus[tokenIdStr] &&
                               !nftLoadingStatus[tokenIdStr] && (
-                                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                                   <span className="text-white text-xs font-bold">
                                     Approve
                                   </span>
@@ -1286,32 +1392,37 @@ export default function BetaPage() {
                               )}
                             {nftApprovalStatus[tokenIdStr] &&
                               !nftLoadingStatus[tokenIdStr] && (
-                                <div className="absolute inset-0 bg-green-500 bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
-                                  <span className="text-white text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="absolute inset-0 bg-emerald-500/0 group-hover:bg-emerald-500/40 transition-all flex items-center justify-center">
+                                  <span className="text-white text-sm font-extrabold opacity-0 group-hover:opacity-100 transition-opacity">
                                     Sell
                                   </span>
                                 </div>
                               )}
-                            <div className="absolute bottom-0.5 left-0.5 bg-black bg-opacity-70 text-white text-xs px-1 rounded font-bold">
+                            <div className="absolute bottom-1 left-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded-md font-bold">
                               #{tokenIdStr}
                             </div>
                           </div>
                           <p
-                            className="text-xs"
+                            className="text-[11px] font-bold"
                             style={{
                               color: nftApprovalStatus[tokenIdStr]
-                                ? "#22c55e"
-                                : "#f59e0b",
+                                ? "#16A34A"
+                                : "#D97706",
                             }}
                           >
-                            {nftApprovalStatus[tokenIdStr] ? "Ready" : "Approve"}
+                            {nftApprovalStatus[tokenIdStr]
+                              ? "Ready to sell"
+                              : "Tap to approve"}
                           </p>
                         </div>
                       );
                     })}
                   </div>
                 ) : (
-                  <p className="text-sm" style={{ color: "#aaa" }}>
+                  <p
+                    className="text-sm font-medium"
+                    style={{ color: "#B8B3AC" }}
+                  >
                     No VRNouns found in wallet
                   </p>
                 )}
@@ -1319,16 +1430,17 @@ export default function BetaPage() {
             )}
 
             {/* Quick links */}
-            <div
-              className="flex flex-wrap gap-3"
-              style={{ borderTop: "1px solid #e0e0e0", paddingTop: "1.5rem" }}
-            >
+            <div className="flex flex-wrap items-center gap-2">
               <a
                 href="https://farcaster.xyz/miniapps/pIFtRBsgnWAF/flooorfun"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-                style={{ backgroundColor: "#f0f0f0", color: "#555" }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold transition-all hover:bg-white"
+                style={{
+                  backgroundColor: "#F1EFE9",
+                  color: "#6B6862",
+                  border: "1px solid #E8E5DF",
+                }}
               >
                 Farcaster Mini App
               </a>
@@ -1336,30 +1448,23 @@ export default function BetaPage() {
                 href="https://base.app/app/flooor.fun"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-                style={{ backgroundColor: "#f0f0f0", color: "#555" }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold transition-all hover:bg-white"
+                style={{
+                  backgroundColor: "#F1EFE9",
+                  color: "#6B6862",
+                  border: "1px solid #E8E5DF",
+                }}
               >
                 Base App
               </a>
               <button
-                onClick={() => {
-                  setIsLoading(true);
-                  Promise.allSettled([
-                    getPhaseInfo(),
-                    getDailySigners(),
-                    getDailyVault(),
-                    getCurrentBid(),
-                    getActiveBidder(),
-                    checkUserSignedStatus(),
-                    getUserNFTs(),
-                    checkApprovalStatus(),
-                  ]).finally(() => setIsLoading(false));
-                }}
+                onClick={handleRefresh}
                 disabled={isLoading}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold transition-all hover:bg-white"
                 style={{
-                  backgroundColor: "#f0f0f0",
-                  color: isLoading ? "#aaa" : "#555",
+                  backgroundColor: "#F1EFE9",
+                  color: isLoading ? "#B8B3AC" : "#6B6862",
+                  border: "1px solid #E8E5DF",
                   cursor: isLoading ? "not-allowed" : "pointer",
                 }}
               >
@@ -1391,37 +1496,82 @@ export default function BetaPage() {
           </div>
         </div>
 
-        {/* Info Cards — nouns.wtf style full-width section */}
-        <div className="mt-24 pt-16" style={{ borderTop: "1px solid #e0e0e0" }}>
+        {/* Info Cards */}
+        <div
+          className="mt-24 pt-16"
+          style={{ borderTop: "1px solid #ECEAE4" }}
+        >
           <h2
-            className="text-3xl font-extrabold text-center mb-12"
-            style={{ color: "#1a1a1a" }}
+            className="text-3xl sm:text-4xl font-extrabold tracking-tight text-center mb-3"
+            style={{ color: "#141414" }}
           >
             Royalties to the community.
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <p
+            className="text-center text-base font-medium mb-12 max-w-xl mx-auto"
+            style={{ color: "#A8A29E" }}
+          >
+            A marketplace where holders earn together — every day.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <div
-              className="rounded-2xl p-8 flex flex-col justify-between min-h-48"
-              style={{ backgroundColor: "#63A0F9" }}
+              className="rounded-3xl p-8 min-h-48 transition-transform hover:-translate-y-1"
+              style={{
+                backgroundColor: "#63A0F9",
+                boxShadow: "0 24px 50px -30px rgba(99,160,249,0.8)",
+              }}
             >
-              <p className="text-lg font-bold leading-snug">
-                Light stake (sign) with your NFT. 5% of all royalties are shared
-                with signers.
+              <p
+                className="text-xs font-bold uppercase tracking-widest mb-3"
+                style={{ color: "rgba(20,20,20,0.55)" }}
+              >
+                Sign & Earn
+              </p>
+              <p
+                className="text-lg font-bold leading-snug"
+                style={{ color: "#141414" }}
+              >
+                Light stake (sign) with your NFT. 5% of all royalties are
+                shared with signers.
               </p>
             </div>
             <div
-              className="rounded-2xl p-8 flex flex-col justify-between min-h-48"
-              style={{ backgroundColor: "#FFC110" }}
+              className="rounded-3xl p-8 min-h-48 transition-transform hover:-translate-y-1"
+              style={{
+                backgroundColor: "#FFC110",
+                boxShadow: "0 24px 50px -30px rgba(255,193,16,0.8)",
+              }}
             >
-              <p className="text-lg font-bold leading-snug">
-                No more listing. Just bid or sell.
+              <p
+                className="text-xs font-bold uppercase tracking-widest mb-3"
+                style={{ color: "rgba(20,20,20,0.55)" }}
+              >
+                Bid or Sell
+              </p>
+              <p
+                className="text-lg font-bold leading-snug"
+                style={{ color: "#141414" }}
+              >
+                No more listing. Just bid or sell — instantly, on-chain.
               </p>
             </div>
             <div
-              className="rounded-2xl p-8 flex flex-col justify-between min-h-48"
-              style={{ backgroundColor: "#FE500C" }}
+              className="rounded-3xl p-8 min-h-48 transition-transform hover:-translate-y-1"
+              style={{
+                backgroundColor: "#FE500C",
+                boxShadow: "0 24px 50px -30px rgba(254,80,12,0.7)",
+              }}
             >
-              <p className="text-lg font-bold leading-snug">
+              <p
+                className="text-xs font-bold uppercase tracking-widest mb-3"
+                style={{ color: "rgba(255,255,255,0.7)" }}
+              >
+                Game Theory
+              </p>
+              <p
+                className="text-lg font-bold leading-snug"
+                style={{ color: "#fff" }}
+              >
                 Built on game theory — designed so the whole group wins
                 together.
               </p>
@@ -1433,21 +1583,20 @@ export default function BetaPage() {
       {/* Footer */}
       <footer
         style={{
-          borderTop: "1px solid #e0e0e0",
-          backgroundColor: "#fafafa",
-          marginTop: "6rem",
+          borderTop: "1px solid #ECEAE4",
+          backgroundColor: "#FDFDFB",
         }}
       >
         <div className="max-w-6xl mx-auto px-6 py-10 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
             <Logo className="h-8 w-auto" />
-            <span className="font-bold text-sm" style={{ color: "#888" }}>
+            <span className="font-bold text-sm" style={{ color: "#A8A29E" }}>
               flooor.fun
             </span>
           </div>
           <div
             className="flex flex-wrap items-center gap-6 text-sm font-semibold"
-            style={{ color: "#888" }}
+            style={{ color: "#A8A29E" }}
           >
             <a
               href="https://vrnouns.gitbook.io/flooor/documentation/documentation-en"
@@ -1500,10 +1649,10 @@ export default function BetaPage() {
           </div>
         </div>
         <div
-          className="border-t py-4 text-center text-xs"
-          style={{ borderColor: "#e0e0e0", color: "#bbb" }}
+          className="border-t py-4 text-center text-xs font-medium"
+          style={{ borderColor: "#ECEAE4", color: "#C4BFB8" }}
         >
-          © 2025 flooor.fun · CC0 Licensed · Front-end v1.0.18 · Contract v1.0 ·
+          © 2026 flooor.fun · CC0 Licensed · Front-end v1.1.0 · Contract v1.0 ·
           Beta
         </div>
       </footer>
