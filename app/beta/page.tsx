@@ -54,7 +54,7 @@ import NFT_ABI from "@/app/abi/nft.json";
 
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
-const MINIMUM_BID_FOR_SELL = 0.0015;
+const MINIMUM_BID_FOR_SELL = 0.006;
 
 const EthGlyph = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -91,6 +91,9 @@ export default function BetaPage() {
   const [nftImages, setNftImages] = useState<{ [key: string]: string }>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [remainingTimeDisplay, setRemainingTimeDisplay] = useState<number>(0);
+  const [pendingSellTokenId, setPendingSellTokenId] = useState<bigint | null>(
+    null,
+  );
   const config = useConfig();
   const chainId = useChainId();
   const { address } = useAccount();
@@ -99,7 +102,9 @@ export default function BetaPage() {
 
   const fetchEthPrice = useCallback(async () => {
     try {
-      const res = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT");
+      const res = await fetch(
+        "https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT",
+      );
       const data = await res.json();
       setEthPrice(parseFloat(data.price));
     } catch {
@@ -113,12 +118,15 @@ export default function BetaPage() {
     return () => clearInterval(interval);
   }, [fetchEthPrice]);
 
-  const toUsd = useCallback((eth: string) => {
-    if (!ethPrice) return null;
-    const val = parseFloat(eth) * ethPrice;
-    if (isNaN(val) || val === 0) return null;
-    return val < 0.01 ? `$${val.toFixed(4)}` : `$${val.toFixed(2)}`;
-  }, [ethPrice]);
+  const toUsd = useCallback(
+    (eth: string) => {
+      if (!ethPrice) return null;
+      const val = parseFloat(eth) * ethPrice;
+      if (isNaN(val) || val === 0) return null;
+      return val < 0.01 ? `$${val.toFixed(4)}` : `$${val.toFixed(2)}`;
+    },
+    [ethPrice],
+  );
 
   const fmtEth = useCallback((eth: string) => {
     const n = parseFloat(eth);
@@ -174,8 +182,6 @@ export default function BetaPage() {
       return;
     }
     const approvalStatus: { [key: string]: boolean } = {};
-    const highestTokenId = userNFTs.reduce((a, b) => (a > b ? a : b));
-    const tokenIdStr = highestTokenId.toString();
     let isAllApproved = false;
     try {
       isAllApproved = (await retryWithBackoff(async () => {
@@ -191,25 +197,28 @@ export default function BetaPage() {
       isAllApproved = false;
     }
     if (isAllApproved) {
-      approvalStatus[tokenIdStr] = true;
+      // setApprovalForAll koleksiyon genelinde geçerli — tüm NFT'ler onaylı
+      for (const id of userNFTs) {
+        approvalStatus[id.toString()] = true;
+      }
     } else {
-      try {
-        const approvedAddress = (await retryWithBackoff(async () => {
-          return await readContract(config, {
-            address: COLLECTION_ADDR,
-            abi: NFT_ABI,
-            functionName: "getApproved",
-            args: [highestTokenId],
-          });
-        })) as string;
-        approvalStatus[tokenIdStr] =
-          approvedAddress.toLowerCase() === CONTRACT_ADDR.toLowerCase();
-      } catch (error) {
-        console.error(
-          `Error checking approval for token ${highestTokenId}:`,
-          error,
-        );
-        approvalStatus[tokenIdStr] = false;
+      for (const id of userNFTs) {
+        const idStr = id.toString();
+        try {
+          const approvedAddress = (await retryWithBackoff(async () => {
+            return await readContract(config, {
+              address: COLLECTION_ADDR,
+              abi: NFT_ABI,
+              functionName: "getApproved",
+              args: [id],
+            });
+          })) as string;
+          approvalStatus[idStr] =
+            approvedAddress.toLowerCase() === CONTRACT_ADDR.toLowerCase();
+        } catch (error) {
+          console.error(`Error checking approval for token ${id}:`, error);
+          approvalStatus[idStr] = false;
+        }
       }
     }
     setNftApprovalStatus(approvalStatus);
@@ -770,6 +779,30 @@ export default function BetaPage() {
     ],
   );
 
+  // Mobil webview'larda window.confirm çalışmadığı için kendi modalımızla onay alıyoruz
+  const requestSellNFT = useCallback(
+    (tokenId: bigint) => {
+      if (!address) {
+        toast.warning("Please connect your wallet first");
+        return;
+      }
+      if (parseFloat(currentBid) < MINIMUM_BID_FOR_SELL) {
+        toast.error(
+          `Current bid (${currentBid} ETH) is below minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH.`,
+        );
+        return;
+      }
+      setPendingSellTokenId(tokenId);
+    },
+    [address, currentBid],
+  );
+
+  const confirmSellNFT = useCallback(() => {
+    const tokenId = pendingSellTokenId;
+    setPendingSellTokenId(null);
+    if (tokenId !== null) handleSellNFT(tokenId);
+  }, [pendingSellTokenId, handleSellNFT]);
+
   const handleSign = useCallback(async () => {
     if (!address) {
       toast.warning("Please connect your wallet first");
@@ -1023,15 +1056,24 @@ export default function BetaPage() {
         {/* Hero */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-start">
           {/* Left: NFT Image */}
-          <div className="lg:sticky lg:top-24">
+          <div className="lg:sticky lg:top-24 relative">
+            {/* Nouns renklerinde glow */}
+            <div
+              aria-hidden
+              className="absolute -inset-4 rounded-[40px] blur-2xl opacity-50 pointer-events-none"
+              style={{
+                background:
+                  "linear-gradient(135deg, #63A0F9 0%, #FFC110 50%, #FE500C 100%)",
+              }}
+            />
             <a
               href="https://opensea.io/collection/vrnouns"
               target="_blank"
               rel="noopener noreferrer"
-              className="block rounded-3xl overflow-hidden transition-all duration-300 hover:-translate-y-1"
+              className="group relative block rounded-3xl overflow-hidden transition-all duration-300 hover:-translate-y-1"
               style={{
-                border: "1px solid #E8E5DF",
-                boxShadow: "0 30px 70px -30px rgba(20,20,20,0.25)",
+                border: "1px solid rgba(255,255,255,0.6)",
+                boxShadow: "0 30px 70px -25px rgba(20,20,20,0.35)",
                 backgroundColor: "#fff",
               }}
             >
@@ -1041,15 +1083,45 @@ export default function BetaPage() {
                 width={560}
                 height={560}
                 priority
-                className="w-full h-auto object-cover"
+                className="w-full h-auto object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
               />
+              {/* Live badge */}
+              <div
+                className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-extrabold uppercase tracking-widest text-white"
+                style={{
+                  backgroundColor: "rgba(20,20,20,0.55)",
+                  backdropFilter: "blur(8px)",
+                  WebkitBackdropFilter: "blur(8px)",
+                }}
+              >
+                <span
+                  className={`w-2 h-2 rounded-full animate-pulse ${
+                    isSignPhase ? "bg-emerald-400" : "bg-amber-400"
+                  }`}
+                ></span>
+                Live on Base
+              </div>
+              {/* Bottom overlay */}
+              <div
+                className="absolute inset-x-0 bottom-0 p-5 flex items-end justify-between"
+                style={{
+                  background:
+                    "linear-gradient(to top, rgba(0,0,0,0.6), rgba(0,0,0,0.25) 55%, transparent)",
+                }}
+              >
+                <div>
+                  <p className="text-white font-extrabold text-xl leading-tight">
+                    VRNouns
+                  </p>
+                  <p className="text-white/70 text-xs font-bold uppercase tracking-widest mt-0.5">
+                    CC0 · Base · Royalties to the community.
+                  </p>
+                </div>
+                <span className="hidden sm:inline-flex items-center gap-1 px-4 py-2 rounded-full bg-white text-xs font-extrabold text-black opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
+                  View on OpenSea →
+                </span>
+              </div>
             </a>
-            <p
-              className="mt-3 text-center text-xs font-semibold"
-              style={{ color: "#A8A29E" }}
-            >
-              VRNouns on Base · CC0
-            </p>
           </div>
 
           {/* Right: Auction Info */}
@@ -1353,7 +1425,7 @@ export default function BetaPage() {
                               border: "1px solid #E8E5DF",
                               boxShadow: "0 10px 24px -14px rgba(0,0,0,0.25)",
                             }}
-                            onClick={() => handleSellNFT(tokenId)}
+                            onClick={() => requestSellNFT(tokenId)}
                             title={`Sell Noun #${tokenIdStr}`}
                           >
                             {nftImages[tokenIdStr] ? (
@@ -1497,10 +1569,7 @@ export default function BetaPage() {
         </div>
 
         {/* Info Cards */}
-        <div
-          className="mt-24 pt-16"
-          style={{ borderTop: "1px solid #ECEAE4" }}
-        >
+        <div className="mt-24 pt-16" style={{ borderTop: "1px solid #ECEAE4" }}>
           <h2
             className="text-3xl sm:text-4xl font-extrabold tracking-tight text-center mb-3"
             style={{ color: "#141414" }}
@@ -1514,79 +1583,150 @@ export default function BetaPage() {
             A marketplace where holders earn together — every day.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <div
-              className="rounded-3xl p-8 min-h-48 transition-transform hover:-translate-y-1"
-              style={{
-                backgroundColor: "#63A0F9",
-                boxShadow: "0 24px 50px -30px rgba(99,160,249,0.8)",
-              }}
-            >
-              <p
-                className="text-xs font-bold uppercase tracking-widest mb-3"
-                style={{ color: "rgba(20,20,20,0.55)" }}
+            {[
+              {
+                num: "01",
+                title: "Sign & Earn",
+                text: "Light stake (sign) with your NFT. 5% of all royalties are shared with signers.",
+                gradient: "linear-gradient(135deg, #7AB4FF 0%, #3B7DF0 100%)",
+                shadow: "0 28px 56px -28px rgba(59,125,240,0.75)",
+                dark: true,
+              },
+              {
+                num: "02",
+                title: "Bid or Sell",
+                text: "No more listing. Just bid or sell — instantly, on-chain.",
+                gradient: "linear-gradient(135deg, #FFD34D 0%, #FFAE00 100%)",
+                shadow: "0 28px 56px -28px rgba(255,174,0,0.75)",
+                dark: true,
+              },
+              {
+                num: "03",
+                title: "Game Theory",
+                text: "Built on game theory — designed so the whole group wins together.",
+                gradient: "linear-gradient(135deg, #FF7A3D 0%, #E03E00 100%)",
+                shadow: "0 28px 56px -28px rgba(224,62,0,0.7)",
+                dark: false,
+              },
+            ].map((card) => (
+              <div
+                key={card.num}
+                className="group relative overflow-hidden rounded-3xl p-8 min-h-52 transition-all duration-300 hover:-translate-y-2"
+                style={{ background: card.gradient, boxShadow: card.shadow }}
               >
-                Sign & Earn
-              </p>
-              <p
-                className="text-lg font-bold leading-snug"
-                style={{ color: "#141414" }}
-              >
-                Light stake (sign) with your NFT. 5% of all royalties are
-                shared with signers.
-              </p>
-            </div>
-            <div
-              className="rounded-3xl p-8 min-h-48 transition-transform hover:-translate-y-1"
-              style={{
-                backgroundColor: "#FFC110",
-                boxShadow: "0 24px 50px -30px rgba(255,193,16,0.8)",
-              }}
-            >
-              <p
-                className="text-xs font-bold uppercase tracking-widest mb-3"
-                style={{ color: "rgba(20,20,20,0.55)" }}
-              >
-                Bid or Sell
-              </p>
-              <p
-                className="text-lg font-bold leading-snug"
-                style={{ color: "#141414" }}
-              >
-                No more listing. Just bid or sell — instantly, on-chain.
-              </p>
-            </div>
-            <div
-              className="rounded-3xl p-8 min-h-48 transition-transform hover:-translate-y-1"
-              style={{
-                backgroundColor: "#FE500C",
-                boxShadow: "0 24px 50px -30px rgba(254,80,12,0.7)",
-              }}
-            >
-              <p
-                className="text-xs font-bold uppercase tracking-widest mb-3"
-                style={{ color: "rgba(255,255,255,0.7)" }}
-              >
-                Game Theory
-              </p>
-              <p
-                className="text-lg font-bold leading-snug"
-                style={{ color: "#fff" }}
-              >
-                Built on game theory — designed so the whole group wins
-                together.
-              </p>
-            </div>
+                {/* Noggles watermark */}
+                <svg
+                  className="absolute -right-8 -bottom-6 w-44 h-auto transition-transform duration-500 ease-out group-hover:scale-110 group-hover:-rotate-6"
+                  viewBox="0 0 160 60"
+                  fill={
+                    card.dark ? "rgba(20,20,20,0.12)" : "rgba(255,255,255,0.16)"
+                  }
+                >
+                  <path d="M40 5h45v50H40V5zm10 10v30h25V15H50z" />
+                  <path d="M100 5h45v50h-45V5zm10 10v30h25V15h-25z" />
+                  <path d="M85 25h15v10H85zM0 25h40v10H10v15H0z" />
+                </svg>
+                {/* Hover shine */}
+                <div
+                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                  style={{
+                    background:
+                      "radial-gradient(500px circle at 25% -10%, rgba(255,255,255,0.35), transparent 45%)",
+                  }}
+                />
+                <div className="relative">
+                  <span
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-extrabold uppercase tracking-widest mb-4"
+                    style={{
+                      backgroundColor: card.dark
+                        ? "rgba(255,255,255,0.35)"
+                        : "rgba(255,255,255,0.2)",
+                      color: card.dark ? "#141414" : "#fff",
+                      backdropFilter: "blur(4px)",
+                    }}
+                  >
+                    {card.num} · {card.title}
+                  </span>
+                  <p
+                    className="text-xl font-extrabold leading-snug"
+                    style={{ color: card.dark ? "#141414" : "#fff" }}
+                  >
+                    {card.text}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </main>
 
+      {/* Sell confirmation modal */}
+      {pendingSellTokenId !== null && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center px-6"
+          style={{
+            backgroundColor: "rgba(20,20,20,0.55)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+          }}
+          onClick={() => setPendingSellTokenId(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl p-6"
+            style={{
+              backgroundColor: "#fff",
+              boxShadow: "0 30px 80px -20px rgba(0,0,0,0.45)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3
+              className="text-xl font-extrabold mb-2"
+              style={{ color: "#141414" }}
+            >
+              Confirm sale
+            </h3>
+            <p
+              className="text-sm font-medium leading-relaxed mb-6"
+              style={{ color: "#6B6862" }}
+            >
+              Are you sure you want to sell Noun #
+              {pendingSellTokenId.toString()} for Ξ{fmtEth(currentBid)}
+              {toUsd(currentBid) ? ` (${toUsd(currentBid)})` : ""}? This action
+              cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setPendingSellTokenId(null)}
+                className="flex-1 py-3 rounded-2xl font-bold text-base transition-all active:scale-[0.98]"
+                style={{ backgroundColor: "#F1EFE9", color: "#141414" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmSellNFT}
+                className="flex-1 py-3 rounded-2xl font-bold text-base text-white transition-all active:scale-[0.98]"
+                style={{
+                  backgroundColor: "#16A34A",
+                  boxShadow: "0 10px 24px -10px rgba(22,163,74,0.6)",
+                }}
+              >
+                Yes, sell
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
-      <footer
-        style={{
-          borderTop: "1px solid #ECEAE4",
-          backgroundColor: "#FDFDFB",
-        }}
-      >
+      <footer style={{ backgroundColor: "#FDFDFB" }}>
+        {/* Nouns renklerinde ince gradient şerit */}
+        <div
+          className="h-1"
+          style={{
+            background:
+              "linear-gradient(90deg, #63A0F9 0%, #FFC110 50%, #FE500C 100%)",
+          }}
+        />
         <div className="max-w-6xl mx-auto px-6 py-10 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
             <Logo className="h-8 w-auto" />
@@ -1649,11 +1789,27 @@ export default function BetaPage() {
           </div>
         </div>
         <div
-          className="border-t py-4 text-center text-xs font-medium"
+          className="border-t py-4 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 text-center text-xs font-medium px-6"
           style={{ borderColor: "#ECEAE4", color: "#C4BFB8" }}
         >
-          © 2026 flooor.fun · CC0 Licensed · Front-end v1.1.0 · Contract v1.0 ·
-          Beta
+          <span>
+            © 2026 flooor.fun · CC0 Licensed · Front-end v1.1.0 · Contract
+            v1.0 · Beta
+          </span>
+          <span className="hidden sm:inline" aria-hidden>
+            ·
+          </span>
+          <span
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-bold"
+            style={{
+              background:
+                "linear-gradient(90deg, rgba(99,160,249,0.12), rgba(255,193,16,0.12), rgba(254,80,12,0.12))",
+              color: "#8A857E",
+              border: "1px solid #ECEAE4",
+            }}
+          >
+            ✦ Crafted with Claude Fable 5
+          </span>
         </div>
       </footer>
     </div>

@@ -77,7 +77,7 @@ const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
 // MINIMUM PRICE CONFIGURATION (in ETH)
 // Change this value to adjust the minimum bid and sell price
 // ============================================================================
-const MINIMUM_BID_FOR_SELL = 0.0015; // Placeholder - adjust as needed
+const MINIMUM_BID_FOR_SELL = 0.006;
 
 export default function Page() {
   //const calls = []; // to be populated with buyFloor call later
@@ -110,6 +110,9 @@ export default function Page() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
   const [remainingTimeDisplay, setRemainingTimeDisplay] = useState<number>(0);
+  const [pendingSellTokenId, setPendingSellTokenId] = useState<bigint | null>(
+    null,
+  );
   const config = useConfig();
   const chainId = useChainId();
   const { address } = useAccount();
@@ -191,9 +194,11 @@ export default function Page() {
       isAllApproved = false;
     }
 
-    // If all are approved, the displayed NFT is approved
+    // If all are approved, every owned NFT is approved (setApprovalForAll is collection-wide)
     if (isAllApproved) {
-      approvalStatus[tokenIdStr] = true;
+      for (const id of userNFTs) {
+        approvalStatus[id.toString()] = true;
+      }
     } else {
       // Check individual approval for the displayed NFT only
       try {
@@ -1023,6 +1028,30 @@ export default function Page() {
     ],
   );
 
+  // Mobil webview'larda window.confirm çalışmadığı için kendi modalımızla onay alıyoruz
+  const requestSellNFT = useCallback(
+    (tokenId: bigint) => {
+      if (!address) {
+        toast.warning("Please connect your wallet first");
+        return;
+      }
+      if (parseFloat(currentBid) < MINIMUM_BID_FOR_SELL) {
+        toast.error(
+          `You cannot sell below this price. The current bid (${currentBid} ETH) is below the minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH.`,
+        );
+        return;
+      }
+      setPendingSellTokenId(tokenId);
+    },
+    [address, currentBid],
+  );
+
+  const confirmSellNFT = useCallback(() => {
+    const tokenId = pendingSellTokenId;
+    setPendingSellTokenId(null);
+    if (tokenId !== null) handleSellNFT(tokenId);
+  }, [pendingSellTokenId, handleSellNFT]);
+
   const handleSign = useCallback(async () => {
     if (!address) {
       toast.warning("Please connect your wallet first");
@@ -1581,7 +1610,7 @@ export default function Page() {
                             <div className="flex flex-col items-center space-y-2">
                               <div
                                 className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-gray-300 hover:border-green-400 hover:shadow-lg transition-all cursor-pointer group"
-                                onClick={() => handleSellNFT(highestTokenId)}
+                                onClick={() => requestSellNFT(highestTokenId)}
                                 title={`Click to sell Noun #${tokenIdStr}`}
                               >
                                 {/* Multiple NFT Warning Overlay */}
@@ -1820,6 +1849,46 @@ export default function Page() {
             </div>
           </div>
         </footer>
+
+        {/* Sell confirmation modal */}
+        {pendingSellTokenId !== null && (
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center px-6 bg-black/60"
+            style={{
+              backdropFilter: "blur(6px)",
+              WebkitBackdropFilter: "blur(6px)",
+            }}
+            onClick={() => setPendingSellTokenId(null)}
+          >
+            <div
+              className="w-full max-w-sm rounded-2xl p-6 bg-white shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-xl font-bold text-gray-900 mb-2 font-oldschool">
+                Confirm sale
+              </h3>
+              <p className="text-sm text-gray-600 leading-relaxed mb-6 font-oldschool">
+                Are you sure you want to sell Noun #
+                {pendingSellTokenId.toString()} for {currentBid} ETH? This
+                action cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setPendingSellTokenId(null)}
+                  className="flex-1 py-3 rounded-xl font-bold text-base bg-gray-100 text-gray-900 hover:bg-gray-200 transition-colors font-oldschool"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmSellNFT}
+                  className="flex-1 py-3 rounded-xl font-bold text-base bg-green-600 text-white hover:bg-green-700 transition-colors font-oldschool"
+                >
+                  Yes, sell
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
