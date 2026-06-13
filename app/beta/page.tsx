@@ -617,21 +617,31 @@ export default function BetaPage() {
     }
   }, [address, phaseInfo, ownedTokenId, checkUserSignedStatus]);
 
+  const fetchAllData = useCallback(async () => {
+    setIsLoading(true);
+    await Promise.allSettled([
+      getPhaseInfo(),
+      getDailySigners(),
+      getDailyVault(),
+      getCurrentBid(),
+      getActiveBidder(),
+      checkUserSignedStatus(),
+      getUserNFTs(),
+      checkApprovalStatus(),
+    ]);
+    setIsLoading(false);
+  }, [
+    getPhaseInfo,
+    getDailySigners,
+    getDailyVault,
+    getCurrentBid,
+    getActiveBidder,
+    checkUserSignedStatus,
+    getUserNFTs,
+    checkApprovalStatus,
+  ]);
+
   useEffect(() => {
-    const fetchAllData = async () => {
-      setIsLoading(true);
-      await Promise.allSettled([
-        getPhaseInfo(),
-        getDailySigners(),
-        getDailyVault(),
-        getCurrentBid(),
-        getActiveBidder(),
-        checkUserSignedStatus(),
-        getUserNFTs(),
-        checkApprovalStatus(),
-      ]);
-      setIsLoading(false);
-    };
     fetchAllData();
     const interval = setInterval(fetchAllData, 2 * 60 * 1000);
     return () => clearInterval(interval);
@@ -1318,6 +1328,16 @@ export default function BetaPage() {
                   </span>
                 </div>
               ))}
+              <div className="pt-3.5 text-right">
+                <button
+                  onClick={fetchAllData}
+                  disabled={isLoading}
+                  className="text-xs hover:text-black transition-colors disabled:opacity-50"
+                  style={{ ...smallCaps, color: MUTED }}
+                >
+                  {isLoading ? "Refreshing…" : "Refresh Data"}
+                </button>
+              </div>
             </div>
 
             {/* Daily sign */}
@@ -1356,7 +1376,17 @@ export default function BetaPage() {
 
         {/* Your collection */}
         <div className="mt-20">
-          <p style={smallCaps}>Your Collection</p>
+          <div className="flex items-baseline justify-between gap-4">
+            <p style={smallCaps}>Your Collection</p>
+            <button
+              onClick={fetchAllData}
+              disabled={isLoading}
+              className="text-xs hover:text-black transition-colors disabled:opacity-50 shrink-0"
+              style={{ ...smallCaps, color: MUTED }}
+            >
+              {isLoading ? "Refreshing…" : "Refresh Data"}
+            </button>
+          </div>
           <h2
             className="mt-3"
             style={{
