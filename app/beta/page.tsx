@@ -1494,6 +1494,77 @@ export default function BetaPage() {
           )}
         </div>
 
+        {/* Other Collections */}
+        <div className="mt-20 pt-14" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
+          <p style={smallCaps}>Other Collections</p>
+          <h2
+            className="mt-3"
+            style={{
+              ...SERIF,
+              fontWeight: 500,
+              fontSize: "clamp(26px, 3vw, 36px)",
+            }}
+          >
+            Coming to Flooor
+          </h2>
+          <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-8">
+            {[
+              {
+                name: "OK Computers",
+                sub: "Base",
+                img: "https://i2c.seadn.io/base/05d807397e5b420d8b9cc7cb8cb07a0d/549fb12b972ea6f3790a2965d31686/55549fb12b972ea6f3790a2965d31686.gif",
+              },
+              {
+                name: "Based Punks",
+                sub: "Base",
+                img: "https://gateway.pinata.cloud/ipfs/QmfD5sHPyB2s8UUE1spKU8BaQzNZa22AjD6zUj7wbrPdAD/1279",
+              },
+              {
+                name: "The Warplets",
+                sub: "Base · Farcaster",
+                img: "https://i2c.seadn.io/base/0x699727f9e01a822efdcf7333073f0461e5914b4e/c4dd77598815bd89610930ca12be02/a2c4dd77598815bd89610930ca12be02.jpeg?w=1000",
+              },
+            ].map((col) => (
+              <div key={col.name}>
+                <div
+                  className="relative aspect-square overflow-hidden"
+                  style={{ backgroundColor: PLINTH }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={col.img}
+                    alt={col.name}
+                    className="w-full h-full object-cover"
+                    style={{ filter: "blur(10px)", transform: "scale(1.12)" }}
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span
+                      style={{
+                        ...smallCaps,
+                        color: "#fff",
+                        backgroundColor: "rgba(26,26,26,0.65)",
+                        padding: "6px 16px",
+                        letterSpacing: "0.15em",
+                      }}
+                    >
+                      Soon
+                    </span>
+                  </div>
+                </div>
+                <p
+                  className="mt-3"
+                  style={{ ...SERIF, fontWeight: 500, fontSize: "17px" }}
+                >
+                  {col.name}
+                </p>
+                <p className="mt-0.5 text-xs" style={{ color: MUTED }}>
+                  {col.sub}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* How it works */}
         <div className="mt-24 pt-14" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
