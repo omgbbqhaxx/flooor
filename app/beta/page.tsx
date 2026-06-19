@@ -128,8 +128,7 @@ export default function BetaPage() {
   } | null>(null);
   const config = useConfig();
   const chainId = useChainId();
-  const { address } = useAccount();
-  const [showNetworkWarning, setShowNetworkWarning] = useState(false);
+  const { address, chain: connectedChain } = useAccount();
   const [ethPrice, setEthPrice] = useState<number | null>(null);
 
   const fetchEthPrice = useCallback(async () => {
@@ -170,10 +169,8 @@ export default function BetaPage() {
 
   const ensureBase = useCallback(async () => {
     if (chainId !== base.id) {
-      setShowNetworkWarning(true);
       try {
         await switchChain(config, { chainId: base.id });
-        setShowNetworkWarning(false);
       } catch (error) {
         console.error("Failed to switch network:", error);
         throw new Error("Please switch to Base network to continue");
@@ -181,13 +178,6 @@ export default function BetaPage() {
     }
   }, [chainId, config]);
 
-  useEffect(() => {
-    if (address && chainId !== base.id) {
-      setShowNetworkWarning(true);
-    } else {
-      setShowNetworkWarning(false);
-    }
-  }, [chainId, address]);
 
   const checkApprovalStatus = useCallback(async () => {
     if (!address) return;
@@ -732,8 +722,20 @@ export default function BetaPage() {
       toast.warning("Please connect your wallet first");
       return;
     }
+    if (connectedChain?.id !== base.id) {
+      toast.error("Please switch to Base network first.");
+      return;
+    }
     const bidAmount = parseFloat(bidInput || "0");
-    if (bidAmount < minOutbidAmount) {
+    const currentBidNum = parseFloat(currentBid);
+    const hasActiveBid =
+      activeBidder &&
+      activeBidder !== "0x0000000000000000000000000000000000000000" &&
+      currentBidNum > 0;
+    const minRequired = hasActiveBid
+      ? Math.max(currentBidNum * 1.05, MINIMUM_BID_FOR_SELL)
+      : MINIMUM_BID_FOR_SELL;
+    if (bidAmount < minRequired) {
       setBidInput("");
       setBidError(true);
       return;
@@ -763,7 +765,7 @@ export default function BetaPage() {
         action: { label: "Retry", onClick: () => handleBid() },
       });
     }
-  }, [config, ensureBase, bidInput, address, getCurrentBid, getActiveBidder]);
+  }, [config, ensureBase, bidInput, address, connectedChain, currentBid, activeBidder, getCurrentBid, getActiveBidder]);
 
   const handleSellNFT = useCallback(
     async (tokenId: bigint) => {
@@ -952,6 +954,8 @@ export default function BetaPage() {
     getPhaseInfo,
   ]);
 
+  const isWrongNetwork = !!address && connectedChain?.id !== base.id;
+
   const isSignPhase =
     phaseInfo?.currentPhase.toLowerCase().includes("sign") ||
     phaseInfo?.currentPhase.toLowerCase() === "signing" ||
@@ -1099,7 +1103,7 @@ export default function BetaPage() {
       </header>
 
       {/* Network Gate — full-screen block until on Base */}
-      {showNetworkWarning && address && (
+      {isWrongNetwork && (
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center px-6"
           style={{ backgroundColor: "rgba(26,26,26,0.72)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
@@ -1256,11 +1260,11 @@ export default function BetaPage() {
               {hasBid && (
                 <div
                   className="mt-8 px-4 py-3 flex items-start gap-3"
-                  style={{ backgroundColor: "#FFFBF2", border: `1px solid #E8D9B0` }}
+                  style={{ backgroundColor: PLINTH, border: `1px solid ${HAIRLINE}` }}
                 >
-                  <span style={{ color: AMBER, fontSize: "13px", lineHeight: 1.5, ...SANS }}>
-                    Mevcut teklif Ξ {fmtEth(currentBid)} — katılmak için en az{" "}
-                    <strong>Ξ {minOutbidAmount.toFixed(6)}</strong> teklif vermelisiniz (%5 üstü).
+                  <span style={{ color: MUTED, fontSize: "13px", lineHeight: 1.5, ...SANS }}>
+                    Current bid is Ξ {fmtEth(currentBid)} — you must bid at least{" "}
+                    <strong>Ξ {minOutbidAmount.toFixed(6)}</strong> to outbid (5% above current).
                   </span>
                 </div>
               )}
@@ -1306,8 +1310,8 @@ export default function BetaPage() {
               </div>
               <p className="mt-3 text-xs" style={{ color: FAINT }}>
                 {hasBid
-                  ? `Minimum outbid Ξ ${minOutbidAmount.toFixed(6)} — every bid feeds the vault.`
-                  : `Minimum bid Ξ ${MINIMUM_BID_FOR_SELL} — every bid feeds the vault.`}
+                  ? `Minimum outbid Ξ ${minOutbidAmount.toFixed(6)} — if someone outbids you, your ETH is returned automatically.`
+                  : `Minimum bid Ξ ${MINIMUM_BID_FOR_SELL} — if someone outbids you, your ETH is returned automatically. Every sale feeds the vault.`}
               </p>
             </div>
 

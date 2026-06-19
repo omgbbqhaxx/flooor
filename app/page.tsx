@@ -128,8 +128,7 @@ export default function BetaPage() {
   } | null>(null);
   const config = useConfig();
   const chainId = useChainId();
-  const { address } = useAccount();
-  const [showNetworkWarning, setShowNetworkWarning] = useState(false);
+  const { address, chain: connectedChain } = useAccount();
   const [ethPrice, setEthPrice] = useState<number | null>(null);
 
   const fetchEthPrice = useCallback(async () => {
@@ -170,24 +169,14 @@ export default function BetaPage() {
 
   const ensureBase = useCallback(async () => {
     if (chainId !== base.id) {
-      setShowNetworkWarning(true);
       try {
         await switchChain(config, { chainId: base.id });
-        setShowNetworkWarning(false);
       } catch (error) {
         console.error("Failed to switch network:", error);
         throw new Error("Please switch to Base network to continue");
       }
     }
   }, [chainId, config]);
-
-  useEffect(() => {
-    if (address && chainId !== base.id) {
-      setShowNetworkWarning(true);
-    } else {
-      setShowNetworkWarning(false);
-    }
-  }, [chainId, address]);
 
   const checkApprovalStatus = useCallback(async () => {
     if (!address) return;
@@ -732,9 +721,20 @@ export default function BetaPage() {
       toast.warning("Please connect your wallet first");
       return;
     }
+    if (connectedChain?.id !== base.id) {
+      toast.error("Please switch to Base network first.");
+      return;
+    }
     const bidAmount = parseFloat(bidInput || "0");
-    if (bidAmount < MINIMUM_BID_FOR_SELL) {
-      // Inline hata — placeholder üzerinden gösterilir
+    const currentBidNum = parseFloat(currentBid);
+    const hasActiveBid =
+      activeBidder &&
+      activeBidder !== "0x0000000000000000000000000000000000000000" &&
+      currentBidNum > 0;
+    const minRequired = hasActiveBid
+      ? Math.max(currentBidNum * 1.05, MINIMUM_BID_FOR_SELL)
+      : MINIMUM_BID_FOR_SELL;
+    if (bidAmount < minRequired) {
       setBidInput("");
       setBidError(true);
       return;
@@ -751,7 +751,6 @@ export default function BetaPage() {
         dataSuffix: DATA_SUFFIX,
       });
       toast.success("Bid placed successfully!");
-      // Bid sonrası anında güncelle
       setTimeout(() => {
         getCurrentBid();
         getActiveBidder();
@@ -764,7 +763,7 @@ export default function BetaPage() {
         action: { label: "Retry", onClick: () => handleBid() },
       });
     }
-  }, [config, ensureBase, bidInput, address, getCurrentBid, getActiveBidder]);
+  }, [config, ensureBase, bidInput, address, connectedChain, currentBid, activeBidder, getCurrentBid, getActiveBidder]);
 
   const handleSellNFT = useCallback(
     async (tokenId: bigint) => {
@@ -953,6 +952,8 @@ export default function BetaPage() {
     getPhaseInfo,
   ]);
 
+  const isWrongNetwork = !!address && connectedChain?.id !== base.id;
+
   const isSignPhase =
     phaseInfo?.currentPhase.toLowerCase().includes("sign") ||
     phaseInfo?.currentPhase.toLowerCase() === "signing" ||
@@ -966,6 +967,10 @@ export default function BetaPage() {
     activeBidder &&
     activeBidder !== "0x0000000000000000000000000000000000000000" &&
     parseFloat(currentBid) > 0;
+
+  const minOutbidAmount = hasBid
+    ? Math.max(parseFloat(currentBid) * 1.05, MINIMUM_BID_FOR_SELL)
+    : MINIMUM_BID_FOR_SELL;
 
   return (
     <div
@@ -1095,22 +1100,38 @@ export default function BetaPage() {
         </div>
       </header>
 
-      {/* Network Warning */}
-      {showNetworkWarning && address && (
+      {/* Network Gate — full-screen block until on Base */}
+      {isWrongNetwork && (
         <div
-          className="py-3 px-6"
-          style={{ backgroundColor: "#FBF3F3", borderBottom: `1px solid ${HAIRLINE}` }}
+          className="fixed inset-0 z-[200] flex items-center justify-center px-6"
+          style={{ backgroundColor: "rgba(26,26,26,0.72)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
         >
-          <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
-            <span className="text-sm" style={{ ...SANS, color: "#9B1C1C" }}>
-              Wrong network — please switch to Base to participate.
-            </span>
+          <div
+            className="w-full max-w-sm p-8 sm:p-10 text-center"
+            style={{ backgroundColor: "#fff", border: `1px solid ${HAIRLINE}`, boxShadow: "0 24px 64px -16px rgba(0,0,0,0.3)" }}
+          >
+            <div
+              className="mx-auto mb-6 flex items-center justify-center"
+              style={{ width: 48, height: 48, borderRadius: "50%", backgroundColor: "#FBF3F3", border: "1px solid #F3CACA" }}
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M10 2L2 17h16L10 2z" stroke="#9B1C1C" strokeWidth="1.5" strokeLinejoin="round"/>
+                <path d="M10 8v4M10 14.5v.5" stroke="#9B1C1C" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <p style={{ ...smallCaps, color: "#9B1C1C" }}>Wrong Network</p>
+            <h3 className="mt-3" style={{ ...SERIF, fontWeight: 500, fontSize: "22px" }}>
+              Switch to Base
+            </h3>
+            <p className="mt-3 text-sm leading-relaxed" style={{ color: MUTED }}>
+              Flooor runs on Base. Please switch your wallet to the Base network to continue.
+            </p>
             <button
               onClick={() => ensureBase()}
-              className="px-5 py-2 transition-opacity hover:opacity-80"
-              style={{ ...smallCaps, color: "#fff", backgroundColor: "#9B1C1C" }}
+              className="mt-7 w-full py-4 transition-opacity hover:opacity-85"
+              style={{ ...smallCaps, color: "#fff", backgroundColor: INK }}
             >
-              Switch
+              Switch to Base
             </button>
           </div>
         </div>
@@ -1233,9 +1254,22 @@ export default function BetaPage() {
                 </div>
               </div>
 
+              {/* Outbid notice */}
+              {hasBid && (
+                <div
+                  className="mt-8 px-4 py-3 flex items-start gap-3"
+                  style={{ backgroundColor: PLINTH, border: `1px solid ${HAIRLINE}` }}
+                >
+                  <span style={{ color: MUTED, fontSize: "13px", lineHeight: 1.5, ...SANS }}>
+                    Current bid is Ξ {fmtEth(currentBid)} — you must bid at least{" "}
+                    <strong>Ξ {minOutbidAmount.toFixed(6)}</strong> to outbid (5% above current).
+                  </span>
+                </div>
+              )}
+
               {/* Bid — tam çerçeveli kutu */}
               <div
-                className="mt-8 flex items-stretch"
+                className={hasBid ? "mt-3 flex items-stretch" : "mt-8 flex items-stretch"}
                 style={{
                   border: `1px solid ${bidError ? "#9B1C1C" : INK}`,
                 }}
@@ -1245,8 +1279,10 @@ export default function BetaPage() {
                   inputMode="decimal"
                   placeholder={
                     bidError
-                      ? `Minimum bid is Ξ ${MINIMUM_BID_FOR_SELL}`
-                      : `Ξ ${MINIMUM_BID_FOR_SELL} or more`
+                      ? `Minimum Ξ ${minOutbidAmount.toFixed(6)}`
+                      : hasBid
+                        ? `Ξ ${minOutbidAmount.toFixed(6)} or more`
+                        : `Ξ ${MINIMUM_BID_FOR_SELL} or more`
                   }
                   className="flex-1 px-4 py-3.5 focus:outline-none min-w-0 text-lg tabular-nums"
                   style={{
@@ -1271,8 +1307,9 @@ export default function BetaPage() {
                 </button>
               </div>
               <p className="mt-3 text-xs" style={{ color: FAINT }}>
-                Minimum bid Ξ {MINIMUM_BID_FOR_SELL} — every bid feeds the
-                vault.
+                {hasBid
+                  ? `Minimum outbid Ξ ${minOutbidAmount.toFixed(6)} — if someone outbids you, your ETH is returned automatically.`
+                  : `Minimum bid Ξ ${MINIMUM_BID_FOR_SELL} — if someone outbids you, your ETH is returned automatically. Every sale feeds the vault.`}
               </p>
             </div>
 
