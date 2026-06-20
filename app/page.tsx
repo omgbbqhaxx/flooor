@@ -4,11 +4,10 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { toast } from "sonner";
 
 import { useState, useCallback, useEffect } from "react";
-import { useConfig, useChainId, useAccount } from "wagmi";
+import { useConfig, useAccount, useSwitchChain } from "wagmi";
 import {
   writeContract,
   readContract,
-  switchChain,
   simulateContract,
 } from "wagmi/actions";
 import { base } from "wagmi/chains";
@@ -127,8 +126,8 @@ export default function BetaPage() {
     image: string;
   } | null>(null);
   const config = useConfig();
-  const chainId = useChainId();
   const { address, chain: connectedChain } = useAccount();
+  const { switchChain: switchChainHook } = useSwitchChain();
   const [ethPrice, setEthPrice] = useState<number | null>(null);
 
   const fetchEthPrice = useCallback(async () => {
@@ -168,15 +167,15 @@ export default function BetaPage() {
   }, []);
 
   const ensureBase = useCallback(async () => {
-    if (chainId !== base.id) {
+    if (connectedChain?.id !== base.id) {
       try {
-        await switchChain(config, { chainId: base.id });
+        switchChainHook({ chainId: base.id });
       } catch (error) {
         console.error("Failed to switch network:", error);
         throw new Error("Please switch to Base network to continue");
       }
     }
-  }, [chainId, config]);
+  }, [connectedChain, switchChainHook]);
 
   const checkApprovalStatus = useCallback(async () => {
     if (!address) return;
