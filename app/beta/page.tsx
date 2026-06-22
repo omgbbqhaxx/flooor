@@ -10,8 +10,15 @@ import {
   readContract,
   simulateContract,
 } from "wagmi/actions";
-import { base } from "wagmi/chains";
-import { parseEther, formatEther } from "viem";
+import { base, mainnet } from "wagmi/chains";
+import {
+  parseEther,
+  formatEther,
+  createPublicClient,
+  http,
+  fallback,
+  toCoinType,
+} from "viem";
 import { Attribution } from "ox/erc8021";
 import Image from "next/image";
 import { Playfair_Display, Inter } from "next/font/google";
@@ -65,6 +72,16 @@ import NFT_ABI from "@/app/abi/nft.json";
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
 const MINIMUM_BID_FOR_SELL = 0.006;
+
+// Basename çözümleme (ENSIP-19) — ENS kök kaydı L1'de, CCIP-read ile Base verisini çeker
+// Varsayılan viem mainnet RPC'si (eth.merkle.io) tarayıcıdan CORS engelliyor, CORS-uyumlu fallback kullanılıyor
+const ensClient = createPublicClient({
+  chain: mainnet,
+  transport: fallback([
+    http("https://ethereum-rpc.publicnode.com"),
+    http("https://eth.llamarpc.com"),
+  ]),
+});
 
 // Sotheby's-inspired palette — restrained, gallery-like
 const INK = "#1A1A1A";
@@ -385,26 +402,12 @@ export default function BetaPage() {
       ) {
         try {
           const baseName = await retryWithBackoff(async () => {
-            return (await readContract(config, {
-              address: "0x4200000000000000000000000000000000000006",
-              abi: [
-                {
-                  inputs: [{ name: "name", type: "string" }],
-                  name: "addr",
-                  outputs: [{ name: "", type: "address" }],
-                  stateMutability: "view",
-                  type: "function",
-                },
-              ],
-              functionName: "addr",
-              args: [bidderAddress],
-            })) as string;
+            return await ensClient.getEnsName({
+              address: bidderAddress as `0x${string}`,
+              coinType: toCoinType(base.id),
+            });
           });
-          if (
-            baseName &&
-            typeof baseName === "string" &&
-            baseName !== "0x0000000000000000000000000000000000000000"
-          ) {
+          if (baseName && typeof baseName === "string") {
             setActiveBidderName(baseName);
           } else {
             setActiveBidderName(
@@ -1002,6 +1005,13 @@ export default function BetaPage() {
             Flooor
           </a>
           <nav className="hidden md:flex items-center gap-10">
+            <a
+              href="/warplets"
+              style={smallCaps}
+              className="hover:text-black transition-colors"
+            >
+              Warplets
+            </a>
             <a
               href="https://vrnouns.gitbook.io/flooor/documentation/documentation-en"
               target="_blank"
@@ -1886,7 +1896,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.0 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.1 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>
