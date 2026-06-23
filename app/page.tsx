@@ -10,14 +10,15 @@ import {
   readContract,
   simulateContract,
 } from "wagmi/actions";
-import { base, mainnet } from "wagmi/chains";
+import { base } from "wagmi/chains";
 import {
   parseEther,
   formatEther,
-  createPublicClient,
-  http,
-  fallback,
-  toCoinType,
+  keccak256,
+  encodePacked,
+  namehash,
+  toHex,
+  type Address,
 } from "viem";
 import { Attribution } from "ox/erc8021";
 import Image from "next/image";
@@ -71,17 +72,36 @@ import NFT_ABI from "@/app/abi/nft.json";
 
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
-const MINIMUM_BID_FOR_SELL = 0.006;
+const MINIMUM_BID_FOR_SELL = 0.015;
 
-// Basename çözümleme (ENSIP-19) — ENS kök kaydı L1'de, CCIP-read ile Base verisini çeker
-// Varsayılan viem mainnet RPC'si (eth.merkle.io) tarayıcıdan CORS engelliyor, CORS-uyumlu fallback kullanılıyor
-const ensClient = createPublicClient({
-  chain: mainnet,
-  transport: fallback([
-    http("https://ethereum-rpc.publicnode.com"),
-    http("https://eth.llamarpc.com"),
-  ]),
-});
+// Basename çözümleme — L1 üzerinden CCIP-Read yerine, veri zaten Base'de yaşadığı için
+// Base'in resmi L2Resolver kontratından doğrudan okuyoruz (bkz. github.com/base/basenames)
+const BASENAME_L2_RESOLVER_ADDRESS = "0xC6d566A56A1aFf6508b41f6c90ff131615583BCD" as const;
+const L2_RESOLVER_ABI = [
+  {
+    inputs: [{ name: "node", type: "bytes32" }],
+    name: "name",
+    outputs: [{ name: "", type: "string" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+// ENSIP-11: L2 coinType = 0x80000000 | chainId
+const convertChainIdToCoinType = (chainId: number): string => {
+  const coinType = (0x80000000 | chainId) >>> 0;
+  return coinType.toString(16).toUpperCase();
+};
+
+// ENSIP-19 reverse node — adresin Base üzerindeki reverse kaydının node hash'i
+const convertReverseNodeToBytes = (address: Address, chainId: number) => {
+  const addressFormatted = address.toLowerCase().substring(2);
+  const addressNode = keccak256(toHex(addressFormatted));
+  const baseReverseNode = namehash(`${convertChainIdToCoinType(chainId)}.reverse`);
+  return keccak256(
+    encodePacked(["bytes32", "bytes32"], [baseReverseNode, addressNode]),
+  );
+};
 
 // Sotheby's-inspired palette — restrained, gallery-like
 const INK = "#1A1A1A";
@@ -401,12 +421,15 @@ export default function BetaPage() {
       ) {
         try {
           const baseName = await retryWithBackoff(async () => {
-            return await ensClient.getEnsName({
-              address: bidderAddress as `0x${string}`,
-              coinType: toCoinType(base.id),
-            });
+            return (await readContract(config, {
+              address: BASENAME_L2_RESOLVER_ADDRESS,
+              abi: L2_RESOLVER_ABI,
+              functionName: "name",
+              args: [convertReverseNodeToBytes(bidderAddress as Address, base.id)],
+              chainId: base.id,
+            })) as string;
           });
-          if (baseName && typeof baseName === "string") {
+          if (baseName && typeof baseName === "string" && baseName !== "") {
             setActiveBidderName(baseName);
           } else {
             setActiveBidderName(
@@ -1894,7 +1917,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.1 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.4 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>
