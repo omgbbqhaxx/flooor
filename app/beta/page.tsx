@@ -1566,22 +1566,18 @@ export default function BetaPage() {
         </div>
 
         {/* Other Collections */}
-        <div className="mt-20 pt-14" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
+        <div className="mt-20 pt-10" style={{ maxWidth: "480px", borderTop: `1px solid ${HAIRLINE}` }}>
           <p style={smallCaps}>Other Collections</p>
-          <h2
-            className="mt-3"
-            style={{
-              ...SERIF,
-              fontWeight: 500,
-              fontSize: "clamp(26px, 3vw, 36px)",
-            }}
-          >
-            Coming to Flooor
-          </h2>
-          <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-8">
+          <div className="mt-6">
             {[
               {
-                name: "OK Computers",
+                name: "Warplets",
+                sub: "Base",
+                img: "https://i2c.seadn.io/base/0x699727f9e01a822efdcf7333073f0461e5914b4e/c4dd77598815bd89610930ca12be02/a2c4dd77598815bd89610930ca12be02.jpeg?w=1000",
+                href: "/warplets",
+              },
+              {
+                name: "OK Computer",
                 sub: "Base",
                 img: "https://i2c.seadn.io/base/05d807397e5b420d8b9cc7cb8cb07a0d/549fb12b972ea6f3790a2965d31686/55549fb12b972ea6f3790a2965d31686.gif",
               },
@@ -1590,47 +1586,38 @@ export default function BetaPage() {
                 sub: "Base",
                 img: "https://gateway.pinata.cloud/ipfs/QmfD5sHPyB2s8UUE1spKU8BaQzNZa22AjD6zUj7wbrPdAD/1279",
               },
-              {
-                name: "The Warplets",
-                sub: "Base · Farcaster",
-                img: "https://i2c.seadn.io/base/0x699727f9e01a822efdcf7333073f0461e5914b4e/c4dd77598815bd89610930ca12be02/a2c4dd77598815bd89610930ca12be02.jpeg?w=1000",
-              },
             ].map((col) => (
-              <div key={col.name}>
-                <div
-                  className="relative aspect-square overflow-hidden"
-                  style={{ backgroundColor: PLINTH }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={col.img}
-                    alt={col.name}
-                    className="w-full h-full object-cover"
-                    style={{ filter: "blur(10px)", transform: "scale(1.12)" }}
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span
-                      style={{
-                        ...smallCaps,
-                        color: "#fff",
-                        backgroundColor: "rgba(26,26,26,0.65)",
-                        padding: "6px 16px",
-                        letterSpacing: "0.15em",
-                      }}
-                    >
-                      Soon
-                    </span>
+              <div
+                key={col.name}
+                className="flex items-center justify-between gap-4 py-3.5"
+                style={{ borderTop: `1px solid ${HAIRLINE}` }}
+              >
+                <div className="flex items-center gap-3 text-left">
+                  <div
+                    className="overflow-hidden flex-shrink-0"
+                    style={{ width: "40px", height: "40px", backgroundColor: PLINTH }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={col.img} alt={col.name} className="w-full h-full object-cover" />
+                  </div>
+                  <div>
+                    <p style={{ ...SERIF, fontSize: "15px" }}>{col.name}</p>
+                    <p style={{ ...SANS, fontSize: "11px", color: MUTED, marginTop: "2px" }}>{col.sub}</p>
                   </div>
                 </div>
-                <p
-                  className="mt-3"
-                  style={{ ...SERIF, fontWeight: 500, fontSize: "17px" }}
-                >
-                  {col.name}
-                </p>
-                <p className="mt-0.5 text-xs" style={{ color: MUTED }}>
-                  {col.sub}
-                </p>
+                {col.href ? (
+                  <a
+                    href={col.href}
+                    className="text-xs hover:text-black transition-colors whitespace-nowrap"
+                    style={{ ...SANS, color: MUTED }}
+                  >
+                    Explore →
+                  </a>
+                ) : (
+                  <span className="text-xs whitespace-nowrap" style={{ ...smallCaps, color: MUTED }}>
+                    Soon
+                  </span>
+                )}
               </div>
             ))}
           </div>
