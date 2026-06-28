@@ -881,6 +881,61 @@ export default function WarpletsPage() {
           A new collection on Flooor. Every sale feeds the vault — distributed to holders daily.
         </p>
 
+        {/* Other Collections */}
+        <div className="mt-10 pt-10 w-full" style={{ maxWidth: "480px", borderTop: `1px solid ${HAIRLINE}` }}>
+          <p style={{ ...smallCaps, textAlign: "left" }}>Other Collections</p>
+          <div className="mt-6">
+            {[
+              { name: "VRNouns", sub: "Base · Onchain", href: "/", floor: "Ξ 0.004" },
+              {
+                name: "OK Computer",
+                sub: "Base",
+                img: "https://i2c.seadn.io/base/05d807397e5b420d8b9cc7cb8cb07a0d/549fb12b972ea6f3790a2965d31686/55549fb12b972ea6f3790a2965d31686.gif",
+              },
+              {
+                name: "Based Punks",
+                sub: "Base",
+                img: "https://gateway.pinata.cloud/ipfs/QmfD5sHPyB2s8UUE1spKU8BaQzNZa22AjD6zUj7wbrPdAD/1279",
+              },
+            ].map((col) => (
+              <div
+                key={col.name}
+                className="flex items-center justify-between gap-4 py-3.5"
+                style={{ borderTop: `1px solid ${HAIRLINE}` }}
+              >
+                <div className="flex items-center gap-3 text-left">
+                  <div
+                    className="overflow-hidden flex-shrink-0"
+                    style={{ width: "40px", height: "40px", backgroundColor: PLINTH }}
+                  >
+                    {col.img ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={col.img} alt={col.name} className="w-full h-full object-cover" />
+                    ) : null}
+                  </div>
+                  <div>
+                    <p style={{ ...SERIF, fontSize: "15px" }}>{col.name}</p>
+                    <p style={{ ...SANS, fontSize: "11px", color: MUTED, marginTop: "2px" }}>{col.sub}</p>
+                  </div>
+                </div>
+                {col.href ? (
+                  <a
+                    href={col.href}
+                    className="text-xs hover:text-black transition-colors whitespace-nowrap"
+                    style={{ ...SANS, color: MUTED }}
+                  >
+                    Floor {col.floor} · Trade →
+                  </a>
+                ) : (
+                  <span className="text-xs whitespace-nowrap" style={{ ...smallCaps, color: MUTED }}>
+                    Soon
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
         {!IS_DEPLOYED && (
           <div
             className="mt-10 px-8 py-6"
@@ -1048,60 +1103,6 @@ export default function WarpletsPage() {
           </>
         )}
 
-        {/* Other Collections */}
-        <div className="mt-20 pt-10 w-full" style={{ maxWidth: "480px", borderTop: `1px solid ${HAIRLINE}` }}>
-          <p style={{ ...smallCaps, textAlign: "left" }}>Other Collections</p>
-          <div className="mt-6">
-            {[
-              { name: "VRNouns", sub: "Base · Onchain", href: "/", floor: "Ξ 0.004" },
-              {
-                name: "OK Computer",
-                sub: "Base",
-                img: "https://i2c.seadn.io/base/05d807397e5b420d8b9cc7cb8cb07a0d/549fb12b972ea6f3790a2965d31686/55549fb12b972ea6f3790a2965d31686.gif",
-              },
-              {
-                name: "Based Punks",
-                sub: "Base",
-                img: "https://gateway.pinata.cloud/ipfs/QmfD5sHPyB2s8UUE1spKU8BaQzNZa22AjD6zUj7wbrPdAD/1279",
-              },
-            ].map((col) => (
-              <div
-                key={col.name}
-                className="flex items-center justify-between gap-4 py-3.5"
-                style={{ borderTop: `1px solid ${HAIRLINE}` }}
-              >
-                <div className="flex items-center gap-3 text-left">
-                  <div
-                    className="overflow-hidden flex-shrink-0"
-                    style={{ width: "40px", height: "40px", backgroundColor: PLINTH }}
-                  >
-                    {col.img ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={col.img} alt={col.name} className="w-full h-full object-cover" />
-                    ) : null}
-                  </div>
-                  <div>
-                    <p style={{ ...SERIF, fontSize: "15px" }}>{col.name}</p>
-                    <p style={{ ...SANS, fontSize: "11px", color: MUTED, marginTop: "2px" }}>{col.sub}</p>
-                  </div>
-                </div>
-                {col.href ? (
-                  <a
-                    href={col.href}
-                    className="text-xs hover:text-black transition-colors whitespace-nowrap"
-                    style={{ ...SANS, color: MUTED }}
-                  >
-                    Floor {col.floor} · Trade →
-                  </a>
-                ) : (
-                  <span className="text-xs whitespace-nowrap" style={{ ...smallCaps, color: MUTED }}>
-                    Soon
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
       </main>
 
       {/* Sell confirmation modal */}

@@ -1445,6 +1445,64 @@ export default function BetaPage() {
           </div>
         </div>
 
+        {/* Other Collections */}
+        <div className="mt-20 pt-10" style={{ maxWidth: "480px", borderTop: `1px solid ${HAIRLINE}` }}>
+          <p style={smallCaps}>Other Collections</p>
+          <div className="mt-6">
+            {[
+              {
+                name: "Warplets",
+                sub: "Base",
+                img: "https://i2c.seadn.io/base/0x699727f9e01a822efdcf7333073f0461e5914b4e/c4dd77598815bd89610930ca12be02/a2c4dd77598815bd89610930ca12be02.jpeg?w=1000",
+                href: "/warplets",
+              },
+              {
+                name: "OK Computer",
+                sub: "Base",
+                img: "https://i2c.seadn.io/base/05d807397e5b420d8b9cc7cb8cb07a0d/549fb12b972ea6f3790a2965d31686/55549fb12b972ea6f3790a2965d31686.gif",
+              },
+              {
+                name: "Based Punks",
+                sub: "Base",
+                img: "https://gateway.pinata.cloud/ipfs/QmfD5sHPyB2s8UUE1spKU8BaQzNZa22AjD6zUj7wbrPdAD/1279",
+              },
+            ].map((col) => (
+              <div
+                key={col.name}
+                className="flex items-center justify-between gap-4 py-3.5"
+                style={{ borderTop: `1px solid ${HAIRLINE}` }}
+              >
+                <div className="flex items-center gap-3 text-left">
+                  <div
+                    className="overflow-hidden flex-shrink-0"
+                    style={{ width: "40px", height: "40px", backgroundColor: PLINTH }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={col.img} alt={col.name} className="w-full h-full object-cover" />
+                  </div>
+                  <div>
+                    <p style={{ ...SERIF, fontSize: "15px" }}>{col.name}</p>
+                    <p style={{ ...SANS, fontSize: "11px", color: MUTED, marginTop: "2px" }}>{col.sub}</p>
+                  </div>
+                </div>
+                {col.href ? (
+                  <a
+                    href={col.href}
+                    className="text-xs hover:text-black transition-colors whitespace-nowrap"
+                    style={{ ...SANS, color: MUTED }}
+                  >
+                    Explore →
+                  </a>
+                ) : (
+                  <span className="text-xs whitespace-nowrap" style={{ ...smallCaps, color: MUTED }}>
+                    Soon
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Your collection */}
         <div className="mt-20">
           <div className="flex items-baseline justify-between gap-4">
@@ -1563,64 +1621,6 @@ export default function BetaPage() {
               </p>
             </div>
           )}
-        </div>
-
-        {/* Other Collections */}
-        <div className="mt-20 pt-10" style={{ maxWidth: "480px", borderTop: `1px solid ${HAIRLINE}` }}>
-          <p style={smallCaps}>Other Collections</p>
-          <div className="mt-6">
-            {[
-              {
-                name: "Warplets",
-                sub: "Base",
-                img: "https://i2c.seadn.io/base/0x699727f9e01a822efdcf7333073f0461e5914b4e/c4dd77598815bd89610930ca12be02/a2c4dd77598815bd89610930ca12be02.jpeg?w=1000",
-                href: "/warplets",
-              },
-              {
-                name: "OK Computer",
-                sub: "Base",
-                img: "https://i2c.seadn.io/base/05d807397e5b420d8b9cc7cb8cb07a0d/549fb12b972ea6f3790a2965d31686/55549fb12b972ea6f3790a2965d31686.gif",
-              },
-              {
-                name: "Based Punks",
-                sub: "Base",
-                img: "https://gateway.pinata.cloud/ipfs/QmfD5sHPyB2s8UUE1spKU8BaQzNZa22AjD6zUj7wbrPdAD/1279",
-              },
-            ].map((col) => (
-              <div
-                key={col.name}
-                className="flex items-center justify-between gap-4 py-3.5"
-                style={{ borderTop: `1px solid ${HAIRLINE}` }}
-              >
-                <div className="flex items-center gap-3 text-left">
-                  <div
-                    className="overflow-hidden flex-shrink-0"
-                    style={{ width: "40px", height: "40px", backgroundColor: PLINTH }}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={col.img} alt={col.name} className="w-full h-full object-cover" />
-                  </div>
-                  <div>
-                    <p style={{ ...SERIF, fontSize: "15px" }}>{col.name}</p>
-                    <p style={{ ...SANS, fontSize: "11px", color: MUTED, marginTop: "2px" }}>{col.sub}</p>
-                  </div>
-                </div>
-                {col.href ? (
-                  <a
-                    href={col.href}
-                    className="text-xs hover:text-black transition-colors whitespace-nowrap"
-                    style={{ ...SANS, color: MUTED }}
-                  >
-                    Explore →
-                  </a>
-                ) : (
-                  <span className="text-xs whitespace-nowrap" style={{ ...smallCaps, color: MUTED }}>
-                    Soon
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
         </div>
 
         {/* How it works */}
@@ -1906,7 +1906,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.4 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.5 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>

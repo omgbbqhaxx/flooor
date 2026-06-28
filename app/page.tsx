@@ -1027,13 +1027,6 @@ export default function BetaPage() {
           </a>
           <nav className="hidden md:flex items-center gap-10">
             <a
-              href="/warplets"
-              style={smallCaps}
-              className="hover:text-black transition-colors"
-            >
-              Warplets
-            </a>
-            <a
               href="https://vrnouns.gitbook.io/flooor/documentation/documentation-en"
               target="_blank"
               rel="noopener noreferrer"
@@ -1050,15 +1043,6 @@ export default function BetaPage() {
               className="hover:text-black transition-colors"
             >
               DAO
-            </a>
-            <a
-              href="https://opensea.io/collection/vrnouns"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={smallCaps}
-              className="hover:text-black transition-colors"
-            >
-              Collection
             </a>
           </nav>
           <ConnectButton.Custom>
@@ -1917,7 +1901,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.4 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.5 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>
