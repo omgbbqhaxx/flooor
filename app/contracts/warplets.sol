@@ -21,7 +21,7 @@ interface IWETH {
     function transfer(address to, uint256 amount) external returns (bool);
 }
 
-contract flooordotfun {
+contract flooordotfunwarplets {
     address payable private owner;
     bool private locked;
     address public immutable WETH;
@@ -38,12 +38,11 @@ contract flooordotfun {
 
     uint256 public epochId;                               
     mapping(uint256 => uint256) public epochStartById;     
-    mapping(bytes32 => bool) private _signed;      // ("A",epochStart,addr) ve ("T",epochStart,tokenId)
-    mapping(bytes32 => bool) private _claimed;     // ("C",epochStart,addr)
-    mapping(uint256 => uint256) public partCount;  // epochStart => kaç kişi signed
+    mapping(bytes32 => bool) private _signed;      // ("T",epochStart,tokenId)
+    mapping(bytes32 => bool) private _claimed;     // ("C",epochStart,tokenId)
+    mapping(uint256 => uint256) public partCount;  // epochStart => kaç token signed
     mapping(uint256 => uint256) public poolSnap;   // epochStart => bu epoch'ta dağıtılacak havuz
-    mapping(uint256 => uint256) public claimedCount; // epochStart => kaç kişi claim etti
-    mapping(bytes32 => uint256) private _signedTokenOf; // ("A",epochStart,addr) -> tokenId
+    mapping(uint256 => uint256) public claimedCount; // epochStart => kaç token claim etti
     uint256 private lastEpochRoll;
 
     constructor(address _weth) { owner = payable(msg.sender); WETH = _weth; }
@@ -66,12 +65,6 @@ contract flooordotfun {
     }
 
 
-    modifier onlysingleNFTOwnerWrite(uint256 tokenId) {
-        require(nft.ownerOf(tokenId) == msg.sender, "Not owner of tokenId");
-        require(nft.balanceOf(msg.sender) == 1, "Must hold exactly 1 NFT");
-        _;
-    }
-
     function _safeTransferETHWithFallback(address to, uint256 amount) private {
         if (amount == 0 || to == address(0)) return;
         (bool success, ) = payable(to).call{value: amount}("");
@@ -82,7 +75,7 @@ contract flooordotfun {
         }
     }
 
-    function signOrClaim(uint256 tokenId) external nonReentrant onlysingleNFTOwnerWrite(tokenId) {
+    function signOrClaim(uint256 tokenId) external nonReentrant onlyNFTOwnerWrite(tokenId) {
         uint256 modTime    = block.timestamp % rBLOCKS;
         uint256 epochStart = block.timestamp - modTime;
 
@@ -104,19 +97,15 @@ contract flooordotfun {
             epochId += 1;                         // bir sonraki id
         }
 
-        // === tek mapping ile iki kısıt için anahtarlar ===
-        bytes32 kAddr = keccak256(abi.encodePacked("A", epochStart, msg.sender));
+        // === token bazlı anahtarlar ===
         bytes32 kTok  = keccak256(abi.encodePacked("T", epochStart, tokenId));
-        bytes32 kClm  = keccak256(abi.encodePacked("C", epochStart, msg.sender));
+        bytes32 kClm  = keccak256(abi.encodePacked("C", epochStart, tokenId));
 
         if (modTime < sDURATION) {
             // -------- SIGN --------
-            require(!_signed[kAddr], "already signed");
-            require(!_signed[kTok],  "token used");
+            require(!_signed[kTok], "token already signed");
 
-            _signed[kAddr] = true;   // adres bu epoch'ta kayitli
             _signed[kTok]  = true;   // token bu epoch'ta kullanildi
-            _signedTokenOf[kAddr] = tokenId;
             unchecked { partCount[epochStart] += 1; }
 
             emit Staked(msg.sender, tokenId, epochStart);
@@ -130,9 +119,8 @@ contract flooordotfun {
             poolAccrued = 0;
         }
 
-        require(_signed[kAddr], "not signed");
+        require(_signed[kTok], "token not signed");
         require(!_claimed[kClm], "already claimed");
-        require(_signedTokenOf[kAddr] == tokenId, "wrong token for claim");
         uint256 n = partCount[epochStart];
         require(n > 0, "no participants");
 
@@ -216,8 +204,6 @@ contract flooordotfun {
         uint256 poolCut     = fee - platformCut; // %4.5
         uint256 sellerPayout = price - fee;      // %95
 
-        // NFT kabul etmeyen kontrat alıcısının grief'ini engellemek için safeTransferFrom yerine transferFrom:
-        // onERC721Received callback'i çağrılmaz, alıcı transferi revert ettiremez.
         nft.transferFrom(seller, buyer, tokenId);
 
         activebidAM  = 0;
@@ -245,6 +231,14 @@ contract flooordotfun {
     }
 
     event MinBidUpdated(uint256 oldMin, uint256 newMin);
+
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "zero owner");
+        emit OwnershipTransferred(owner, newOwner);
+        owner = payable(newOwner);
+    }
+
+    event OwnershipTransferred(address indexed oldOwner, address indexed newOwner);
 
 
     function sweepERC20(address token, uint256 amt) external onlyOwner nonReentrant {
@@ -302,9 +296,14 @@ contract flooordotfun {
         return n == 0 ? 0 : poolSnap[epochStart] / n;
     }
 
-    function mySignedToken(uint256 epochStart, address user) public view returns (uint256) {
-        bytes32 k = keccak256(abi.encodePacked("A", epochStart, user));
-        return _signedTokenOf[k];
+    function isTokenSigned(uint256 epochStart, uint256 tokenId) public view returns (bool) {
+        bytes32 k = keccak256(abi.encodePacked("T", epochStart, tokenId));
+        return _signed[k];
+    }
+
+    function isTokenClaimed(uint256 epochStart, uint256 tokenId) public view returns (bool) {
+        bytes32 k = keccak256(abi.encodePacked("C", epochStart, tokenId));
+        return _claimed[k];
     }
     function getPhaseInfo() external view returns (
             string memory currentPhase,
