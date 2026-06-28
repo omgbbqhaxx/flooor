@@ -893,9 +893,10 @@ export default function WarpletsPage() {
                 img: "https://i2c.seadn.io/base/05d807397e5b420d8b9cc7cb8cb07a0d/549fb12b972ea6f3790a2965d31686/55549fb12b972ea6f3790a2965d31686.gif",
               },
               {
-                name: "Based Punks",
+                name: "Book Games",
                 sub: "Base",
-                img: "https://gateway.pinata.cloud/ipfs/QmfD5sHPyB2s8UUE1spKU8BaQzNZa22AjD6zUj7wbrPdAD/1279",
+                href: "https://opensea.io/collection/bookgames",
+                img: "https://i2c.seadn.io/admin-uploads/61366691b607f4afc05d5202467d9e/7761366691b607f4afc05d5202467d9e.png",
               },
             ].map((col) => (
               <div
@@ -921,10 +922,12 @@ export default function WarpletsPage() {
                 {col.href ? (
                   <a
                     href={col.href}
+                    target={col.href.startsWith("http") ? "_blank" : undefined}
+                    rel={col.href.startsWith("http") ? "noopener noreferrer" : undefined}
                     className="text-xs hover:text-black transition-colors whitespace-nowrap"
                     style={{ ...SANS, color: MUTED }}
                   >
-                    Floor {col.floor} · Trade →
+                    {col.floor ? `Floor ${col.floor} · Trade →` : "Explore →"}
                   </a>
                 ) : (
                   <span className="text-xs whitespace-nowrap" style={{ ...smallCaps, color: MUTED }}>

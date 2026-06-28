@@ -1568,9 +1568,9 @@ export default function BetaPage() {
                 img: "https://i2c.seadn.io/base/05d807397e5b420d8b9cc7cb8cb07a0d/549fb12b972ea6f3790a2965d31686/55549fb12b972ea6f3790a2965d31686.gif",
               },
               {
-                name: "Based Punks",
+                name: "Book Games",
                 sub: "Base",
-                img: "https://gateway.pinata.cloud/ipfs/QmfD5sHPyB2s8UUE1spKU8BaQzNZa22AjD6zUj7wbrPdAD/1279",
+                img: "https://i2c.seadn.io/admin-uploads/61366691b607f4afc05d5202467d9e/7761366691b607f4afc05d5202467d9e.png",
               },
               {
                 name: "The Warplets",
@@ -1901,7 +1901,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.5 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.7 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>
