@@ -1092,6 +1092,13 @@ export default function BetaPage() {
           </a>
           <nav className="hidden md:flex items-center gap-10">
             <a
+              href="/warplets"
+              style={smallCaps}
+              className="hover:text-black transition-colors"
+            >
+              Warplets
+            </a>
+            <a
               href="https://vrnouns.gitbook.io/flooor/documentation/documentation-en"
               target="_blank"
               rel="noopener noreferrer"
@@ -1180,6 +1187,23 @@ export default function BetaPage() {
           </ConnectButton.Custom>
         </div>
       </header>
+
+      {/* New collection banner */}
+      <a
+        href="/warplets"
+        className="block transition-opacity hover:opacity-85"
+        style={{ backgroundColor: PLINTH, borderBottom: `1px solid ${HAIRLINE}` }}
+      >
+        <div className="max-w-6xl mx-auto px-5 sm:px-8 py-3 flex items-center justify-center gap-2 text-center">
+          <span style={{ ...smallCaps, color: GREEN }}>New</span>
+          <span className="text-sm" style={{ ...SANS, color: INK }}>
+            Warplets is live on Base — sign, bid, and sell.
+          </span>
+          <span className="text-sm" style={{ ...SANS, color: MUTED }}>
+            →
+          </span>
+        </div>
+      </a>
 
       {/* Network Gate — full-screen block until on Base */}
       {isWrongNetwork && (
@@ -1675,45 +1699,64 @@ export default function BetaPage() {
                 name: "The Warplets",
                 sub: "Base · Farcaster",
                 img: "https://i2c.seadn.io/base/0x699727f9e01a822efdcf7333073f0461e5914b4e/c4dd77598815bd89610930ca12be02/a2c4dd77598815bd89610930ca12be02.jpeg?w=1000",
+                href: "/warplets",
               },
-            ].map((col) => (
-              <div key={col.name}>
-                <div
-                  className="relative aspect-square overflow-hidden"
-                  style={{ backgroundColor: PLINTH }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={col.img}
-                    alt={col.name}
-                    className="w-full h-full object-cover"
-                    style={{ filter: "blur(10px)", transform: "scale(1.12)" }}
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span
-                      style={{
-                        ...smallCaps,
-                        color: "#fff",
-                        backgroundColor: "rgba(26,26,26,0.65)",
-                        padding: "6px 16px",
-                        letterSpacing: "0.15em",
-                      }}
-                    >
-                      Soon
-                    </span>
+            ].map((col) => {
+              const isLive = Boolean(col.href);
+              const card = (
+                <>
+                  <div
+                    className="relative aspect-square overflow-hidden"
+                    style={{ backgroundColor: PLINTH }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={col.img}
+                      alt={col.name}
+                      className="w-full h-full object-cover"
+                      style={
+                        isLive
+                          ? undefined
+                          : { filter: "blur(10px)", transform: "scale(1.12)" }
+                      }
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span
+                        style={{
+                          ...smallCaps,
+                          color: "#fff",
+                          backgroundColor: isLive ? GREEN : "rgba(26,26,26,0.65)",
+                          padding: "6px 16px",
+                          letterSpacing: "0.15em",
+                        }}
+                      >
+                        {isLive ? "Live →" : "Soon"}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <p
-                  className="mt-3"
-                  style={{ ...SERIF, fontWeight: 500, fontSize: "17px" }}
+                  <p
+                    className="mt-3"
+                    style={{ ...SERIF, fontWeight: 500, fontSize: "17px" }}
+                  >
+                    {col.name}
+                  </p>
+                  <p className="mt-0.5 text-xs" style={{ color: MUTED }}>
+                    {col.sub}
+                  </p>
+                </>
+              );
+              return col.href ? (
+                <a
+                  key={col.name}
+                  href={col.href}
+                  className="block transition-opacity hover:opacity-85"
                 >
-                  {col.name}
-                </p>
-                <p className="mt-0.5 text-xs" style={{ color: MUTED }}>
-                  {col.sub}
-                </p>
-              </div>
-            ))}
+                  {card}
+                </a>
+              ) : (
+                <div key={col.name}>{card}</div>
+              );
+            })}
           </div>
         </div>
 
@@ -2079,7 +2122,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.13 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.15 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>
