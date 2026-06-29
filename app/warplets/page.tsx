@@ -15,6 +15,7 @@ import {
   encodePacked,
   namehash,
   toHex,
+  isAddress,
   type Address,
 } from "viem";
 import { Attribution } from "ox/erc8021";
@@ -148,6 +149,9 @@ export default function WarpletsPage() {
   const [nftClaimedStatus, setNftClaimedStatus] = useState<{ [key: string]: boolean }>({});
   const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
   const [pendingSellTokenId, setPendingSellTokenId] = useState<bigint | null>(null);
+  const [pendingSendTokenId, setPendingSendTokenId] = useState<bigint | null>(null);
+  const [sendAddressInput, setSendAddressInput] = useState("");
+  const [sendAddressError, setSendAddressError] = useState(false);
   const [ethPrice, setEthPrice] = useState<number | null>(null);
   const [yieldPerSigner, setYieldPerSigner] = useState<string>("0");
 
@@ -745,6 +749,64 @@ export default function WarpletsPage() {
     if (tokenId !== null) handleSellNFT(tokenId);
   }, [pendingSellTokenId, handleSellNFT]);
 
+  const handleSendNFT = useCallback(
+    async (tokenId: bigint, to: Address) => {
+      if (!address) {
+        toast.warning("Please connect your wallet first");
+        return;
+      }
+      const idStr = tokenId.toString();
+      setNftBusy((prev) => ({ ...prev, [idStr]: true }));
+      try {
+        await ensureBase();
+        await writeContract(config, {
+          address: COLLECTION_ADDR,
+          abi: NFT_ABI,
+          functionName: "transferFrom",
+          args: [address, to, tokenId],
+          dataSuffix: DATA_SUFFIX,
+        });
+        toast.success(`Token #${idStr} sent successfully!`);
+        setTimeout(() => {
+          getUserNFTs();
+        }, 2000);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        toast.error(`Send failed: ${errorMessage}`, {
+          duration: 5000,
+          action: { label: "Retry", onClick: () => handleSendNFT(tokenId, to) },
+        });
+      } finally {
+        setNftBusy((prev) => ({ ...prev, [idStr]: false }));
+      }
+    },
+    [config, ensureBase, address, getUserNFTs],
+  );
+
+  const requestSendNFT = useCallback(
+    (tokenId: bigint) => {
+      if (!address) {
+        toast.warning("Please connect your wallet first");
+        return;
+      }
+      setSendAddressInput("");
+      setSendAddressError(false);
+      setPendingSendTokenId(tokenId);
+    },
+    [address],
+  );
+
+  const confirmSendNFT = useCallback(() => {
+    const tokenId = pendingSendTokenId;
+    const to = sendAddressInput.trim();
+    if (!isAddress(to)) {
+      setSendAddressError(true);
+      return;
+    }
+    setPendingSendTokenId(null);
+    if (tokenId !== null) handleSendNFT(tokenId, to as Address);
+  }, [pendingSendTokenId, sendAddressInput, handleSendNFT]);
+
   const hasBid = activeBidder && activeBidder !== ZERO_ADDRESS && parseFloat(currentBid) > 0;
   const minOutbidAmount = hasBid
     ? Math.max(parseFloat(currentBid) * 1.05, MINIMUM_BID_FOR_SELL)
@@ -1103,7 +1165,7 @@ export default function WarpletsPage() {
                         <button
                           onClick={() => requestSellNFT(tokenId)}
                           disabled={!hasBid}
-                          title={hasBid ? `Sell #${idStr} to highest bidder` : "No active bid yet"}
+                          title={hasBid ? `Sell #${idStr} at current bid` : "No active bid yet"}
                           className="group relative w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-black"
                           style={{ cursor: hasBid ? "pointer" : "default" }}
                         >
@@ -1121,7 +1183,7 @@ export default function WarpletsPage() {
                               className="absolute inset-x-0 bottom-0 py-2.5 text-center opacity-0 group-hover:opacity-100 transition-opacity"
                               style={{ backgroundColor: INK }}
                             >
-                              <span style={{ ...smallCaps, color: "#fff" }}>Sell to Highest</span>
+                              <span style={{ ...smallCaps, color: "#fff" }}>Sell at Current Bid</span>
                             </div>
                           )}
                         </button>
@@ -1150,7 +1212,7 @@ export default function WarpletsPage() {
                         <button
                           onClick={() => requestSellNFT(tokenId)}
                           disabled={busy || !hasBid}
-                          title={hasBid ? `Sell #${idStr} to highest bidder` : "No active bid yet"}
+                          title={hasBid ? `Sell #${idStr} at current bid` : "No active bid yet"}
                           className="mt-2 w-full transition-opacity enabled:hover:opacity-85"
                           style={{
                             ...SANS,
@@ -1165,7 +1227,27 @@ export default function WarpletsPage() {
                             cursor: !hasBid ? "not-allowed" : "pointer",
                           }}
                         >
-                          Sell to Highest
+                          Sell at Current Bid
+                        </button>
+                        <button
+                          onClick={() => requestSendNFT(tokenId)}
+                          disabled={busy}
+                          title={`Send #${idStr} to another address`}
+                          className="mt-2 w-full transition-opacity enabled:hover:opacity-85"
+                          style={{
+                            ...SANS,
+                            fontSize: "11px",
+                            fontWeight: 500,
+                            letterSpacing: "0.06em",
+                            textTransform: "uppercase",
+                            padding: "10px",
+                            backgroundColor: "transparent",
+                            color: busy ? MUTED : INK,
+                            border: `1px solid ${HAIRLINE}`,
+                            cursor: busy ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          Send
                         </button>
                       </div>
                     );
@@ -1189,7 +1271,7 @@ export default function WarpletsPage() {
                 Sell #{pendingSellTokenId.toString()}?
               </p>
               <p style={{ ...SANS, fontSize: "13px", color: MUTED, lineHeight: 1.6 }}>
-                This will transfer the token to the current highest bidder for {currentBid} ETH.
+                This will transfer the token to the bidder at the current bid for {currentBid} ETH.
               </p>
               <div className="flex gap-3 mt-6">
                 <button
@@ -1227,6 +1309,86 @@ export default function WarpletsPage() {
                   }}
                 >
                   Confirm Sell
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Send confirmation modal */}
+      {pendingSendTokenId !== null && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center px-4"
+          style={{ backgroundColor: "rgba(26,26,26,0.5)" }}
+        >
+          <div className="w-full" style={{ maxWidth: "360px", backgroundColor: IVORY, border: `1px solid ${HAIRLINE}` }}>
+            <div className="px-6 py-6">
+              <p style={{ ...SERIF, fontSize: "20px", marginBottom: "12px" }}>
+                Send #{pendingSendTokenId.toString()}?
+              </p>
+              <p style={{ ...SANS, fontSize: "13px", color: MUTED, lineHeight: 1.6, marginBottom: "16px" }}>
+                Enter the recipient&apos;s wallet address. This transfers the token directly — there is no way to undo it.
+              </p>
+              <input
+                type="text"
+                placeholder="0x..."
+                value={sendAddressInput}
+                onChange={(e) => {
+                  setSendAddressInput(e.target.value);
+                  setSendAddressError(false);
+                }}
+                style={{
+                  ...SANS,
+                  fontSize: "13px",
+                  padding: "10px 12px",
+                  border: `1px solid ${sendAddressError ? "#9B1C1C" : HAIRLINE}`,
+                  backgroundColor: "#fff",
+                  width: "100%",
+                  outline: "none",
+                }}
+              />
+              {sendAddressError && (
+                <p style={{ ...SANS, fontSize: "12px", color: "#9B1C1C", marginTop: "6px" }}>
+                  Enter a valid wallet address.
+                </p>
+              )}
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setPendingSendTokenId(null)}
+                  style={{
+                    ...SANS,
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    padding: "10px 16px",
+                    backgroundColor: "transparent",
+                    color: INK,
+                    border: `1px solid ${HAIRLINE}`,
+                    cursor: "pointer",
+                    flex: 1,
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmSendNFT}
+                  style={{
+                    ...SANS,
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    padding: "10px 16px",
+                    backgroundColor: INK,
+                    color: IVORY,
+                    border: "none",
+                    cursor: "pointer",
+                    flex: 1,
+                  }}
+                >
+                  Confirm Send
                 </button>
               </div>
             </div>

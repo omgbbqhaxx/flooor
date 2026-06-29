@@ -18,6 +18,7 @@ import {
   encodePacked,
   namehash,
   toHex,
+  isAddress,
   type Address,
 } from "viem";
 import { Attribution } from "ox/erc8021";
@@ -158,6 +159,12 @@ export default function BetaPage() {
   const [pendingSellTokenId, setPendingSellTokenId] = useState<bigint | null>(
     null,
   );
+  const [pendingSendTokenId, setPendingSendTokenId] = useState<bigint | null>(
+    null,
+  );
+  const [sendAddressInput, setSendAddressInput] = useState("");
+  const [sendAddressError, setSendAddressError] = useState(false);
+  const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
   const [heroToken, setHeroToken] = useState<{
     id: string;
     image: string;
@@ -914,6 +921,64 @@ export default function BetaPage() {
     if (tokenId !== null) handleSellNFT(tokenId);
   }, [pendingSellTokenId, handleSellNFT]);
 
+  const handleSendNFT = useCallback(
+    async (tokenId: bigint, to: Address) => {
+      if (!address) {
+        toast.warning("Please connect your wallet first");
+        return;
+      }
+      const tokenIdStr = tokenId.toString();
+      setNftBusy((prev) => ({ ...prev, [tokenIdStr]: true }));
+      try {
+        await ensureBase();
+        await writeContract(config, {
+          address: COLLECTION_ADDR,
+          abi: NFT_ABI,
+          functionName: "transferFrom",
+          args: [address, to, tokenId],
+          dataSuffix: DATA_SUFFIX,
+        });
+        toast.success(`Noun #${tokenIdStr} sent successfully!`);
+        setTimeout(() => {
+          getUserNFTs();
+        }, 2000);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        toast.error(`Send failed: ${errorMessage}`, {
+          duration: 5000,
+          action: { label: "Retry", onClick: () => handleSendNFT(tokenId, to) },
+        });
+      } finally {
+        setNftBusy((prev) => ({ ...prev, [tokenIdStr]: false }));
+      }
+    },
+    [config, ensureBase, address, getUserNFTs],
+  );
+
+  const requestSendNFT = useCallback(
+    (tokenId: bigint) => {
+      if (!address) {
+        toast.warning("Please connect your wallet first");
+        return;
+      }
+      setSendAddressInput("");
+      setSendAddressError(false);
+      setPendingSendTokenId(tokenId);
+    },
+    [address],
+  );
+
+  const confirmSendNFT = useCallback(() => {
+    const tokenId = pendingSendTokenId;
+    const to = sendAddressInput.trim();
+    if (!isAddress(to)) {
+      setSendAddressError(true);
+      return;
+    }
+    setPendingSendTokenId(null);
+    if (tokenId !== null) handleSendNFT(tokenId, to as Address);
+  }, [pendingSendTokenId, sendAddressInput, handleSendNFT]);
+
   const handleSign = useCallback(async () => {
     if (!address) {
       toast.warning("Please connect your wallet first");
@@ -1472,63 +1537,97 @@ export default function BetaPage() {
               {userNFTs.map((tokenId) => {
                 const tokenIdStr = tokenId.toString();
                 const approved = nftApprovalStatus[tokenIdStr];
+                const busy = nftBusy[tokenIdStr] === true;
                 return (
-                  <button
-                    key={tokenIdStr}
-                    onClick={() => requestSellNFT(tokenId)}
-                    title={`Sell Noun #${tokenIdStr}`}
-                    className="group text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-black"
-                  >
-                    <div
-                      className="relative aspect-square flex items-center justify-center p-6 transition-colors"
-                      style={{ backgroundColor: PLINTH }}
+                  <div key={tokenIdStr} className="flex flex-col">
+                    <button
+                      onClick={() => requestSellNFT(tokenId)}
+                      title={`Sell Noun #${tokenIdStr} to highest bid`}
+                      className="group text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-black"
                     >
-                      {nftImages[tokenIdStr] ? (
-                        <Image
-                          src={nftImages[tokenIdStr]}
-                          alt={`Noun ${tokenIdStr}`}
-                          width={220}
-                          height={220}
-                          className="w-full h-auto transition-transform duration-300 group-hover:scale-[1.03]"
-                          style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.08)" }}
-                        />
-                      ) : (
-                        <span
-                          style={{ ...SERIF, fontStyle: "italic", color: MUTED }}
-                        >
-                          No. {tokenIdStr}
-                        </span>
-                      )}
-                      {nftLoadingStatus[tokenIdStr] && (
-                        <div
-                          className="absolute inset-0 flex items-center justify-center"
-                          style={{ backgroundColor: "rgba(255,255,255,0.85)" }}
-                        >
-                          <span style={smallCaps}>Approving…</span>
-                        </div>
-                      )}
                       <div
-                        className="absolute inset-x-0 bottom-0 py-2.5 text-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        style={{ backgroundColor: INK }}
+                        className="relative aspect-square flex items-center justify-center p-6 transition-colors"
+                        style={{ backgroundColor: PLINTH }}
                       >
-                        <span style={{ ...smallCaps, color: "#fff" }}>
-                          Sell This Work
-                        </span>
+                        {nftImages[tokenIdStr] ? (
+                          <Image
+                            src={nftImages[tokenIdStr]}
+                            alt={`Noun ${tokenIdStr}`}
+                            width={220}
+                            height={220}
+                            className="w-full h-auto transition-transform duration-300 group-hover:scale-[1.03]"
+                            style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.08)" }}
+                          />
+                        ) : (
+                          <span
+                            style={{ ...SERIF, fontStyle: "italic", color: MUTED }}
+                          >
+                            No. {tokenIdStr}
+                          </span>
+                        )}
+                        {nftLoadingStatus[tokenIdStr] && (
+                          <div
+                            className="absolute inset-0 flex items-center justify-center"
+                            style={{ backgroundColor: "rgba(255,255,255,0.85)" }}
+                          >
+                            <span style={smallCaps}>Approving…</span>
+                          </div>
+                        )}
+                        <div
+                          className="absolute inset-x-0 bottom-0 py-2.5 text-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          style={{ backgroundColor: INK }}
+                        >
+                          <span style={{ ...smallCaps, color: "#fff" }}>
+                            Sell to Highest Bid
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                    <p
-                      className="mt-3"
-                      style={{ ...SERIF, fontWeight: 500, fontSize: "17px" }}
+                      <p
+                        className="mt-3"
+                        style={{ ...SERIF, fontWeight: 500, fontSize: "17px" }}
+                      >
+                        VRNoun No. {tokenIdStr}
+                      </p>
+                      <p
+                        className="mt-0.5 text-xs"
+                        style={{ color: approved ? GREEN : AMBER }}
+                      >
+                        {approved ? "Approved for sale" : "Approval required"}
+                      </p>
+                    </button>
+                    <button
+                      onClick={() => requestSellNFT(tokenId)}
+                      disabled={busy || !hasBid}
+                      title={hasBid ? `Sell Noun #${tokenIdStr} to highest bid` : "No active bid yet"}
+                      className="mt-3 w-full transition-opacity enabled:hover:opacity-85"
+                      style={{
+                        ...smallCaps,
+                        padding: "10px",
+                        backgroundColor: "transparent",
+                        color: !hasBid ? MUTED : INK,
+                        border: `1px solid ${HAIRLINE}`,
+                        cursor: !hasBid ? "not-allowed" : "pointer",
+                      }}
                     >
-                      VRNoun No. {tokenIdStr}
-                    </p>
-                    <p
-                      className="mt-0.5 text-xs"
-                      style={{ color: approved ? GREEN : AMBER }}
+                      Sell to Highest Bid
+                    </button>
+                    <button
+                      onClick={() => requestSendNFT(tokenId)}
+                      disabled={busy}
+                      title={`Send Noun #${tokenIdStr} to another address`}
+                      className="mt-2 w-full transition-opacity enabled:hover:opacity-85"
+                      style={{
+                        ...smallCaps,
+                        padding: "10px",
+                        backgroundColor: "transparent",
+                        color: busy ? MUTED : INK,
+                        border: `1px solid ${HAIRLINE}`,
+                        cursor: busy ? "not-allowed" : "pointer",
+                      }}
                     >
-                      {approved ? "Approved for sale" : "Approval required"}
-                    </p>
-                  </button>
+                      Send
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -1774,6 +1873,85 @@ export default function BetaPage() {
         </div>
       )}
 
+      {/* Send confirmation modal */}
+      {pendingSendTokenId !== null && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center px-6"
+          style={{ backgroundColor: "rgba(26,26,26,0.4)" }}
+          onClick={() => setPendingSendTokenId(null)}
+        >
+          <div
+            className="w-full max-w-md p-8 sm:p-10"
+            style={{
+              backgroundColor: "#fff",
+              border: `1px solid ${HAIRLINE}`,
+              boxShadow: "0 24px 64px -16px rgba(0,0,0,0.25)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p style={smallCaps}>Send Noun</p>
+            <h3
+              className="mt-3"
+              style={{ ...SERIF, fontWeight: 500, fontSize: "26px" }}
+            >
+              VRNoun No. {pendingSendTokenId.toString()}
+            </h3>
+            <p
+              className="mt-4 text-sm leading-relaxed"
+              style={{ color: MUTED }}
+            >
+              Enter the recipient&apos;s wallet address. This transfers the
+              token directly — there is no way to undo it.
+            </p>
+            <input
+              type="text"
+              placeholder="0x..."
+              value={sendAddressInput}
+              onChange={(e) => {
+                setSendAddressInput(e.target.value);
+                setSendAddressError(false);
+              }}
+              className="mt-4 w-full px-4 py-3 text-sm focus:outline-none"
+              style={{
+                border: `1px solid ${sendAddressError ? "#9B1C1C" : HAIRLINE}`,
+                backgroundColor: "#fff",
+                color: INK,
+              }}
+            />
+            {sendAddressError && (
+              <p className="mt-2 text-xs" style={{ color: "#9B1C1C" }}>
+                Enter a valid wallet address.
+              </p>
+            )}
+            <div className="mt-8 flex gap-4">
+              <button
+                onClick={() => setPendingSendTokenId(null)}
+                className="flex-1 py-3.5 transition-colors hover:bg-black hover:text-white"
+                style={{
+                  ...smallCaps,
+                  color: INK,
+                  border: `1px solid ${INK}`,
+                  backgroundColor: "#fff",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmSendNFT}
+                className="flex-1 py-3.5 transition-opacity hover:opacity-85"
+                style={{
+                  ...smallCaps,
+                  color: "#fff",
+                  backgroundColor: INK,
+                }}
+              >
+                Confirm Send
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <footer style={{ borderTop: `1px solid ${HAIRLINE}` }}>
         <div className="max-w-6xl mx-auto px-5 sm:px-8 py-14 grid grid-cols-2 md:grid-cols-4 gap-10">
@@ -1901,7 +2079,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.11 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.13 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>
