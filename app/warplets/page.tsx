@@ -66,12 +66,9 @@ const retryWithBackoff = async (
   throw lastError!;
 };
 
-// warpletsv2 (app/contracts/warplets.sol) henüz deploy edilmedi.
-// Deploy edildiğinde gerçek adresi buraya yaz — sıfır adres olduğu sürece
-// sayfa "Coming Soon" moda düşer ve zincir çağrısı yapmaz.
-const CONTRACT_ADDR = "0x0000000000000000000000000000000000000000" as const;
+const CONTRACT_ADDR = "0x0c2d41b6896a7dde2641a0fe04165df180c43242" as const;
 const COLLECTION_ADDR = "0x699727F9E01A822EFdcf7333073f0461e5914b4E" as const;
-const MINIMUM_BID_FOR_SELL = 0.015;
+const MINIMUM_BID_FOR_SELL = 0.002;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const IS_DEPLOYED = CONTRACT_ADDR.toLowerCase() !== ZERO_ADDRESS;
 
@@ -106,6 +103,11 @@ const HAIRLINE = "#E6E2DA";
 const IVORY = "#F7F5F1";
 const PLINTH = "#F1EEE8";
 const GREEN = "#1E7B4F";
+const GOLD = "#A4863D";
+const FAINT = "#A8A39B";
+
+const WARPLETS_IMG =
+  "https://i2c.seadn.io/base/0x699727f9e01a822efdcf7333073f0461e5914b4e/c4dd77598815bd89610930ca12be02/a2c4dd77598815bd89610930ca12be02.jpeg?w=1000";
 
 const SERIF = { fontFamily: "var(--font-serif)" } as const;
 const SANS = { fontFamily: "var(--font-sans)" } as const;
@@ -147,6 +149,15 @@ export default function WarpletsPage() {
   const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
   const [pendingSellTokenId, setPendingSellTokenId] = useState<bigint | null>(null);
   const [ethPrice, setEthPrice] = useState<number | null>(null);
+  const [yieldPerSigner, setYieldPerSigner] = useState<string>("0");
+
+  const fmtEth = useCallback((eth: string) => {
+    const n = parseFloat(eth);
+    if (!n || isNaN(n)) return "0";
+    if (n >= 1) return n.toFixed(3);
+    if (n >= 0.001) return n.toFixed(4);
+    return n.toFixed(6);
+  }, []);
 
   const fetchEthPrice = useCallback(async () => {
     try {
@@ -488,6 +499,15 @@ export default function WarpletsPage() {
   }, [config, userNFTs]);
 
   useEffect(() => {
+    const vaultAmount = parseFloat(dailyVault);
+    if (dailySigners > 0 && vaultAmount > 0) {
+      setYieldPerSigner((vaultAmount / dailySigners).toFixed(8));
+    } else {
+      setYieldPerSigner("0.00000000");
+    }
+  }, [dailyVault, dailySigners]);
+
+  useEffect(() => {
     getUserNFTs();
   }, [getUserNFTs]);
 
@@ -729,7 +749,6 @@ export default function WarpletsPage() {
   const minOutbidAmount = hasBid
     ? Math.max(parseFloat(currentBid) * 1.05, MINIMUM_BID_FOR_SELL)
     : MINIMUM_BID_FOR_SELL;
-  const dailyVaultUsd = toUsd(dailyVault);
 
   return (
     <div
@@ -756,9 +775,6 @@ export default function WarpletsPage() {
             Flooor
           </Link>
           <nav className="hidden md:flex items-center gap-10">
-            <a href="/warplets" style={{ ...smallCaps, color: INK }}>
-              Warplets
-            </a>
             <a
               href="https://vrnouns.gitbook.io/flooor/documentation/documentation-en"
               target="_blank"
@@ -860,169 +876,207 @@ export default function WarpletsPage() {
         </div>
       </header>
 
-      {/* Hero */}
-      <main className="max-w-6xl mx-auto px-5 sm:px-8 py-20 flex flex-col items-center text-center">
-        <p style={smallCaps}>{IS_DEPLOYED ? "Live on Base" : "Coming Soon"}</p>
-        <h1
-          style={{
-            ...SERIF,
-            fontSize: "clamp(40px, 6vw, 72px)",
-            fontWeight: 400,
-            letterSpacing: "-0.01em",
-            lineHeight: 1.1,
-            color: INK,
-            marginTop: "20px",
-            marginBottom: "24px",
-          }}
-        >
-          Warplets
-        </h1>
-        <p style={{ ...SANS, fontSize: "16px", lineHeight: 1.7, color: MUTED, maxWidth: "480px" }}>
-          A new collection on Flooor. Every sale feeds the vault — distributed to holders daily.
-        </p>
-
-        {/* Other Collections */}
-        <div className="mt-10 pt-10 w-full" style={{ maxWidth: "480px", borderTop: `1px solid ${HAIRLINE}` }}>
-          <p style={{ ...smallCaps, textAlign: "left" }}>Other Collections</p>
-          <div className="mt-6">
-            {[
-              { name: "VRNouns", sub: "Base · Onchain", href: "/", floor: "Ξ 0.004" },
-              {
-                name: "OK Computer",
-                sub: "Base",
-                img: "https://i2c.seadn.io/base/05d807397e5b420d8b9cc7cb8cb07a0d/549fb12b972ea6f3790a2965d31686/55549fb12b972ea6f3790a2965d31686.gif",
-              },
-              {
-                name: "Book Games",
-                sub: "Base",
-                href: "https://opensea.io/collection/bookgames",
-                img: "https://i2c.seadn.io/admin-uploads/61366691b607f4afc05d5202467d9e/7761366691b607f4afc05d5202467d9e.png",
-              },
-            ].map((col) => (
-              <div
-                key={col.name}
-                className="flex items-center justify-between gap-4 py-3.5"
-                style={{ borderTop: `1px solid ${HAIRLINE}` }}
+      <main className="max-w-6xl mx-auto px-5 sm:px-8">
+        {/* Lot hero */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 pt-12 lg:pt-16 items-start">
+          {/* Artwork */}
+          <div className="lg:sticky lg:top-28">
+            <div
+              className="flex items-center justify-center p-8 sm:p-14"
+              style={{ backgroundColor: PLINTH }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={WARPLETS_IMG}
+                alt="Warplets"
+                className="w-full h-auto max-w-[440px]"
+                style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.08)" }}
+              />
+            </div>
+            <div className="mt-4 flex items-baseline justify-between gap-3">
+              <p className="text-sm flex-1 min-w-0" style={{ ...SERIF, fontStyle: "italic", color: MUTED }}>
+                Warplets — Base, Farcaster
+              </p>
+              <a
+                href="https://opensea.io/assets/base/0x699727F9E01A822EFdcf7333073f0461e5914b4E"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs hover:text-black transition-colors flex-shrink-0 whitespace-nowrap"
+                style={smallCaps}
               >
-                <div className="flex items-center gap-3 text-left">
-                  <div
-                    className="overflow-hidden flex-shrink-0"
-                    style={{ width: "40px", height: "40px", backgroundColor: PLINTH }}
-                  >
-                    {col.img ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={col.img} alt={col.name} className="w-full h-full object-cover" />
-                    ) : null}
+                View Collection
+              </a>
+            </div>
+          </div>
+
+          {/* Lot details */}
+          <div>
+            <p style={{ ...smallCaps, color: GOLD }}>
+              {!IS_DEPLOYED
+                ? "Coming Soon"
+                : `${isSignPhase ? "Live on Base — Sign Phase" : "Live on Base — Claim Phase"} · Epoch ${phaseInfo ? phaseInfo.eid.toString() : "—"}`}
+            </p>
+            <h1
+              className="mt-4"
+              style={{
+                ...SERIF,
+                fontWeight: 500,
+                fontSize: "clamp(36px, 4.6vw, 58px)",
+                lineHeight: 1.08,
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Warplets
+            </h1>
+            <p
+              className="mt-3 text-base leading-relaxed"
+              style={{ ...SANS, color: MUTED, maxWidth: "48ch" }}
+            >
+              A new collection on Flooor. Every sale feeds the vault — distributed to holders daily.
+            </p>
+
+            {!IS_DEPLOYED ? (
+              <div
+                className="mt-10 px-8 py-6"
+                style={{ backgroundColor: PLINTH, border: `1px solid ${HAIRLINE}` }}
+              >
+                <p style={{ ...smallCaps, marginBottom: "8px" }}>Royalties to the community</p>
+                <p style={{ ...SANS, fontSize: "14px", color: MUTED, lineHeight: 1.6 }}>
+                  The Warplets contract is being finalized and isn&apos;t live yet. Connect your wallet to be ready when it ships.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-10 pt-8" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
+                  <div>
+                    <p style={smallCaps}>Current Bid</p>
+                    <p
+                      className="mt-2 tabular-nums"
+                      style={{
+                        ...SERIF,
+                        fontWeight: 500,
+                        fontSize: "clamp(28px, 3.4vw, 44px)",
+                        lineHeight: 1.1,
+                      }}
+                    >
+                      Ξ {fmtEth(currentBid)}
+                    </p>
+                    <p className="mt-1.5 text-sm" style={{ color: MUTED }}>
+                      {hasBid ? (
+                        <>
+                          {toUsd(currentBid) ? `${toUsd(currentBid)} · ` : ""}
+                          <a
+                            href={`https://basescan.org/address/${activeBidder}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-black transition-colors underline underline-offset-4"
+                            style={{ textDecorationColor: HAIRLINE }}
+                          >
+                            {activeBidderName ||
+                              `${activeBidder.slice(0, 6)}…${activeBidder.slice(-4)}`}
+                          </a>
+                        </>
+                      ) : (
+                        "No bids yet — place the first."
+                      )}
+                    </p>
                   </div>
                   <div>
-                    <p style={{ ...SERIF, fontSize: "15px" }}>{col.name}</p>
-                    <p style={{ ...SANS, fontSize: "11px", color: MUTED, marginTop: "2px" }}>{col.sub}</p>
+                    <p style={smallCaps}>
+                      {isSignPhase ? "Sign Closes In" : "Claim Closes In"}
+                    </p>
+                    <p
+                      className="mt-2 tabular-nums"
+                      style={{
+                        ...SERIF,
+                        fontWeight: 500,
+                        fontSize: "clamp(28px, 3.4vw, 44px)",
+                        lineHeight: 1.1,
+                      }}
+                    >
+                      {formatTimeRemaining(remainingTimeDisplay)}
+                    </p>
                   </div>
                 </div>
-                {col.href ? (
-                  <a
-                    href={col.href}
-                    target={col.href.startsWith("http") ? "_blank" : undefined}
-                    rel={col.href.startsWith("http") ? "noopener noreferrer" : undefined}
-                    className="text-xs hover:text-black transition-colors whitespace-nowrap"
-                    style={{ ...SANS, color: MUTED }}
+
+                {/* Bid box */}
+                <div
+                  className={hasBid ? "mt-3 flex items-stretch" : "mt-8 flex items-stretch"}
+                  style={{ border: `1px solid ${bidError ? "#9B1C1C" : INK}` }}
+                >
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder={
+                      bidError
+                        ? `Minimum Ξ ${minOutbidAmount.toFixed(6)}`
+                        : hasBid
+                          ? `Ξ ${minOutbidAmount.toFixed(6)} or more`
+                          : `Ξ ${MINIMUM_BID_FOR_SELL} or more`
+                    }
+                    className="flex-1 px-4 py-3.5 focus:outline-none min-w-0 text-lg tabular-nums"
+                    style={{ ...SANS, color: INK, backgroundColor: "#fff", border: "none" }}
+                    value={bidInput}
+                    onChange={handleBidInputChange}
+                  />
+                  <button
+                    onClick={handleBid}
+                    className="px-5 sm:px-10 whitespace-nowrap transition-opacity hover:opacity-80"
+                    style={{ ...smallCaps, color: "#fff", backgroundColor: INK }}
                   >
-                    {col.floor ? `Floor ${col.floor} · Trade →` : "Explore →"}
-                  </a>
-                ) : (
-                  <span className="text-xs whitespace-nowrap" style={{ ...smallCaps, color: MUTED }}>
-                    Soon
-                  </span>
-                )}
+                    Place Bid
+                  </button>
+                </div>
+                <p className="mt-3 text-xs" style={{ color: FAINT }}>
+                  {hasBid
+                    ? `Minimum outbid Ξ ${minOutbidAmount.toFixed(6)} — if someone outbids you, your ETH is returned automatically.`
+                    : `Minimum bid Ξ ${MINIMUM_BID_FOR_SELL} — if someone outbids you, your ETH is returned automatically. Every sale feeds the vault.`}
+                </p>
+
+                {/* Signers, vault, yield, epoch */}
+                <div className="mt-10">
+                  {[
+                    { label: "Signers", value: `${dailySigners}`, sub: "this epoch", green: false },
+                    { label: "Vault", value: `Ξ ${fmtEth(dailyVault)}`, sub: toUsd(dailyVault), green: false },
+                    { label: "Yield per Signer", value: `Ξ ${fmtEth(yieldPerSigner)}`, sub: toUsd(yieldPerSigner), green: true },
+                    { label: "Epoch", value: phaseInfo ? phaseInfo.eid.toString() : "—", sub: "24-hour cycle", green: false },
+                  ].map((row) => (
+                    <div
+                      key={row.label}
+                      className="flex items-baseline justify-between py-3.5"
+                      style={{ borderTop: `1px solid ${HAIRLINE}` }}
+                    >
+                      <span style={smallCaps}>{row.label}</span>
+                      <span
+                        className="tabular-nums text-base"
+                        style={{ ...SANS, fontWeight: 500, color: row.green ? GREEN : INK }}
+                      >
+                        {row.value}
+                        {row.sub ? (
+                          <span style={{ color: FAINT, fontWeight: 400 }}> · {row.sub}</span>
+                        ) : null}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="pt-3.5 text-right">
+                    <button
+                      onClick={fetchAllData}
+                      className="text-xs hover:text-black transition-colors"
+                      style={{ ...smallCaps, color: MUTED }}
+                    >
+                      Refresh Data
+                    </button>
+                  </div>
+                </div>
               </div>
-            ))}
+            )}
           </div>
         </div>
 
-        {!IS_DEPLOYED && (
-          <div
-            className="mt-10 px-8 py-6"
-            style={{ backgroundColor: PLINTH, border: `1px solid ${HAIRLINE}`, maxWidth: "480px", width: "100%" }}
-          >
-            <p style={{ ...smallCaps, marginBottom: "8px" }}>Royalties to the community</p>
-            <p style={{ ...SANS, fontSize: "14px", color: MUTED, lineHeight: 1.6 }}>
-              The Warplets contract is being finalized and isn&apos;t live yet. Connect your wallet to be ready when it ships.
-            </p>
-          </div>
-        )}
-
         {IS_DEPLOYED && (
-          <>
-            {/* Phase / vault status */}
-            <div
-              className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-px w-full"
-              style={{ maxWidth: "640px", backgroundColor: HAIRLINE, border: `1px solid ${HAIRLINE}` }}
-            >
-              <div className="px-6 py-5" style={{ backgroundColor: PLINTH }}>
-                <p style={smallCaps}>Phase</p>
-                <p style={{ ...SERIF, fontSize: "22px", marginTop: "6px", color: isSignPhase ? GREEN : INK }}>
-                  {phaseInfo?.currentPhase ?? "—"}
-                </p>
-                <p style={{ ...SANS, fontSize: "12px", color: MUTED, marginTop: "4px" }}>
-                  {formatTimeRemaining(remainingTimeDisplay)} left
-                </p>
-              </div>
-              <div className="px-6 py-5" style={{ backgroundColor: PLINTH }}>
-                <p style={smallCaps}>Daily Vault</p>
-                <p style={{ ...SERIF, fontSize: "22px", marginTop: "6px" }}>{dailyVault} ETH</p>
-                <p style={{ ...SANS, fontSize: "12px", color: MUTED, marginTop: "4px" }}>
-                  {dailyVaultUsd ?? "—"} · {dailySigners} signed
-                </p>
-              </div>
-              <div className="px-6 py-5" style={{ backgroundColor: PLINTH }}>
-                <p style={smallCaps}>Highest Bid</p>
-                <p style={{ ...SERIF, fontSize: "22px", marginTop: "6px" }}>{currentBid} ETH</p>
-                <p style={{ ...SANS, fontSize: "12px", color: MUTED, marginTop: "4px" }}>
-                  {activeBidderName || "No bids yet"}
-                </p>
-              </div>
-            </div>
-
-            {/* Bid box */}
-            <div className="mt-8 w-full flex flex-col sm:flex-row gap-3 items-center justify-center" style={{ maxWidth: "480px" }}>
-              <input
-                value={bidInput}
-                onChange={handleBidInputChange}
-                placeholder={`Min ${minOutbidAmount.toFixed(4)} ETH`}
-                style={{
-                  ...SANS,
-                  fontSize: "14px",
-                  padding: "12px 16px",
-                  border: `1px solid ${bidError ? "#9B1C1C" : HAIRLINE}`,
-                  backgroundColor: "#fff",
-                  width: "100%",
-                  outline: "none",
-                }}
-              />
-              <button
-                onClick={handleBid}
-                style={{
-                  ...SANS,
-                  fontSize: "12px",
-                  fontWeight: 500,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  padding: "12px 24px",
-                  backgroundColor: INK,
-                  color: IVORY,
-                  border: "none",
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Place Bid
-              </button>
-            </div>
-
-            {/* Owned NFTs */}
-            <div className="mt-20 w-full" style={{ maxWidth: "900px" }}>
-              <p style={smallCaps}>Your Warplets</p>
-              {!address ? (
+          <div className="mt-20 w-full" style={{ maxWidth: "900px" }}>
+            <p style={smallCaps}>Your Warplets</p>
+            {!address ? (
                 <p style={{ ...SANS, fontSize: "14px", color: MUTED, marginTop: "16px" }}>
                   Connect your wallet to see your tokens.
                 </p>
@@ -1031,7 +1085,7 @@ export default function WarpletsPage() {
                   No Warplets found in this wallet.
                 </p>
               ) : (
-                <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
                   {userNFTs.map((tokenId) => {
                     const idStr = tokenId.toString();
                     const signed = nftSignedStatus[idStr] === true;
@@ -1039,71 +1093,86 @@ export default function WarpletsPage() {
                     const busy = nftBusy[idStr] === true;
                     const image = nftImages[idStr];
                     const signClaimLabel = isSignPhase
-                      ? signed ? "Signed" : "Sign"
+                      ? signed ? "Signed" : "Sign In"
                       : signed && !claimed ? "Claim" : claimed ? "Claimed" : "Not signed";
                     const signClaimDisabled =
                       busy || (isSignPhase ? signed : !signed || claimed);
+                    const isClaimReady = !isSignPhase && signed && !claimed;
                     return (
-                      <div
-                        key={idStr}
-                        className="flex flex-col"
-                        style={{ backgroundColor: PLINTH, border: `1px solid ${HAIRLINE}` }}
-                      >
-                        <div
+                      <div key={idStr} className="flex flex-col">
+                        <button
+                          onClick={() => requestSellNFT(tokenId)}
+                          disabled={!hasBid}
+                          title={hasBid ? `Sell #${idStr} to highest bidder` : "No active bid yet"}
+                          className="group relative w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-black"
+                          style={{ cursor: hasBid ? "pointer" : "default" }}
+                        >
+                          <div
+                            style={{
+                              aspectRatio: "1 / 1",
+                              backgroundColor: PLINTH,
+                              backgroundImage: image ? `url(${image})` : undefined,
+                              backgroundSize: "cover",
+                              backgroundPosition: "center",
+                            }}
+                          />
+                          {hasBid && (
+                            <div
+                              className="absolute inset-x-0 bottom-0 py-2.5 text-center opacity-0 group-hover:opacity-100 transition-opacity"
+                              style={{ backgroundColor: INK }}
+                            >
+                              <span style={{ ...smallCaps, color: "#fff" }}>Sell to Highest</span>
+                            </div>
+                          )}
+                        </button>
+                        <p style={{ ...SERIF, fontWeight: 500, fontSize: "15px", marginTop: "10px" }}>
+                          Warplet #{idStr}
+                        </p>
+                        <button
+                          onClick={() => handleSignOrClaim(tokenId)}
+                          disabled={signClaimDisabled}
+                          className="mt-2 w-full transition-opacity enabled:hover:opacity-85"
                           style={{
-                            aspectRatio: "1 / 1",
-                            backgroundColor: HAIRLINE,
-                            backgroundImage: image ? `url(${image})` : undefined,
-                            backgroundSize: "cover",
-                            backgroundPosition: "center",
+                            ...SANS,
+                            fontSize: "11px",
+                            fontWeight: 500,
+                            letterSpacing: "0.06em",
+                            textTransform: "uppercase",
+                            padding: "10px",
+                            backgroundColor: signClaimDisabled ? IVORY : isClaimReady ? GREEN : INK,
+                            color: signClaimDisabled ? MUTED : "#fff",
+                            border: signClaimDisabled ? `1px solid ${HAIRLINE}` : "none",
+                            cursor: signClaimDisabled ? "not-allowed" : "pointer",
                           }}
-                        />
-                        <div className="px-3 py-3 flex flex-col gap-2">
-                          <p style={{ ...SANS, fontSize: "13px", fontWeight: 500 }}>#{idStr}</p>
-                          <button
-                            onClick={() => handleSignOrClaim(tokenId)}
-                            disabled={signClaimDisabled}
-                            style={{
-                              ...SANS,
-                              fontSize: "11px",
-                              fontWeight: 500,
-                              letterSpacing: "0.06em",
-                              textTransform: "uppercase",
-                              padding: "8px 10px",
-                              backgroundColor: signClaimDisabled ? HAIRLINE : INK,
-                              color: signClaimDisabled ? MUTED : IVORY,
-                              border: "none",
-                              cursor: signClaimDisabled ? "default" : "pointer",
-                            }}
-                          >
-                            {busy ? "..." : signClaimLabel}
-                          </button>
-                          <button
-                            onClick={() => requestSellNFT(tokenId)}
-                            disabled={busy || !hasBid}
-                            style={{
-                              ...SANS,
-                              fontSize: "11px",
-                              fontWeight: 500,
-                              letterSpacing: "0.06em",
-                              textTransform: "uppercase",
-                              padding: "8px 10px",
-                              backgroundColor: "transparent",
-                              color: !hasBid ? MUTED : INK,
-                              border: `1px solid ${HAIRLINE}`,
-                              cursor: !hasBid ? "default" : "pointer",
-                            }}
-                          >
-                            Sell to highest
-                          </button>
-                        </div>
+                        >
+                          {busy ? "..." : signClaimLabel}
+                        </button>
+                        <button
+                          onClick={() => requestSellNFT(tokenId)}
+                          disabled={busy || !hasBid}
+                          title={hasBid ? `Sell #${idStr} to highest bidder` : "No active bid yet"}
+                          className="mt-2 w-full transition-opacity enabled:hover:opacity-85"
+                          style={{
+                            ...SANS,
+                            fontSize: "11px",
+                            fontWeight: 500,
+                            letterSpacing: "0.06em",
+                            textTransform: "uppercase",
+                            padding: "10px",
+                            backgroundColor: "transparent",
+                            color: !hasBid ? MUTED : INK,
+                            border: `1px solid ${HAIRLINE}`,
+                            cursor: !hasBid ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          Sell to Highest
+                        </button>
                       </div>
                     );
                   })}
                 </div>
               )}
             </div>
-          </>
         )}
 
       </main>

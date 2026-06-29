@@ -1173,7 +1173,7 @@ export default function BetaPage() {
 
       <main className="max-w-6xl mx-auto px-5 sm:px-8">
         {/* Lot hero */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 pt-12 lg:pt-16 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 pt-2 lg:pt-3 items-start">
           {/* Artwork */}
           <div className="lg:sticky lg:top-28">
             <div
@@ -1190,8 +1190,8 @@ export default function BetaPage() {
                 style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.08)" }}
               />
             </div>
-            <div className="mt-4 flex items-baseline justify-between">
-              <p className="text-sm" style={{ ...SERIF, fontStyle: "italic", color: MUTED }}>
+            <div className="mt-4 flex items-baseline justify-between gap-3">
+              <p className="text-sm flex-1 min-w-0" style={{ ...SERIF, fontStyle: "italic", color: MUTED }}>
                 {heroToken ? `VRNoun No. ${heroToken.id}` : "VRNouns"} — onchain
                 SVG, Base
               </p>
@@ -1199,7 +1199,7 @@ export default function BetaPage() {
                 href="https://opensea.io/collection/vrnouns"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs hover:text-black transition-colors"
+                className="text-xs hover:text-black transition-colors flex-shrink-0 whitespace-nowrap"
                 style={{ ...smallCaps }}
               >
                 View Collection
@@ -1215,7 +1215,7 @@ export default function BetaPage() {
               {isLoading ? " · syncing" : ""}
             </p>
             <h1
-              className="mt-4"
+              className="mt-3"
               style={{
                 ...SERIF,
                 fontWeight: 500,
@@ -1227,7 +1227,7 @@ export default function BetaPage() {
               Royalties to the community.
             </h1>
             <p
-              className="mt-3 text-base leading-relaxed"
+              className="mt-2 text-base leading-relaxed"
               style={{ ...SANS, color: MUTED, maxWidth: "48ch" }}
             >
               Bid on the flooor, or sell your VRNoun instantly — no listings,
@@ -1235,7 +1235,7 @@ export default function BetaPage() {
             </p>
 
             {/* Current bid */}
-            <div className="mt-10 pt-8" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
+            <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
                 <div>
                   <p style={smallCaps}>Current Bid</p>
@@ -1291,7 +1291,7 @@ export default function BetaPage() {
               {/* Outbid notice */}
               {hasBid && (
                 <div
-                  className="mt-8 px-4 py-3 flex items-start gap-3"
+                  className="mt-5 px-4 py-2.5 flex items-start gap-3"
                   style={{ backgroundColor: PLINTH, border: `1px solid ${HAIRLINE}` }}
                 >
                   <span style={{ color: MUTED, fontSize: "13px", lineHeight: 1.5, ...SANS }}>
@@ -1303,7 +1303,7 @@ export default function BetaPage() {
 
               {/* Bid — tam çerçeveli kutu */}
               <div
-                className={hasBid ? "mt-3 flex items-stretch" : "mt-8 flex items-stretch"}
+                className={hasBid ? "mt-3 flex items-stretch" : "mt-4 flex items-stretch"}
                 style={{
                   border: `1px solid ${bidError ? "#9B1C1C" : INK}`,
                 }}
@@ -1318,7 +1318,7 @@ export default function BetaPage() {
                         ? `Ξ ${minOutbidAmount.toFixed(6)} or more`
                         : `Ξ ${MINIMUM_BID_FOR_SELL} or more`
                   }
-                  className="flex-1 px-4 py-3.5 focus:outline-none min-w-0 text-lg tabular-nums"
+                  className="flex-1 px-4 py-3 focus:outline-none min-w-0 text-lg tabular-nums"
                   style={{
                     ...SANS,
                     color: INK,
@@ -1340,7 +1340,7 @@ export default function BetaPage() {
                   Place Bid
                 </button>
               </div>
-              <p className="mt-3 text-xs" style={{ color: FAINT }}>
+              <p className="mt-2 text-xs" style={{ color: FAINT }}>
                 {hasBid
                   ? `Minimum outbid Ξ ${minOutbidAmount.toFixed(6)} — if someone outbids you, your ETH is returned automatically.`
                   : `Minimum bid Ξ ${MINIMUM_BID_FOR_SELL} — if someone outbids you, your ETH is returned automatically. Every sale feeds the vault.`}
@@ -1348,7 +1348,7 @@ export default function BetaPage() {
             </div>
 
             {/* Details — signers, vault, yield, epoch */}
-            <div className="mt-10">
+            <div className="mt-3">
               {[
                 {
                   label: "Signers",
@@ -1377,7 +1377,7 @@ export default function BetaPage() {
               ].map((row) => (
                 <div
                   key={row.label}
-                  className="flex items-baseline justify-between py-3.5"
+                  className="flex items-baseline justify-between py-1.5"
                   style={{ borderTop: `1px solid ${HAIRLINE}` }}
                 >
                   <span style={smallCaps}>{row.label}</span>
@@ -1399,7 +1399,7 @@ export default function BetaPage() {
                   </span>
                 </div>
               ))}
-              <div className="pt-3.5 text-right">
+              <div className="pt-1.5 text-right">
                 <button
                   onClick={fetchAllData}
                   disabled={isLoading}
@@ -1412,10 +1412,10 @@ export default function BetaPage() {
             </div>
 
             {/* Daily sign */}
-            <div className="mt-10 pt-8" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
+            <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
               <p style={smallCaps}>Daily Sign</p>
               <p
-                className="mt-3 text-base leading-relaxed"
+                className="mt-2 text-base leading-relaxed"
                 style={{ color: MUTED, maxWidth: "48ch" }}
               >
                 Hold a Flooor? Sign in today to claim your share of the daily
@@ -1424,7 +1424,7 @@ export default function BetaPage() {
               <button
                 onClick={handleSign}
                 disabled={isSignButtonDisabled()}
-                className="mt-5 w-full sm:w-auto px-12 py-4 transition-opacity enabled:hover:opacity-85"
+                className="mt-3 w-full sm:w-auto px-12 py-2.5 transition-opacity enabled:hover:opacity-85"
                 style={{
                   ...smallCaps,
                   color: isSignButtonDisabled() ? FAINT : "#fff",
@@ -1442,69 +1442,6 @@ export default function BetaPage() {
                 {getSignButtonText()}
               </button>
             </div>
-          </div>
-        </div>
-
-        {/* Other Collections */}
-        <div className="mt-20 pt-10" style={{ maxWidth: "480px", borderTop: `1px solid ${HAIRLINE}` }}>
-          <p style={smallCaps}>Other Collections</p>
-          <div className="mt-6">
-            {[
-              {
-                name: "Warplets",
-                sub: "Base",
-                img: "https://i2c.seadn.io/base/0x699727f9e01a822efdcf7333073f0461e5914b4e/c4dd77598815bd89610930ca12be02/a2c4dd77598815bd89610930ca12be02.jpeg?w=1000",
-                href: "/warplets",
-              },
-              {
-                name: "OK Computer",
-                sub: "Base",
-                img: "https://i2c.seadn.io/base/05d807397e5b420d8b9cc7cb8cb07a0d/549fb12b972ea6f3790a2965d31686/55549fb12b972ea6f3790a2965d31686.gif",
-              },
-              {
-                name: "Book Games",
-                sub: "Base",
-                href: "https://opensea.io/collection/bookgames",
-                img: "https://i2c.seadn.io/admin-uploads/61366691b607f4afc05d5202467d9e/7761366691b607f4afc05d5202467d9e.png",
-              },
-            ].map((col) => (
-              <div
-                key={col.name}
-                className="flex items-center justify-between gap-4 py-3.5"
-                style={{ borderTop: `1px solid ${HAIRLINE}` }}
-              >
-                <div className="flex items-center gap-3 text-left">
-                  <div
-                    className="overflow-hidden flex-shrink-0"
-                    style={{ width: "40px", height: "40px", backgroundColor: PLINTH }}
-                  >
-                    {col.img ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={col.img} alt={col.name} className="w-full h-full object-cover" />
-                    ) : null}
-                  </div>
-                  <div>
-                    <p style={{ ...SERIF, fontSize: "15px" }}>{col.name}</p>
-                    <p style={{ ...SANS, fontSize: "11px", color: MUTED, marginTop: "2px" }}>{col.sub}</p>
-                  </div>
-                </div>
-                {col.href ? (
-                  <a
-                    href={col.href}
-                    target={col.href.startsWith("http") ? "_blank" : undefined}
-                    rel={col.href.startsWith("http") ? "noopener noreferrer" : undefined}
-                    className="text-xs hover:text-black transition-colors whitespace-nowrap"
-                    style={{ ...SANS, color: MUTED }}
-                  >
-                    Explore →
-                  </a>
-                ) : (
-                  <span className="text-xs whitespace-nowrap" style={{ ...smallCaps, color: MUTED }}>
-                    Soon
-                  </span>
-                )}
-              </div>
-            ))}
           </div>
         </div>
 
@@ -1911,7 +1848,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.7 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.11 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>
