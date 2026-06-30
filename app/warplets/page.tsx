@@ -69,7 +69,7 @@ const retryWithBackoff = async (
 
 const CONTRACT_ADDR = "0x0c2d41b6896a7dde2641a0fe04165df180c43242" as const;
 const COLLECTION_ADDR = "0x699727F9E01A822EFdcf7333073f0461e5914b4E" as const;
-const MINIMUM_BID_FOR_SELL = 0.002;
+const MINIMUM_BID_FOR_SELL = 0.003;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const IS_DEPLOYED = CONTRACT_ADDR.toLowerCase() !== ZERO_ADDRESS;
 
@@ -1156,7 +1156,7 @@ export default function WarpletsPage() {
                     const image = nftImages[idStr];
                     const signClaimLabel = isSignPhase
                       ? signed ? "Signed" : "Sign In"
-                      : signed && !claimed ? "Claim" : claimed ? "Claimed" : "Not signed";
+                      : signed && !claimed ? "Claim" : claimed ? "Claimed" : "Wait for Sign";
                     const signClaimDisabled =
                       busy || (isSignPhase ? signed : !signed || claimed);
                     const isClaimReady = !isSignPhase && signed && !claimed;
