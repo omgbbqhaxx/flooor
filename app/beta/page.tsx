@@ -9,6 +9,7 @@ import {
   writeContract,
   readContract,
   simulateContract,
+  getBalance,
 } from "wagmi/actions";
 import { base } from "wagmi/chains";
 import {
@@ -65,6 +66,22 @@ const retryWithBackoff = async (
     }
   }
   throw lastError!;
+};
+
+const isUserRejectedError = (error: unknown): boolean => {
+  const message =
+    (error instanceof Error ? error.message : String(error)).toLowerCase();
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? (error as { code?: unknown }).code
+      : undefined;
+  return (
+    code === 4001 ||
+    message.includes("user rejected") ||
+    message.includes("user denied") ||
+    message.includes("rejected the request") ||
+    message.includes("action_rejected")
+  );
 };
 
 import MARKET_ABI from "@/app/abi/market.json";
@@ -768,6 +785,11 @@ export default function BetaPage() {
     try {
       await ensureBase();
       const value = parseEther((bidInput || "0") as `${string}`);
+      const balance = await getBalance(config, { address });
+      if (balance.value < value) {
+        toast.error("Insufficient balance to place this bid.");
+        return;
+      }
       await writeContract(config, {
         address: CONTRACT_ADDR,
         abi: MARKET_ABI,
@@ -783,6 +805,10 @@ export default function BetaPage() {
         getActiveBidder();
       }, 2000);
     } catch (error) {
+      if (isUserRejectedError(error)) {
+        toast.info("Transaction cancelled.");
+        return;
+      }
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       toast.error(`Transaction failed: ${errorMessage}`, {
@@ -847,7 +873,9 @@ export default function BetaPage() {
               throw new Error("Approval not confirmed on blockchain");
             }
           } catch (error) {
-            toast.error("Approval failed. Please try again.");
+            if (!isUserRejectedError(error)) {
+              toast.error("Approval failed. Please try again.");
+            }
             throw error;
           } finally {
             setNftLoadingStatus((prev) => ({ ...prev, [tokenIdStr]: false }));
@@ -869,6 +897,10 @@ export default function BetaPage() {
           getUserNFTs();
         }, 2000);
       } catch (error) {
+        if (isUserRejectedError(error)) {
+          toast.info("Transaction cancelled.");
+          return;
+        }
         const errorMessage =
           error instanceof Error ? error.message : String(error);
         toast.error(`Sell failed: ${errorMessage}`, {
@@ -963,6 +995,10 @@ export default function BetaPage() {
         getPhaseInfo();
       }, 2000);
     } catch (error) {
+      if (isUserRejectedError(error)) {
+        toast.info("Transaction cancelled.");
+        return;
+      }
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       toast.error(`Sign/Claim failed: ${errorMessage}`, {
@@ -1848,7 +1884,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.22 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.23 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>

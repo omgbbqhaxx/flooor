@@ -6,7 +6,7 @@ import Link from "next/link";
 
 import { useState, useCallback, useEffect } from "react";
 import { useConfig, useAccount, useSwitchChain } from "wagmi";
-import { writeContract, readContract } from "wagmi/actions";
+import { writeContract, readContract, getBalance } from "wagmi/actions";
 import { base } from "wagmi/chains";
 import {
   parseEther,
@@ -65,6 +65,22 @@ const retryWithBackoff = async (
     }
   }
   throw lastError!;
+};
+
+const isUserRejectedError = (error: unknown): boolean => {
+  const message =
+    (error instanceof Error ? error.message : String(error)).toLowerCase();
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? (error as { code?: unknown }).code
+      : undefined;
+  return (
+    code === 4001 ||
+    message.includes("user rejected") ||
+    message.includes("user denied") ||
+    message.includes("rejected the request") ||
+    message.includes("action_rejected")
+  );
 };
 
 const CONTRACT_ADDR = "0x0c2d41b6896a7dde2641a0fe04165df180c43242" as const;
@@ -630,6 +646,11 @@ export default function WarpletsPage() {
     try {
       await ensureBase();
       const value = parseEther((bidInput || "0") as `${string}`);
+      const balance = await getBalance(config, { address });
+      if (balance.value < value) {
+        toast.error("Insufficient balance to place this bid.");
+        return;
+      }
       await writeContract(config, {
         address: CONTRACT_ADDR,
         abi: WARPLETS_ABI,
@@ -644,6 +665,10 @@ export default function WarpletsPage() {
         getActiveBidder();
       }, 2000);
     } catch (error) {
+      if (isUserRejectedError(error)) {
+        toast.info("Transaction cancelled.");
+        return;
+      }
       const errorMessage = error instanceof Error ? error.message : String(error);
       toast.error(`Transaction failed: ${errorMessage}`, {
         duration: 5000,
@@ -680,6 +705,10 @@ export default function WarpletsPage() {
           getDailyVault();
         }, 2000);
       } catch (error) {
+        if (isUserRejectedError(error)) {
+          toast.info("Transaction cancelled.");
+          return;
+        }
         const errorMessage = error instanceof Error ? error.message : String(error);
         toast.error(`Sign/Claim failed: ${errorMessage}`, {
           duration: 5000,
@@ -740,6 +769,10 @@ export default function WarpletsPage() {
           getUserNFTs();
         }, 2000);
       } catch (error) {
+        if (isUserRejectedError(error)) {
+          toast.info("Transaction cancelled.");
+          return;
+        }
         const errorMessage = error instanceof Error ? error.message : String(error);
         toast.error(`Sell failed: ${errorMessage}`, {
           duration: 5000,
@@ -795,6 +828,10 @@ export default function WarpletsPage() {
           getUserNFTs();
         }, 2000);
       } catch (error) {
+        if (isUserRejectedError(error)) {
+          toast.info("Transaction cancelled.");
+          return;
+        }
         const errorMessage = error instanceof Error ? error.message : String(error);
         toast.error(`Send failed: ${errorMessage}`, {
           duration: 5000,
