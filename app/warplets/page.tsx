@@ -69,7 +69,6 @@ const retryWithBackoff = async (
 
 const CONTRACT_ADDR = "0x0c2d41b6896a7dde2641a0fe04165df180c43242" as const;
 const COLLECTION_ADDR = "0x699727F9E01A822EFdcf7333073f0461e5914b4E" as const;
-const MINIMUM_BID_FOR_SELL = 0.003;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const IS_DEPLOYED = CONTRACT_ADDR.toLowerCase() !== ZERO_ADDRESS;
 
@@ -154,6 +153,8 @@ export default function WarpletsPage() {
   const [sendAddressError, setSendAddressError] = useState(false);
   const [ethPrice, setEthPrice] = useState<number | null>(null);
   const [yieldPerSigner, setYieldPerSigner] = useState<string>("0");
+  const [chainMinBid, setChainMinBid] = useState<string>("0");
+  const [chainNextMinBid, setChainNextMinBid] = useState<string>("0");
 
   const fmtEth = useCallback((eth: string) => {
     const n = parseFloat(eth);
@@ -260,6 +261,32 @@ export default function WarpletsPage() {
       setDailyVault(parseFloat(formatEther(poolAccrued)).toFixed(8));
     } catch (error) {
       console.error("Error getting daily vault:", error);
+    }
+  }, [config]);
+
+  const getChainMinBid = useCallback(async () => {
+    if (!IS_DEPLOYED) return;
+    try {
+      const minBid = (await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: CONTRACT_ADDR,
+          abi: WARPLETS_ABI,
+          functionName: "minbidAM",
+          args: [],
+        })) as bigint;
+      })) as bigint;
+      const nextMin = (await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: CONTRACT_ADDR,
+          abi: WARPLETS_ABI,
+          functionName: "nextMinBid",
+          args: [],
+        })) as bigint;
+      })) as bigint;
+      setChainMinBid(formatEther(minBid));
+      setChainNextMinBid(formatEther(nextMin));
+    } catch (error) {
+      console.error("Error getting chain min bid:", error);
     }
   }, [config]);
 
@@ -532,8 +559,9 @@ export default function WarpletsPage() {
       getCurrentBid(),
       getActiveBidder(),
       getUserNFTs(),
+      getChainMinBid(),
     ]);
-  }, [getPhaseInfo, getDailySigners, getDailyVault, getCurrentBid, getActiveBidder, getUserNFTs]);
+  }, [getPhaseInfo, getDailySigners, getDailyVault, getCurrentBid, getActiveBidder, getUserNFTs, getChainMinBid]);
 
   useEffect(() => {
     fetchAllData();
@@ -593,11 +621,7 @@ export default function WarpletsPage() {
       return;
     }
     const bidAmount = parseFloat(bidInput || "0");
-    const currentBidNum = parseFloat(currentBid);
-    const hasActiveBid = activeBidder && activeBidder !== ZERO_ADDRESS && currentBidNum > 0;
-    const minRequired = hasActiveBid
-      ? Math.max(currentBidNum * 1.05, MINIMUM_BID_FOR_SELL)
-      : MINIMUM_BID_FOR_SELL;
+    const minRequired = parseFloat(chainNextMinBid) || 0;
     if (bidAmount < minRequired) {
       setBidInput("");
       setBidError(true);
@@ -626,7 +650,7 @@ export default function WarpletsPage() {
         action: { label: "Retry", onClick: () => handleBid() },
       });
     }
-  }, [config, ensureBase, bidInput, address, connectedChain, currentBid, activeBidder, getCurrentBid, getActiveBidder]);
+  }, [config, ensureBase, bidInput, address, connectedChain, getCurrentBid, getActiveBidder, chainNextMinBid]);
 
   const handleSignOrClaim = useCallback(
     async (tokenId: bigint) => {
@@ -681,8 +705,8 @@ export default function WarpletsPage() {
       const idStr = tokenId.toString();
       try {
         await ensureBase();
-        if (parseFloat(currentBid) < MINIMUM_BID_FOR_SELL) {
-          toast.error(`Current bid (${currentBid} ETH) is below minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH.`);
+        if (parseFloat(currentBid) < parseFloat(chainMinBid)) {
+          toast.error(`Current bid (${currentBid} ETH) is below minimum selling price of ${fmtEth(chainMinBid)} ETH.`);
           return;
         }
         setNftBusy((prev) => ({ ...prev, [idStr]: true }));
@@ -725,7 +749,7 @@ export default function WarpletsPage() {
         setNftBusy((prev) => ({ ...prev, [idStr]: false }));
       }
     },
-    [config, ensureBase, address, nftApprovalStatus, checkApprovalStatus, currentBid, getCurrentBid, getActiveBidder, getDailyVault, getUserNFTs],
+    [config, ensureBase, address, nftApprovalStatus, checkApprovalStatus, currentBid, getCurrentBid, getActiveBidder, getDailyVault, getUserNFTs, chainMinBid, fmtEth],
   );
 
   const requestSellNFT = useCallback(
@@ -734,13 +758,13 @@ export default function WarpletsPage() {
         toast.warning("Please connect your wallet first");
         return;
       }
-      if (parseFloat(currentBid) < MINIMUM_BID_FOR_SELL) {
-        toast.error(`Current bid (${currentBid} ETH) is below minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH.`);
+      if (parseFloat(currentBid) < parseFloat(chainMinBid)) {
+        toast.error(`Current bid (${currentBid} ETH) is below minimum selling price of ${fmtEth(chainMinBid)} ETH.`);
         return;
       }
       setPendingSellTokenId(tokenId);
     },
-    [address, currentBid],
+    [address, currentBid, chainMinBid, fmtEth],
   );
 
   const confirmSellNFT = useCallback(() => {
@@ -808,9 +832,7 @@ export default function WarpletsPage() {
   }, [pendingSendTokenId, sendAddressInput, handleSendNFT]);
 
   const hasBid = activeBidder && activeBidder !== ZERO_ADDRESS && parseFloat(currentBid) > 0;
-  const minOutbidAmount = hasBid
-    ? Math.max(parseFloat(currentBid) * 1.05, MINIMUM_BID_FOR_SELL)
-    : MINIMUM_BID_FOR_SELL;
+  const minOutbidAmount = parseFloat(chainNextMinBid) || 0;
 
   return (
     <div
@@ -1072,9 +1094,7 @@ export default function WarpletsPage() {
                     placeholder={
                       bidError
                         ? `Minimum Ξ ${minOutbidAmount.toFixed(6)}`
-                        : hasBid
-                          ? `Ξ ${minOutbidAmount.toFixed(6)} or more`
-                          : `Ξ ${MINIMUM_BID_FOR_SELL} or more`
+                        : `Ξ ${minOutbidAmount.toFixed(6)} or more`
                     }
                     className="flex-1 px-4 py-3.5 focus:outline-none min-w-0 text-lg tabular-nums"
                     style={{ ...SANS, color: INK, backgroundColor: "#fff", border: "none" }}
@@ -1092,7 +1112,7 @@ export default function WarpletsPage() {
                 <p className="mt-3 text-xs" style={{ color: FAINT }}>
                   {hasBid
                     ? `Minimum outbid Ξ ${minOutbidAmount.toFixed(6)} — if someone outbids you, your ETH is returned automatically.`
-                    : `Minimum bid Ξ ${MINIMUM_BID_FOR_SELL} — if someone outbids you, your ETH is returned automatically. Every sale feeds the vault.`}
+                    : `Minimum bid Ξ ${minOutbidAmount.toFixed(6)} — if someone outbids you, your ETH is returned automatically. Every sale feeds the vault.`}
                 </p>
 
                 {/* Signers, vault, yield, epoch */}
@@ -1399,7 +1419,17 @@ export default function WarpletsPage() {
       {/* Footer */}
       <footer style={{ borderTop: `1px solid ${HAIRLINE}`, padding: "40px 0", marginTop: "80px" }}>
         <div className="max-w-6xl mx-auto px-5 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <span style={{ ...SANS, fontSize: "12px", color: MUTED }}>© 2024 Flooor. Built on Base.</span>
+          <div className="flex flex-col gap-2">
+            <span style={{ ...SANS, fontSize: "12px", color: MUTED }}>© 2024 Flooor. Built on Base.</span>
+            <a
+              href={`https://basescan.org/address/${CONTRACT_ADDR}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ ...SANS, fontSize: "11px", color: MUTED, fontFamily: "monospace" }}
+            >
+              {CONTRACT_ADDR}
+            </a>
+          </div>
           <div className="flex items-center gap-6">
             <a
               href="https://x.com/vrnouns"

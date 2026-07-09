@@ -73,7 +73,7 @@ import NFT_ABI from "@/app/abi/nft.json";
 
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
-const MINIMUM_BID_FOR_SELL = 0.01;
+const MINIMUM_BID_FOR_SELL = 0.015;
 
 // Basename çözümleme — L1 üzerinden CCIP-Read yerine, veri zaten Base'de yaşadığı için
 // Base'in resmi L2Resolver kontratından doğrudan okuyoruz (bkz. github.com/base/basenames)
@@ -2122,7 +2122,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.18 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.22 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>
