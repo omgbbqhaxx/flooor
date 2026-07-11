@@ -23,6 +23,7 @@ import {
   type Address,
 } from "viem";
 import { Attribution } from "ox/erc8021";
+import { sdk } from "@farcaster/miniapp-sdk";
 import Image from "next/image";
 import { Playfair_Display, Inter } from "next/font/google";
 
@@ -182,6 +183,10 @@ export default function BetaPage() {
   const [sendAddressInput, setSendAddressInput] = useState("");
   const [sendAddressError, setSendAddressError] = useState(false);
   const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
+  const [sharePrompt, setSharePrompt] = useState<{
+    type: "sign" | "claim" | "bid" | "sell";
+    text: string;
+  } | null>(null);
   const [heroToken, setHeroToken] = useState<{
     id: string;
     image: string;
@@ -805,6 +810,10 @@ export default function BetaPage() {
         dataSuffix: DATA_SUFFIX,
       });
       toast.success("Bid placed successfully!");
+      setSharePrompt({
+        type: "bid",
+        text: `Just placed a bid of Ξ${fmtEth(bidInput)} on a VRNoun at flooor.fun 🔨\n\nIf someone outbids me, my ETH comes right back — no risk, no lockup.\n\nRoyalties to the community.`,
+      });
       setTimeout(() => {
         getCurrentBid();
         getActiveBidder();
@@ -821,7 +830,7 @@ export default function BetaPage() {
         action: { label: "Retry", onClick: () => handleBid() },
       });
     }
-  }, [config, ensureBase, bidInput, address, connectedChain, currentBid, activeBidder, getCurrentBid, getActiveBidder]);
+  }, [config, ensureBase, bidInput, address, connectedChain, currentBid, activeBidder, getCurrentBid, getActiveBidder, fmtEth]);
 
   const handleSellNFT = useCallback(
     async (tokenId: bigint) => {
@@ -894,6 +903,11 @@ export default function BetaPage() {
           dataSuffix: DATA_SUFFIX,
         });
         toast.success(`Noun #${tokenIdStr} sold successfully!`);
+        const soldUsd = toUsd(currentBid);
+        setSharePrompt({
+          type: "sell",
+          text: `Just sold my VRNoun for Ξ${fmtEth(currentBid)}${soldUsd ? ` (${soldUsd})` : ""} on flooor.fun 🤝\n\nInstant liquidity, any time. Every sale feeds the vault — distributed to holders daily.`,
+        });
         // Satış sonrası anında güncelle
         setTimeout(() => {
           getCurrentBid();
@@ -926,6 +940,8 @@ export default function BetaPage() {
       getActiveBidder,
       getDailyVault,
       getUserNFTs,
+      fmtEth,
+      toUsd,
     ],
   );
 
@@ -1053,9 +1069,18 @@ export default function BetaPage() {
       if (isSignPhase) {
         setUserHasSigned(true);
         toast.success("Sign successful!");
+        setSharePrompt({
+          type: "sign",
+          text: `Just signed my VRNoun on flooor.fun 🖊️\n\n${dailySigners + 1} signers sharing today's vault of Ξ${fmtEth(dailyVault)}.\n\nSign daily, earn daily. Royalties to the community.`,
+        });
       } else {
         setUserHasClaimed(true);
         toast.success("Claim successful!");
+        const claimedUsd = toUsd(yieldPerNFT);
+        setSharePrompt({
+          type: "claim",
+          text: `Claimed Ξ${fmtEth(yieldPerNFT)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun 💰\n\nMy VRNoun earns yield every single day — no lockup, no transfer.`,
+        });
       }
       setTimeout(() => {
         checkUserSignedStatus();
@@ -1080,7 +1105,48 @@ export default function BetaPage() {
     address,
     checkUserSignedStatus,
     getPhaseInfo,
+    dailySigners,
+    dailyVault,
+    yieldPerNFT,
+    fmtEth,
+    toUsd,
   ]);
+
+  const handleShare = useCallback(
+    async (platform: "x" | "farcaster") => {
+      if (!sharePrompt) return;
+      // Mention biçimleri platforma göre farklı: Farcaster'da @farcaster
+      // hesabı + /flooor kanalı (ayrı token'lar), X'te üç ayrı handle
+      const mentions =
+        platform === "farcaster"
+          ? "@farcaster /flooor"
+          : "@vrnouns @base @baseapp";
+      const text = `${sharePrompt.text}\n\n${mentions}`;
+      const url = "https://flooor.fun";
+      setSharePrompt(null);
+      if (platform === "farcaster") {
+        // Mini app içinde native compose, web'de intent URL
+        try {
+          if (await sdk.isInMiniApp()) {
+            await sdk.actions.composeCast({ text, embeds: [url] });
+            return;
+          }
+        } catch {
+          // fall through to web intent
+        }
+        window.open(
+          `https://farcaster.xyz/~/compose?text=${encodeURIComponent(text)}&embeds[]=${encodeURIComponent(url)}`,
+          "_blank",
+        );
+      } else {
+        window.open(
+          `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
+          "_blank",
+        );
+      }
+    },
+    [sharePrompt],
+  );
 
   const isWrongNetwork = !!address && connectedChain?.id !== base.id;
 
@@ -2079,6 +2145,98 @@ export default function BetaPage() {
         </div>
       )}
 
+      {/* Share prompt modal — sign/claim/bid/sell sonrası */}
+      {sharePrompt !== null && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center px-4"
+          style={{ backgroundColor: "rgba(26,26,26,0.5)" }}
+        >
+          <div className="w-full" style={{ maxWidth: "400px", backgroundColor: IVORY, border: `1px solid ${HAIRLINE}` }}>
+            <div className="px-6 py-6">
+              <p style={{ ...SERIF, fontSize: "20px", marginBottom: "12px" }}>
+                {sharePrompt.type === "sign"
+                  ? "Signed — spread the word?"
+                  : sharePrompt.type === "claim"
+                    ? "Claimed — spread the word?"
+                    : sharePrompt.type === "bid"
+                      ? "Bid placed — spread the word?"
+                      : "Sold — spread the word?"}
+              </p>
+              <p
+                style={{
+                  ...SANS,
+                  fontSize: "13px",
+                  color: MUTED,
+                  lineHeight: 1.6,
+                  whiteSpace: "pre-line",
+                  padding: "12px",
+                  backgroundColor: "#fff",
+                  border: `1px solid ${HAIRLINE}`,
+                }}
+              >
+                {sharePrompt.text}
+              </p>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => handleShare("farcaster")}
+                  style={{
+                    ...SANS,
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    padding: "10px 16px",
+                    backgroundColor: INK,
+                    color: IVORY,
+                    border: "none",
+                    cursor: "pointer",
+                    flex: 1,
+                  }}
+                >
+                  Farcaster
+                </button>
+                <button
+                  onClick={() => handleShare("x")}
+                  style={{
+                    ...SANS,
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    padding: "10px 16px",
+                    backgroundColor: INK,
+                    color: IVORY,
+                    border: "none",
+                    cursor: "pointer",
+                    flex: 1,
+                  }}
+                >
+                  Share on X
+                </button>
+              </div>
+              <button
+                onClick={() => setSharePrompt(null)}
+                className="mt-3 w-full"
+                style={{
+                  ...SANS,
+                  fontSize: "12px",
+                  fontWeight: 500,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  padding: "10px 16px",
+                  backgroundColor: "transparent",
+                  color: MUTED,
+                  border: `1px solid ${HAIRLINE}`,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <footer style={{ borderTop: `1px solid ${HAIRLINE}` }}>
         <div className="max-w-6xl mx-auto px-5 sm:px-8 py-14 grid grid-cols-2 md:grid-cols-4 gap-10">
@@ -2206,7 +2364,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.23 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.27 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>

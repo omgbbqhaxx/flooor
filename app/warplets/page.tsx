@@ -19,6 +19,7 @@ import {
   type Address,
 } from "viem";
 import { Attribution } from "ox/erc8021";
+import { sdk } from "@farcaster/miniapp-sdk";
 import { Playfair_Display, Inter } from "next/font/google";
 
 import WARPLETS_ABI from "@/app/abi/warplets.json";
@@ -171,6 +172,10 @@ export default function WarpletsPage() {
   const [yieldPerSigner, setYieldPerSigner] = useState<string>("0");
   const [chainMinBid, setChainMinBid] = useState<string>("0");
   const [chainNextMinBid, setChainNextMinBid] = useState<string>("0");
+  const [sharePrompt, setSharePrompt] = useState<{
+    type: "sign" | "claim" | "bid" | "sell";
+    text: string;
+  } | null>(null);
 
   const fmtEth = useCallback((eth: string) => {
     const n = parseFloat(eth);
@@ -660,6 +665,10 @@ export default function WarpletsPage() {
         dataSuffix: DATA_SUFFIX,
       });
       toast.success("Bid placed successfully!");
+      setSharePrompt({
+        type: "bid",
+        text: `Just placed a bid of Ξ${fmtEth(bidInput)} on a Warplet at flooor.fun 🔨\n\nIf someone outbids me, my ETH comes right back — no risk, no lockup.\n\nRoyalties to the community.`,
+      });
       setTimeout(() => {
         getCurrentBid();
         getActiveBidder();
@@ -675,7 +684,7 @@ export default function WarpletsPage() {
         action: { label: "Retry", onClick: () => handleBid() },
       });
     }
-  }, [config, ensureBase, bidInput, address, connectedChain, getCurrentBid, getActiveBidder, chainNextMinBid]);
+  }, [config, ensureBase, bidInput, address, connectedChain, getCurrentBid, getActiveBidder, chainNextMinBid, fmtEth]);
 
   const handleSignOrClaim = useCallback(
     async (tokenId: bigint) => {
@@ -699,6 +708,18 @@ export default function WarpletsPage() {
           dataSuffix: DATA_SUFFIX,
         });
         toast.success(isSignPhase ? `Token #${idStr} signed!` : `Token #${idStr} claimed!`);
+        if (isSignPhase) {
+          setSharePrompt({
+            type: "sign",
+            text: `Just signed my Warplet on flooor.fun 🖊️\n\n${dailySigners + 1} signers sharing today's vault of Ξ${fmtEth(dailyVault)}.\n\nSign daily, earn daily. Royalties to the community.`,
+          });
+        } else {
+          const claimedUsd = toUsd(yieldPerSigner);
+          setSharePrompt({
+            type: "claim",
+            text: `Claimed Ξ${fmtEth(yieldPerSigner)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun 💰\n\nMy Warplet earns yield every single day — no lockup, no transfer.`,
+          });
+        }
         setTimeout(() => {
           checkSignClaimStatus();
           getPhaseInfo();
@@ -718,7 +739,43 @@ export default function WarpletsPage() {
         setNftBusy((prev) => ({ ...prev, [idStr]: false }));
       }
     },
-    [config, ensureBase, address, isSignPhase, checkSignClaimStatus, getPhaseInfo, getDailyVault],
+    [config, ensureBase, address, isSignPhase, checkSignClaimStatus, getPhaseInfo, getDailyVault, dailySigners, dailyVault, yieldPerSigner, fmtEth, toUsd],
+  );
+
+  const handleShare = useCallback(
+    async (platform: "x" | "farcaster") => {
+      if (!sharePrompt) return;
+      // Mention biçimleri platforma göre farklı: Farcaster'da @farcaster
+      // hesabı + /flooor kanalı (ayrı token'lar), X'te üç ayrı handle
+      const mentions =
+        platform === "farcaster"
+          ? "@farcaster /flooor"
+          : "@vrnouns @base @baseapp";
+      const text = `${sharePrompt.text}\n\n${mentions}`;
+      const url = "https://flooor.fun/warplets";
+      setSharePrompt(null);
+      if (platform === "farcaster") {
+        // Mini app içinde native compose, web'de intent URL
+        try {
+          if (await sdk.isInMiniApp()) {
+            await sdk.actions.composeCast({ text, embeds: [url] });
+            return;
+          }
+        } catch {
+          // fall through to web intent
+        }
+        window.open(
+          `https://farcaster.xyz/~/compose?text=${encodeURIComponent(text)}&embeds[]=${encodeURIComponent(url)}`,
+          "_blank",
+        );
+      } else {
+        window.open(
+          `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
+          "_blank",
+        );
+      }
+    },
+    [sharePrompt],
   );
 
   const handleSellNFT = useCallback(
@@ -762,6 +819,11 @@ export default function WarpletsPage() {
           dataSuffix: DATA_SUFFIX,
         });
         toast.success(`Token #${idStr} sold successfully!`);
+        const soldUsd = toUsd(currentBid);
+        setSharePrompt({
+          type: "sell",
+          text: `Just sold my Warplet for Ξ${fmtEth(currentBid)}${soldUsd ? ` (${soldUsd})` : ""} on flooor.fun 🤝\n\nInstant liquidity, any time. Every sale feeds the vault — distributed to holders daily.`,
+        });
         setTimeout(() => {
           getCurrentBid();
           getActiveBidder();
@@ -782,7 +844,7 @@ export default function WarpletsPage() {
         setNftBusy((prev) => ({ ...prev, [idStr]: false }));
       }
     },
-    [config, ensureBase, address, nftApprovalStatus, checkApprovalStatus, currentBid, getCurrentBid, getActiveBidder, getDailyVault, getUserNFTs, chainMinBid, fmtEth],
+    [config, ensureBase, address, nftApprovalStatus, checkApprovalStatus, currentBid, getCurrentBid, getActiveBidder, getDailyVault, getUserNFTs, chainMinBid, fmtEth, toUsd],
   );
 
   const requestSellNFT = useCallback(
@@ -1448,6 +1510,98 @@ export default function WarpletsPage() {
                   Confirm Send
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share prompt modal — sign/claim sonrası */}
+      {sharePrompt !== null && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center px-4"
+          style={{ backgroundColor: "rgba(26,26,26,0.5)" }}
+        >
+          <div className="w-full" style={{ maxWidth: "400px", backgroundColor: IVORY, border: `1px solid ${HAIRLINE}` }}>
+            <div className="px-6 py-6">
+              <p style={{ ...SERIF, fontSize: "20px", marginBottom: "12px" }}>
+                {sharePrompt.type === "sign"
+                  ? "Signed — spread the word?"
+                  : sharePrompt.type === "claim"
+                    ? "Claimed — spread the word?"
+                    : sharePrompt.type === "bid"
+                      ? "Bid placed — spread the word?"
+                      : "Sold — spread the word?"}
+              </p>
+              <p
+                style={{
+                  ...SANS,
+                  fontSize: "13px",
+                  color: MUTED,
+                  lineHeight: 1.6,
+                  whiteSpace: "pre-line",
+                  padding: "12px",
+                  backgroundColor: "#fff",
+                  border: `1px solid ${HAIRLINE}`,
+                }}
+              >
+                {sharePrompt.text}
+              </p>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => handleShare("farcaster")}
+                  style={{
+                    ...SANS,
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    padding: "10px 16px",
+                    backgroundColor: INK,
+                    color: IVORY,
+                    border: "none",
+                    cursor: "pointer",
+                    flex: 1,
+                  }}
+                >
+                  Farcaster
+                </button>
+                <button
+                  onClick={() => handleShare("x")}
+                  style={{
+                    ...SANS,
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    padding: "10px 16px",
+                    backgroundColor: INK,
+                    color: IVORY,
+                    border: "none",
+                    cursor: "pointer",
+                    flex: 1,
+                  }}
+                >
+                  Share on X
+                </button>
+              </div>
+              <button
+                onClick={() => setSharePrompt(null)}
+                className="mt-3 w-full"
+                style={{
+                  ...SANS,
+                  fontSize: "12px",
+                  fontWeight: 500,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  padding: "10px 16px",
+                  backgroundColor: "transparent",
+                  color: MUTED,
+                  border: `1px solid ${HAIRLINE}`,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>
