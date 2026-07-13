@@ -4,9 +4,9 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { toast } from "sonner";
 import Link from "next/link";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useConfig, useAccount, useSwitchChain } from "wagmi";
-import { writeContract, readContract, getBalance } from "wagmi/actions";
+import { writeContract, readContract, getBalance, watchContractEvent } from "wagmi/actions";
 import { base } from "wagmi/chains";
 import {
   parseEther,
@@ -176,6 +176,10 @@ export default function WarpletsPage() {
     type: "sign" | "claim" | "bid" | "sell";
     text: string;
   } | null>(null);
+  // Token görselleri zincirde değişmediği için oturum boyunca cache'lenir
+  const nftImageCache = useRef<{ [key: string]: string }>({});
+  // fetchAllData turları üst üste binmesin — önceki tur bitmeden yenisi başlamaz
+  const fetchInFlight = useRef(false);
 
   const fmtEth = useCallback((eth: string) => {
     const n = parseFloat(eth);
@@ -365,15 +369,14 @@ export default function WarpletsPage() {
         setActiveBidderName("");
       }
     } catch (error) {
+      // Geçici RPC hatasında mevcut bidder bilgisini koru — sıfırlamak flicker yaratıyor
       console.error("Error getting active bidder:", error);
-      setActiveBidder("");
-      setActiveBidderName("");
     }
   }, [config]);
 
   const getUserNFTs = useCallback(async () => {
     if (!address || !config) {
-      setUserNFTs([]);
+      setUserNFTs((prev) => (prev.length === 0 ? prev : []));
       return;
     }
     try {
@@ -398,10 +401,15 @@ export default function WarpletsPage() {
         })) as bigint;
         ids.push(tokenId);
       }
-      setUserNFTs(ids);
+      // Liste değişmediyse referansı koru — downstream effect zincirini tetiklemez
+      setUserNFTs((prev) =>
+        prev.length === ids.length && prev.every((v, i) => v === ids[i])
+          ? prev
+          : ids,
+      );
     } catch (error) {
+      // Geçici RPC hatasında mevcut listeyi koru; sıfırlamak grid'i boşaltıp flicker yaratıyor
       console.error("Error getting user NFTs:", error);
-      setUserNFTs([]);
     }
   }, [address, config]);
 
@@ -430,12 +438,18 @@ export default function WarpletsPage() {
 
   const getNFTImages = useCallback(async () => {
     if (!userNFTs.length || !config) {
-      setNftImages({});
+      setNftImages((prev) => (Object.keys(prev).length === 0 ? prev : {}));
       return;
     }
     const images: { [key: string]: string } = {};
     for (const id of userNFTs) {
       const idStr = id.toString();
+      // Görseller zincirde değişmez — daha önce çekildiyse tekrar RPC'ye gitme
+      const cached = nftImageCache.current[idStr];
+      if (cached) {
+        images[idStr] = cached;
+        continue;
+      }
       try {
         const tokenURI = (await retryWithBackoff(async () => {
           return (await readContract(config, {
@@ -457,11 +471,13 @@ export default function WarpletsPage() {
           const image = decodeTokenImage(tokenURI);
           if (image) images[idStr] = image;
         }
+        if (images[idStr]) nftImageCache.current[idStr] = images[idStr];
       } catch (error) {
         console.error(`Error getting image for token ${idStr}:`, error);
       }
     }
-    setNftImages(images);
+    // Yeni görselleri mevcutların üzerine ekle — hata alan token'ın eski görseli silinmesin
+    setNftImages((prev) => ({ ...prev, ...images }));
   }, [userNFTs, config]);
 
   const checkApprovalStatus = useCallback(async () => {
@@ -573,15 +589,21 @@ export default function WarpletsPage() {
   }, [checkApprovalStatus, checkSignClaimStatus]);
 
   const fetchAllData = useCallback(async () => {
-    await Promise.allSettled([
-      getPhaseInfo(),
-      getDailySigners(),
-      getDailyVault(),
-      getCurrentBid(),
-      getActiveBidder(),
-      getUserNFTs(),
-      getChainMinBid(),
-    ]);
+    if (fetchInFlight.current) return;
+    fetchInFlight.current = true;
+    try {
+      await Promise.allSettled([
+        getPhaseInfo(),
+        getDailySigners(),
+        getDailyVault(),
+        getCurrentBid(),
+        getActiveBidder(),
+        getUserNFTs(),
+        getChainMinBid(),
+      ]);
+    } finally {
+      fetchInFlight.current = false;
+    }
   }, [getPhaseInfo, getDailySigners, getDailyVault, getCurrentBid, getActiveBidder, getUserNFTs, getChainMinBid]);
 
   useEffect(() => {
@@ -602,6 +624,83 @@ export default function WarpletsPage() {
     return () => clearInterval(countdownInterval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Kontrat event'lerini canlı izle — bid/satış/sign 2 dk'lık polling'i
+  // beklemeden saniyeler içinde UI'a yansır. Mevcut RPC transport'u üzerinden
+  // filtre polling'i kullanır; 15 sn aralık CU tüketimini düşük tutar.
+  useEffect(() => {
+    if (!IS_DEPLOYED) return;
+    const unwatch = watchContractEvent(config, {
+      address: CONTRACT_ADDR,
+      abi: WARPLETS_ABI,
+      pollingInterval: 15_000,
+      onLogs: (logs) => {
+        for (const log of logs) {
+          const { eventName, args } = log as unknown as {
+            eventName: string;
+            args: {
+              bidder?: string;
+              amount?: bigint;
+              refunded?: string;
+              refundAmount?: bigint;
+            };
+          };
+          if (eventName === "BidPlaced") {
+            // Tutar ve bidder event'in içinde — ekstra RPC'ye gerek yok
+            if (typeof args.amount === "bigint") {
+              setCurrentBid(parseFloat(formatEther(args.amount)).toFixed(8));
+            }
+            if (args.bidder) {
+              setActiveBidder(args.bidder);
+              setActiveBidderName(
+                `${args.bidder.slice(0, 6)}...${args.bidder.slice(-4)}`,
+              );
+            }
+            getActiveBidder(); // basename çözümü için
+            getChainMinBid(); // nextMinBid yeni bid'le değişir
+            if (
+              address &&
+              args.refunded &&
+              args.refunded.toLowerCase() === address.toLowerCase()
+            ) {
+              toast.warning(
+                typeof args.refundAmount === "bigint"
+                  ? `You've been outbid — Ξ${fmtEth(formatEther(args.refundAmount))} returned to your wallet.`
+                  : "You've been outbid — your ETH has been returned.",
+                { duration: 8000 },
+              );
+            }
+          } else if (eventName === "SaleSettled") {
+            getCurrentBid();
+            getActiveBidder();
+            getDailyVault();
+            getUserNFTs();
+            getChainMinBid();
+          } else if (eventName === "Staked") {
+            getDailySigners();
+          } else if (eventName === "Claimed") {
+            getDailyVault();
+          } else if (eventName === "MinBidUpdated") {
+            getChainMinBid();
+          }
+        }
+      },
+      onError: (error) => {
+        console.error("Event watch error:", error);
+      },
+    });
+    return () => unwatch();
+  }, [
+    config,
+    address,
+    getActiveBidder,
+    getCurrentBid,
+    getDailyVault,
+    getDailySigners,
+    getUserNFTs,
+    getChainMinBid,
+    fmtEth,
+  ]);
 
   const formatTimeRemaining = useCallback((seconds: number): string => {
     const hours = Math.floor(seconds / 3600);

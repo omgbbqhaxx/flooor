@@ -61,6 +61,9 @@ const config = createConfig({
   chains: [base],
   connectors: [...connectors, farcasterMiniApp()],
   transports: { [base.id]: rpcTransports },
+  // Aynı anda fırlayan eth_call'ları tek Multicall3 çağrısında toplar —
+  // RPC compute unit tüketimini ve 429 burst'lerini ciddi azaltır
+  batch: { multicall: { wait: 16 } },
   dataSuffix: DATA_SUFFIX,
   ssr: true,
 });

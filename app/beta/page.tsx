@@ -3,13 +3,14 @@
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { toast } from "sonner";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useConfig, useAccount, useSwitchChain } from "wagmi";
 import {
   writeContract,
   readContract,
   simulateContract,
   getBalance,
+  watchContractEvent,
 } from "wagmi/actions";
 import { base } from "wagmi/chains";
 import {
@@ -19,6 +20,7 @@ import {
   encodePacked,
   namehash,
   toHex,
+  isAddress,
   type Address,
 } from "viem";
 import { Attribution } from "ox/erc8021";
@@ -90,7 +92,7 @@ import NFT_ABI from "@/app/abi/nft.json";
 
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
-const MINIMUM_BID_FOR_SELL = 0.015;
+const MINIMUM_BID_FOR_SELL = 0.011;
 
 // Basename çözümleme — L1 üzerinden CCIP-Read yerine, veri zaten Base'de yaşadığı için
 // Base'in resmi L2Resolver kontratından doğrudan okuyoruz (bkz. github.com/base/basenames)
@@ -172,10 +174,20 @@ export default function BetaPage() {
   const [userNFTs, setUserNFTs] = useState<bigint[]>([]);
   const [nftImages, setNftImages] = useState<{ [key: string]: string }>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  // Token görselleri zincirde değişmediği için oturum boyunca cache'lenir
+  const nftImageCache = useRef<{ [key: string]: string }>({});
+  // fetchAllData turları üst üste binmesin — önceki tur bitmeden yenisi başlamaz
+  const fetchInFlight = useRef(false);
   const [remainingTimeDisplay, setRemainingTimeDisplay] = useState<number>(0);
   const [pendingSellTokenId, setPendingSellTokenId] = useState<bigint | null>(
     null,
   );
+  const [pendingSendTokenId, setPendingSendTokenId] = useState<bigint | null>(
+    null,
+  );
+  const [sendAddressInput, setSendAddressInput] = useState("");
+  const [sendAddressError, setSendAddressError] = useState(false);
+  const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
   const [sharePrompt, setSharePrompt] = useState<{
     type: "sign" | "claim" | "bid" | "sell";
     text: string;
@@ -235,7 +247,6 @@ export default function BetaPage() {
       }
     }
   }, [connectedChain, switchChainHook]);
-
 
   const checkApprovalStatus = useCallback(async () => {
     if (!address) return;
@@ -339,8 +350,8 @@ export default function BetaPage() {
         setOwnedTokenId(null);
       }
     } catch (error) {
+      // Geçici RPC hatasında mevcut token ID'yi koru
       console.error("Error fetching owned token ID:", error);
-      setOwnedTokenId(null);
     }
   }, [config, address]);
 
@@ -468,9 +479,8 @@ export default function BetaPage() {
         setActiveBidderName("");
       }
     } catch (error) {
+      // Geçici RPC hatasında mevcut bidder bilgisini koru — sıfırlamak flicker yaratıyor
       console.error("Error getting active bidder:", error);
-      setActiveBidder("");
-      setActiveBidderName("");
     }
   }, [config]);
 
@@ -536,7 +546,7 @@ export default function BetaPage() {
 
   const getUserNFTs = useCallback(async () => {
     if (!address || !config) {
-      setUserNFTs([]);
+      setUserNFTs((prev) => (prev.length === 0 ? prev : []));
       return;
     }
     try {
@@ -556,10 +566,15 @@ export default function BetaPage() {
           break;
         }
       }
-      setUserNFTs(nfts);
+      // Liste değişmediyse referansı koru — downstream effect zincirini tetiklemez
+      setUserNFTs((prev) =>
+        prev.length === nfts.length && prev.every((v, i) => v === nfts[i])
+          ? prev
+          : nfts,
+      );
     } catch (error) {
+      // Geçici RPC hatasında mevcut listeyi koru; sıfırlamak grid'i boşaltıp flicker yaratıyor
       console.error("Error getting user NFTs:", error);
-      setUserNFTs([]);
     }
   }, [address, config]);
 
@@ -575,12 +590,18 @@ export default function BetaPage() {
 
   const getNFTImages = useCallback(async () => {
     if (!userNFTs.length || !config) {
-      setNftImages({});
+      setNftImages((prev) => (Object.keys(prev).length === 0 ? prev : {}));
       return;
     }
     const images: { [key: string]: string } = {};
     const highestTokenId = userNFTs.reduce((a, b) => (a > b ? a : b));
     const tokenIdStr = highestTokenId.toString();
+    // Görseller zincirde değişmez — daha önce çekildiyse tekrar RPC'ye gitme
+    const cached = nftImageCache.current[tokenIdStr];
+    if (cached) {
+      setNftImages((prev) => (prev[tokenIdStr] === cached ? prev : { [tokenIdStr]: cached }));
+      return;
+    }
     try {
       const tokenURI = (await retryWithBackoff(async () => {
         return (await readContract(config, {
@@ -591,9 +612,13 @@ export default function BetaPage() {
         })) as string;
       })) as string;
       const image = decodeTokenImage(tokenURI);
-      if (image) images[tokenIdStr] = image;
+      if (image) {
+        images[tokenIdStr] = image;
+        nftImageCache.current[tokenIdStr] = image;
+      }
     } catch (error) {
       console.error(`Error getting image for token ${highestTokenId}:`, error);
+      return;
     }
     setNftImages(images);
   }, [userNFTs, config]);
@@ -655,18 +680,24 @@ export default function BetaPage() {
   }, [address, phaseInfo, ownedTokenId, checkUserSignedStatus]);
 
   const fetchAllData = useCallback(async () => {
+    if (fetchInFlight.current) return;
+    fetchInFlight.current = true;
     setIsLoading(true);
-    await Promise.allSettled([
-      getPhaseInfo(),
-      getDailySigners(),
-      getDailyVault(),
-      getCurrentBid(),
-      getActiveBidder(),
-      checkUserSignedStatus(),
-      getUserNFTs(),
-      checkApprovalStatus(),
-    ]);
-    setIsLoading(false);
+    try {
+      await Promise.allSettled([
+        getPhaseInfo(),
+        getDailySigners(),
+        getDailyVault(),
+        getCurrentBid(),
+        getActiveBidder(),
+        checkUserSignedStatus(),
+        getUserNFTs(),
+        checkApprovalStatus(),
+      ]);
+    } finally {
+      fetchInFlight.current = false;
+      setIsLoading(false);
+    }
   }, [
     getPhaseInfo,
     getDailySigners,
@@ -696,6 +727,77 @@ export default function BetaPage() {
     return () => clearInterval(countdownInterval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Kontrat event'lerini canlı izle — bid/satış/sign 2 dk'lık polling'i
+  // beklemeden saniyeler içinde UI'a yansır. Mevcut RPC transport'u üzerinden
+  // filtre polling'i kullanır; 15 sn aralık CU tüketimini düşük tutar.
+  useEffect(() => {
+    const unwatch = watchContractEvent(config, {
+      address: CONTRACT_ADDR,
+      abi: MARKET_ABI,
+      pollingInterval: 15_000,
+      onLogs: (logs) => {
+        for (const log of logs) {
+          const { eventName, args } = log as unknown as {
+            eventName: string;
+            args: {
+              bidder?: string;
+              amount?: bigint;
+              refunded?: string;
+              refundAmount?: bigint;
+            };
+          };
+          if (eventName === "BidPlaced") {
+            // Tutar ve bidder event'in içinde — ekstra RPC'ye gerek yok
+            if (typeof args.amount === "bigint") {
+              setCurrentBid(parseFloat(formatEther(args.amount)).toFixed(8));
+            }
+            if (args.bidder) {
+              setActiveBidder(args.bidder);
+              setActiveBidderName(
+                `${args.bidder.slice(0, 6)}...${args.bidder.slice(-4)}`,
+              );
+            }
+            getActiveBidder(); // basename çözümü için
+            if (
+              address &&
+              args.refunded &&
+              args.refunded.toLowerCase() === address.toLowerCase()
+            ) {
+              toast.warning(
+                typeof args.refundAmount === "bigint"
+                  ? `You've been outbid — Ξ${fmtEth(formatEther(args.refundAmount))} returned to your wallet.`
+                  : "You've been outbid — your ETH has been returned.",
+                { duration: 8000 },
+              );
+            }
+          } else if (eventName === "SaleSettled") {
+            getCurrentBid();
+            getActiveBidder();
+            getDailyVault();
+            getUserNFTs();
+          } else if (eventName === "Staked") {
+            getDailySigners();
+          } else if (eventName === "Claimed") {
+            getDailyVault();
+          }
+        }
+      },
+      onError: (error) => {
+        console.error("Event watch error:", error);
+      },
+    });
+    return () => unwatch();
+  }, [
+    config,
+    address,
+    getActiveBidder,
+    getCurrentBid,
+    getDailyVault,
+    getDailySigners,
+    getUserNFTs,
+    fmtEth,
+  ]);
 
   const formatTimeRemaining = useCallback((seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
@@ -808,7 +910,6 @@ export default function BetaPage() {
         type: "bid",
         text: `Just placed a bid of Ξ${fmtEth(bidInput)} on a VRNoun at flooor.fun 🔨\n\nIf someone outbids me, my ETH comes right back — no risk, no lockup.\n\nRoyalties to the community.`,
       });
-      // Bid sonrası anında güncelle
       setTimeout(() => {
         getCurrentBid();
         getActiveBidder();
@@ -963,6 +1064,68 @@ export default function BetaPage() {
     setPendingSellTokenId(null);
     if (tokenId !== null) handleSellNFT(tokenId);
   }, [pendingSellTokenId, handleSellNFT]);
+
+  const handleSendNFT = useCallback(
+    async (tokenId: bigint, to: Address) => {
+      if (!address) {
+        toast.warning("Please connect your wallet first");
+        return;
+      }
+      const tokenIdStr = tokenId.toString();
+      setNftBusy((prev) => ({ ...prev, [tokenIdStr]: true }));
+      try {
+        await ensureBase();
+        await writeContract(config, {
+          address: COLLECTION_ADDR,
+          abi: NFT_ABI,
+          functionName: "transferFrom",
+          args: [address, to, tokenId],
+          dataSuffix: DATA_SUFFIX,
+        });
+        toast.success(`Noun #${tokenIdStr} sent successfully!`);
+        setTimeout(() => {
+          getUserNFTs();
+        }, 2000);
+      } catch (error) {
+        if (isUserRejectedError(error)) {
+          toast.info("Transaction cancelled.");
+          return;
+        }
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        toast.error(`Send failed: ${errorMessage}`, {
+          duration: 5000,
+          action: { label: "Retry", onClick: () => handleSendNFT(tokenId, to) },
+        });
+      } finally {
+        setNftBusy((prev) => ({ ...prev, [tokenIdStr]: false }));
+      }
+    },
+    [config, ensureBase, address, getUserNFTs],
+  );
+
+  const requestSendNFT = useCallback(
+    (tokenId: bigint) => {
+      if (!address) {
+        toast.warning("Please connect your wallet first");
+        return;
+      }
+      setSendAddressInput("");
+      setSendAddressError(false);
+      setPendingSendTokenId(tokenId);
+    },
+    [address],
+  );
+
+  const confirmSendNFT = useCallback(() => {
+    const tokenId = pendingSendTokenId;
+    const to = sendAddressInput.trim();
+    if (!isAddress(to)) {
+      setSendAddressError(true);
+      return;
+    }
+    setPendingSendTokenId(null);
+    if (tokenId !== null) handleSendNFT(tokenId, to as Address);
+  }, [pendingSendTokenId, sendAddressInput, handleSendNFT]);
 
   const handleSign = useCallback(async () => {
     if (!address) {
@@ -1155,15 +1318,6 @@ export default function BetaPage() {
             >
               DAO
             </a>
-            <a
-              href="https://opensea.io/collection/vrnouns"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={smallCaps}
-              className="hover:text-black transition-colors"
-            >
-              Collection
-            </a>
           </nav>
           <ConnectButton.Custom>
             {({
@@ -1236,6 +1390,23 @@ export default function BetaPage() {
         </div>
       </header>
 
+      {/* New collection banner */}
+      <a
+        href="/warplets"
+        className="block transition-opacity hover:opacity-85"
+        style={{ backgroundColor: PLINTH, borderBottom: `1px solid ${HAIRLINE}` }}
+      >
+        <div className="max-w-6xl mx-auto px-5 sm:px-8 py-3 flex items-center justify-center gap-2 text-center">
+          <span style={{ ...smallCaps, color: GREEN }}>New</span>
+          <span className="text-sm" style={{ ...SANS, color: INK }}>
+            Warplets is live on Base — sign, bid, and sell.
+          </span>
+          <span className="text-sm" style={{ ...SANS, color: MUTED }}>
+            →
+          </span>
+        </div>
+      </a>
+
       {/* Network Gate — full-screen block until on Base */}
       {isWrongNetwork && (
         <div
@@ -1275,7 +1446,7 @@ export default function BetaPage() {
 
       <main className="max-w-6xl mx-auto px-5 sm:px-8">
         {/* Lot hero */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 pt-2 lg:pt-3 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 pt-12 lg:pt-16 items-start">
           {/* Artwork */}
           <div className="lg:sticky lg:top-28">
             <div
@@ -1317,7 +1488,7 @@ export default function BetaPage() {
               {isLoading ? " · syncing" : ""}
             </p>
             <h1
-              className="mt-3"
+              className="mt-4"
               style={{
                 ...SERIF,
                 fontWeight: 500,
@@ -1329,7 +1500,7 @@ export default function BetaPage() {
               Royalties to the community.
             </h1>
             <p
-              className="mt-2 text-base leading-relaxed"
+              className="mt-3 text-base leading-relaxed"
               style={{ ...SANS, color: MUTED, maxWidth: "48ch" }}
             >
               Bid on the flooor, or sell your VRNoun instantly — no listings,
@@ -1337,7 +1508,7 @@ export default function BetaPage() {
             </p>
 
             {/* Current bid */}
-            <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
+            <div className="mt-10 pt-8" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
                 <div>
                   <p style={smallCaps}>Current Bid</p>
@@ -1393,7 +1564,7 @@ export default function BetaPage() {
               {/* Outbid notice */}
               {hasBid && (
                 <div
-                  className="mt-5 px-4 py-2.5 flex items-start gap-3"
+                  className="mt-8 px-4 py-3 flex items-start gap-3"
                   style={{ backgroundColor: PLINTH, border: `1px solid ${HAIRLINE}` }}
                 >
                   <span style={{ color: MUTED, fontSize: "13px", lineHeight: 1.5, ...SANS }}>
@@ -1405,7 +1576,7 @@ export default function BetaPage() {
 
               {/* Bid — tam çerçeveli kutu */}
               <div
-                className={hasBid ? "mt-3 flex items-stretch" : "mt-4 flex items-stretch"}
+                className={hasBid ? "mt-3 flex items-stretch" : "mt-8 flex items-stretch"}
                 style={{
                   border: `1px solid ${bidError ? "#9B1C1C" : INK}`,
                 }}
@@ -1420,7 +1591,7 @@ export default function BetaPage() {
                         ? `Ξ ${minOutbidAmount.toFixed(6)} or more`
                         : `Ξ ${MINIMUM_BID_FOR_SELL} or more`
                   }
-                  className="flex-1 px-4 py-3 focus:outline-none min-w-0 text-lg tabular-nums"
+                  className="flex-1 px-4 py-3.5 focus:outline-none min-w-0 text-lg tabular-nums"
                   style={{
                     ...SANS,
                     color: INK,
@@ -1442,7 +1613,7 @@ export default function BetaPage() {
                   Place Bid
                 </button>
               </div>
-              <p className="mt-2 text-xs" style={{ color: FAINT }}>
+              <p className="mt-3 text-xs" style={{ color: FAINT }}>
                 {hasBid
                   ? `Minimum outbid Ξ ${minOutbidAmount.toFixed(6)} — if someone outbids you, your ETH is returned automatically.`
                   : `Minimum bid Ξ ${MINIMUM_BID_FOR_SELL} — if someone outbids you, your ETH is returned automatically. Every sale feeds the vault.`}
@@ -1450,7 +1621,7 @@ export default function BetaPage() {
             </div>
 
             {/* Details — signers, vault, yield, epoch */}
-            <div className="mt-3">
+            <div className="mt-10">
               {[
                 {
                   label: "Signers",
@@ -1479,7 +1650,7 @@ export default function BetaPage() {
               ].map((row) => (
                 <div
                   key={row.label}
-                  className="flex items-baseline justify-between py-1.5"
+                  className="flex items-baseline justify-between py-3.5"
                   style={{ borderTop: `1px solid ${HAIRLINE}` }}
                 >
                   <span style={smallCaps}>{row.label}</span>
@@ -1501,7 +1672,7 @@ export default function BetaPage() {
                   </span>
                 </div>
               ))}
-              <div className="pt-1.5 text-right">
+              <div className="pt-3.5 text-right">
                 <button
                   onClick={fetchAllData}
                   disabled={isLoading}
@@ -1514,10 +1685,10 @@ export default function BetaPage() {
             </div>
 
             {/* Daily sign */}
-            <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
+            <div className="mt-10 pt-8" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
               <p style={smallCaps}>Daily Sign</p>
               <p
-                className="mt-2 text-base leading-relaxed"
+                className="mt-3 text-base leading-relaxed"
                 style={{ color: MUTED, maxWidth: "48ch" }}
               >
                 Hold a Flooor? Sign in today to claim your share of the daily
@@ -1526,7 +1697,7 @@ export default function BetaPage() {
               <button
                 onClick={handleSign}
                 disabled={isSignButtonDisabled()}
-                className="mt-3 w-full sm:w-auto px-12 py-2.5 transition-opacity enabled:hover:opacity-85"
+                className="mt-5 w-full sm:w-auto px-12 py-4 transition-opacity enabled:hover:opacity-85"
                 style={{
                   ...smallCaps,
                   color: isSignButtonDisabled() ? FAINT : "#fff",
@@ -1592,63 +1763,141 @@ export default function BetaPage() {
               {userNFTs.map((tokenId) => {
                 const tokenIdStr = tokenId.toString();
                 const approved = nftApprovalStatus[tokenIdStr];
+                const busy = nftBusy[tokenIdStr] === true;
                 return (
-                  <button
-                    key={tokenIdStr}
-                    onClick={() => requestSellNFT(tokenId)}
-                    title={`Sell Noun #${tokenIdStr}`}
-                    className="group text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-black"
-                  >
-                    <div
-                      className="relative aspect-square flex items-center justify-center p-6 transition-colors"
-                      style={{ backgroundColor: PLINTH }}
+                  <div key={tokenIdStr} className="flex flex-col">
+                    <button
+                      onClick={() => requestSellNFT(tokenId)}
+                      title={`Sell Noun #${tokenIdStr} to highest bid`}
+                      className="group text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-black"
                     >
-                      {nftImages[tokenIdStr] ? (
-                        <Image
-                          src={nftImages[tokenIdStr]}
-                          alt={`Noun ${tokenIdStr}`}
-                          width={220}
-                          height={220}
-                          className="w-full h-auto transition-transform duration-300 group-hover:scale-[1.03]"
-                          style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.08)" }}
-                        />
-                      ) : (
-                        <span
-                          style={{ ...SERIF, fontStyle: "italic", color: MUTED }}
-                        >
-                          No. {tokenIdStr}
-                        </span>
-                      )}
-                      {nftLoadingStatus[tokenIdStr] && (
-                        <div
-                          className="absolute inset-0 flex items-center justify-center"
-                          style={{ backgroundColor: "rgba(255,255,255,0.85)" }}
-                        >
-                          <span style={smallCaps}>Approving…</span>
-                        </div>
-                      )}
                       <div
-                        className="absolute inset-x-0 bottom-0 py-2.5 text-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        style={{ backgroundColor: INK }}
+                        className="relative aspect-square flex items-center justify-center p-6 transition-colors"
+                        style={{ backgroundColor: PLINTH }}
                       >
-                        <span style={{ ...smallCaps, color: "#fff" }}>
-                          Sell This Work
-                        </span>
+                        {nftImages[tokenIdStr] ? (
+                          <Image
+                            src={nftImages[tokenIdStr]}
+                            alt={`Noun ${tokenIdStr}`}
+                            width={220}
+                            height={220}
+                            className="w-full h-auto transition-transform duration-300 group-hover:scale-[1.03]"
+                            style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.08)" }}
+                          />
+                        ) : (
+                          <span
+                            style={{ ...SERIF, fontStyle: "italic", color: MUTED }}
+                          >
+                            No. {tokenIdStr}
+                          </span>
+                        )}
+                        {nftLoadingStatus[tokenIdStr] && (
+                          <div
+                            className="absolute inset-0 flex items-center justify-center"
+                            style={{ backgroundColor: "rgba(255,255,255,0.85)" }}
+                          >
+                            <span style={smallCaps}>Approving…</span>
+                          </div>
+                        )}
+                        <div
+                          className="absolute inset-x-0 bottom-0 py-2.5 text-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          style={{ backgroundColor: INK }}
+                        >
+                          <span style={{ ...smallCaps, color: "#fff" }}>
+                            Sell to Highest Bid
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                    <p
-                      className="mt-3"
-                      style={{ ...SERIF, fontWeight: 500, fontSize: "17px" }}
+                      <p
+                        className="mt-3"
+                        style={{ ...SERIF, fontWeight: 500, fontSize: "17px" }}
+                      >
+                        VRNoun No. {tokenIdStr}
+                      </p>
+                      <p
+                        className="mt-0.5 text-xs"
+                        style={{ color: approved ? GREEN : AMBER }}
+                      >
+                        {approved ? "Approved for sale" : "Approval required"}
+                      </p>
+                    </button>
+                    <button
+                      onClick={() => requestSellNFT(tokenId)}
+                      disabled={busy || !hasBid}
+                      title={hasBid ? `Sell Noun #${tokenIdStr} to highest bid` : "No active bid yet"}
+                      className="mt-3 w-full transition-opacity enabled:hover:opacity-85"
+                      style={{
+                        ...smallCaps,
+                        padding: "10px",
+                        backgroundColor: "transparent",
+                        color: !hasBid ? MUTED : INK,
+                        border: `1px solid ${HAIRLINE}`,
+                        cursor: !hasBid ? "not-allowed" : "pointer",
+                      }}
                     >
-                      VRNoun No. {tokenIdStr}
-                    </p>
-                    <p
-                      className="mt-0.5 text-xs"
-                      style={{ color: approved ? GREEN : AMBER }}
+                      Sell to Highest Bid
+                    </button>
+                    <button
+                      onClick={() => requestSendNFT(tokenId)}
+                      disabled={busy}
+                      title={`Send Noun #${tokenIdStr} to another address`}
+                      className="mt-2 w-full transition-opacity enabled:hover:opacity-85"
+                      style={{
+                        ...smallCaps,
+                        padding: "10px",
+                        backgroundColor: "transparent",
+                        color: busy ? MUTED : INK,
+                        border: `1px solid ${HAIRLINE}`,
+                        cursor: busy ? "not-allowed" : "pointer",
+                      }}
                     >
-                      {approved ? "Approved for sale" : "Approval required"}
-                    </p>
-                  </button>
+                      Send
+                    </button>
+                    {userNFTs.length > 1 ? (
+                      <button
+                        onClick={handleSign}
+                        disabled={isSignButtonDisabled()}
+                        title={getSignButtonText()}
+                        className="mt-2 self-end p-2 transition-opacity enabled:hover:opacity-85"
+                        style={{
+                          backgroundColor: "transparent",
+                          border: `1px solid ${HAIRLINE}`,
+                          color: isSignButtonDisabled() ? MUTED : INK,
+                          cursor: isSignButtonDisabled() ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <circle cx="7.5" cy="15.5" r="5.5" />
+                          <path d="M21 2l-9.6 9.6M15.5 7.5l3 3L22 7l-3-3" />
+                        </svg>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleSign}
+                        disabled={isSignButtonDisabled()}
+                        className="mt-2 w-full transition-opacity enabled:hover:opacity-85"
+                        style={{
+                          ...smallCaps,
+                          padding: "10px",
+                          backgroundColor: "transparent",
+                          color: isSignButtonDisabled() ? MUTED : INK,
+                          border: `1px solid ${HAIRLINE}`,
+                          cursor: isSignButtonDisabled() ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {getSignButtonText()}
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -1665,6 +1914,96 @@ export default function BetaPage() {
               </p>
             </div>
           )}
+        </div>
+
+        {/* Other Collections */}
+        <div className="mt-20 pt-14" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
+          <p style={smallCaps}>Other Collections</p>
+          <h2
+            className="mt-3"
+            style={{
+              ...SERIF,
+              fontWeight: 500,
+              fontSize: "clamp(26px, 3vw, 36px)",
+            }}
+          >
+            Coming to Flooor
+          </h2>
+          <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-8">
+            {[
+              {
+                name: "OK Computers",
+                sub: "Base",
+                img: "https://i2c.seadn.io/base/05d807397e5b420d8b9cc7cb8cb07a0d/549fb12b972ea6f3790a2965d31686/55549fb12b972ea6f3790a2965d31686.gif",
+              },
+              {
+                name: "Book Games",
+                sub: "Base",
+                img: "https://i2c.seadn.io/admin-uploads/61366691b607f4afc05d5202467d9e/7761366691b607f4afc05d5202467d9e.png",
+              },
+              {
+                name: "The Warplets",
+                sub: "Base · Farcaster",
+                img: "https://i2c.seadn.io/base/0x699727f9e01a822efdcf7333073f0461e5914b4e/c4dd77598815bd89610930ca12be02/a2c4dd77598815bd89610930ca12be02.jpeg?w=1000",
+                href: "/warplets",
+              },
+            ].map((col) => {
+              const isLive = Boolean(col.href);
+              const card = (
+                <>
+                  <div
+                    className="relative aspect-square overflow-hidden"
+                    style={{ backgroundColor: PLINTH }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={col.img}
+                      alt={col.name}
+                      className="w-full h-full object-cover"
+                      style={
+                        isLive
+                          ? undefined
+                          : { filter: "blur(10px)", transform: "scale(1.12)" }
+                      }
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span
+                        style={{
+                          ...smallCaps,
+                          color: "#fff",
+                          backgroundColor: isLive ? GREEN : "rgba(26,26,26,0.65)",
+                          padding: "6px 16px",
+                          letterSpacing: "0.15em",
+                        }}
+                      >
+                        {isLive ? "Live →" : "Soon"}
+                      </span>
+                    </div>
+                  </div>
+                  <p
+                    className="mt-3"
+                    style={{ ...SERIF, fontWeight: 500, fontSize: "17px" }}
+                  >
+                    {col.name}
+                  </p>
+                  <p className="mt-0.5 text-xs" style={{ color: MUTED }}>
+                    {col.sub}
+                  </p>
+                </>
+              );
+              return col.href ? (
+                <a
+                  key={col.name}
+                  href={col.href}
+                  className="block transition-opacity hover:opacity-85"
+                >
+                  {card}
+                </a>
+              ) : (
+                <div key={col.name}>{card}</div>
+              );
+            })}
+          </div>
         </div>
 
         {/* How it works */}
@@ -1817,6 +2156,85 @@ export default function BetaPage() {
                 }}
               >
                 Confirm Sale
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Send confirmation modal */}
+      {pendingSendTokenId !== null && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center px-6"
+          style={{ backgroundColor: "rgba(26,26,26,0.4)" }}
+          onClick={() => setPendingSendTokenId(null)}
+        >
+          <div
+            className="w-full max-w-md p-8 sm:p-10"
+            style={{
+              backgroundColor: "#fff",
+              border: `1px solid ${HAIRLINE}`,
+              boxShadow: "0 24px 64px -16px rgba(0,0,0,0.25)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p style={smallCaps}>Send Noun</p>
+            <h3
+              className="mt-3"
+              style={{ ...SERIF, fontWeight: 500, fontSize: "26px" }}
+            >
+              VRNoun No. {pendingSendTokenId.toString()}
+            </h3>
+            <p
+              className="mt-4 text-sm leading-relaxed"
+              style={{ color: MUTED }}
+            >
+              Enter the recipient&apos;s wallet address. This transfers the
+              token directly — there is no way to undo it.
+            </p>
+            <input
+              type="text"
+              placeholder="0x..."
+              value={sendAddressInput}
+              onChange={(e) => {
+                setSendAddressInput(e.target.value);
+                setSendAddressError(false);
+              }}
+              className="mt-4 w-full px-4 py-3 text-sm focus:outline-none"
+              style={{
+                border: `1px solid ${sendAddressError ? "#9B1C1C" : HAIRLINE}`,
+                backgroundColor: "#fff",
+                color: INK,
+              }}
+            />
+            {sendAddressError && (
+              <p className="mt-2 text-xs" style={{ color: "#9B1C1C" }}>
+                Enter a valid wallet address.
+              </p>
+            )}
+            <div className="mt-8 flex gap-4">
+              <button
+                onClick={() => setPendingSendTokenId(null)}
+                className="flex-1 py-3.5 transition-colors hover:bg-black hover:text-white"
+                style={{
+                  ...smallCaps,
+                  color: INK,
+                  border: `1px solid ${INK}`,
+                  backgroundColor: "#fff",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmSendNFT}
+                className="flex-1 py-3.5 transition-opacity hover:opacity-85"
+                style={{
+                  ...smallCaps,
+                  color: "#fff",
+                  backgroundColor: INK,
+                }}
+              >
+                Confirm Send
               </button>
             </div>
           </div>
@@ -2042,7 +2460,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.27 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.29 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>

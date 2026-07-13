@@ -3,13 +3,14 @@
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { toast } from "sonner";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useConfig, useAccount, useSwitchChain } from "wagmi";
 import {
   writeContract,
   readContract,
   simulateContract,
   getBalance,
+  watchContractEvent,
 } from "wagmi/actions";
 import { base } from "wagmi/chains";
 import {
@@ -91,7 +92,7 @@ import NFT_ABI from "@/app/abi/nft.json";
 
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
-const MINIMUM_BID_FOR_SELL = 0.015;
+const MINIMUM_BID_FOR_SELL = 0.011;
 
 // Basename çözümleme — L1 üzerinden CCIP-Read yerine, veri zaten Base'de yaşadığı için
 // Base'in resmi L2Resolver kontratından doğrudan okuyoruz (bkz. github.com/base/basenames)
@@ -173,6 +174,10 @@ export default function BetaPage() {
   const [userNFTs, setUserNFTs] = useState<bigint[]>([]);
   const [nftImages, setNftImages] = useState<{ [key: string]: string }>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  // Token görselleri zincirde değişmediği için oturum boyunca cache'lenir
+  const nftImageCache = useRef<{ [key: string]: string }>({});
+  // fetchAllData turları üst üste binmesin — önceki tur bitmeden yenisi başlamaz
+  const fetchInFlight = useRef(false);
   const [remainingTimeDisplay, setRemainingTimeDisplay] = useState<number>(0);
   const [pendingSellTokenId, setPendingSellTokenId] = useState<bigint | null>(
     null,
@@ -345,8 +350,8 @@ export default function BetaPage() {
         setOwnedTokenId(null);
       }
     } catch (error) {
+      // Geçici RPC hatasında mevcut token ID'yi koru
       console.error("Error fetching owned token ID:", error);
-      setOwnedTokenId(null);
     }
   }, [config, address]);
 
@@ -474,9 +479,8 @@ export default function BetaPage() {
         setActiveBidderName("");
       }
     } catch (error) {
+      // Geçici RPC hatasında mevcut bidder bilgisini koru — sıfırlamak flicker yaratıyor
       console.error("Error getting active bidder:", error);
-      setActiveBidder("");
-      setActiveBidderName("");
     }
   }, [config]);
 
@@ -542,7 +546,7 @@ export default function BetaPage() {
 
   const getUserNFTs = useCallback(async () => {
     if (!address || !config) {
-      setUserNFTs([]);
+      setUserNFTs((prev) => (prev.length === 0 ? prev : []));
       return;
     }
     try {
@@ -562,10 +566,15 @@ export default function BetaPage() {
           break;
         }
       }
-      setUserNFTs(nfts);
+      // Liste değişmediyse referansı koru — downstream effect zincirini tetiklemez
+      setUserNFTs((prev) =>
+        prev.length === nfts.length && prev.every((v, i) => v === nfts[i])
+          ? prev
+          : nfts,
+      );
     } catch (error) {
+      // Geçici RPC hatasında mevcut listeyi koru; sıfırlamak grid'i boşaltıp flicker yaratıyor
       console.error("Error getting user NFTs:", error);
-      setUserNFTs([]);
     }
   }, [address, config]);
 
@@ -581,12 +590,18 @@ export default function BetaPage() {
 
   const getNFTImages = useCallback(async () => {
     if (!userNFTs.length || !config) {
-      setNftImages({});
+      setNftImages((prev) => (Object.keys(prev).length === 0 ? prev : {}));
       return;
     }
     const images: { [key: string]: string } = {};
     const highestTokenId = userNFTs.reduce((a, b) => (a > b ? a : b));
     const tokenIdStr = highestTokenId.toString();
+    // Görseller zincirde değişmez — daha önce çekildiyse tekrar RPC'ye gitme
+    const cached = nftImageCache.current[tokenIdStr];
+    if (cached) {
+      setNftImages((prev) => (prev[tokenIdStr] === cached ? prev : { [tokenIdStr]: cached }));
+      return;
+    }
     try {
       const tokenURI = (await retryWithBackoff(async () => {
         return (await readContract(config, {
@@ -597,9 +612,13 @@ export default function BetaPage() {
         })) as string;
       })) as string;
       const image = decodeTokenImage(tokenURI);
-      if (image) images[tokenIdStr] = image;
+      if (image) {
+        images[tokenIdStr] = image;
+        nftImageCache.current[tokenIdStr] = image;
+      }
     } catch (error) {
       console.error(`Error getting image for token ${highestTokenId}:`, error);
+      return;
     }
     setNftImages(images);
   }, [userNFTs, config]);
@@ -661,18 +680,24 @@ export default function BetaPage() {
   }, [address, phaseInfo, ownedTokenId, checkUserSignedStatus]);
 
   const fetchAllData = useCallback(async () => {
+    if (fetchInFlight.current) return;
+    fetchInFlight.current = true;
     setIsLoading(true);
-    await Promise.allSettled([
-      getPhaseInfo(),
-      getDailySigners(),
-      getDailyVault(),
-      getCurrentBid(),
-      getActiveBidder(),
-      checkUserSignedStatus(),
-      getUserNFTs(),
-      checkApprovalStatus(),
-    ]);
-    setIsLoading(false);
+    try {
+      await Promise.allSettled([
+        getPhaseInfo(),
+        getDailySigners(),
+        getDailyVault(),
+        getCurrentBid(),
+        getActiveBidder(),
+        checkUserSignedStatus(),
+        getUserNFTs(),
+        checkApprovalStatus(),
+      ]);
+    } finally {
+      fetchInFlight.current = false;
+      setIsLoading(false);
+    }
   }, [
     getPhaseInfo,
     getDailySigners,
@@ -702,6 +727,77 @@ export default function BetaPage() {
     return () => clearInterval(countdownInterval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Kontrat event'lerini canlı izle — bid/satış/sign 2 dk'lık polling'i
+  // beklemeden saniyeler içinde UI'a yansır. Mevcut RPC transport'u üzerinden
+  // filtre polling'i kullanır; 15 sn aralık CU tüketimini düşük tutar.
+  useEffect(() => {
+    const unwatch = watchContractEvent(config, {
+      address: CONTRACT_ADDR,
+      abi: MARKET_ABI,
+      pollingInterval: 15_000,
+      onLogs: (logs) => {
+        for (const log of logs) {
+          const { eventName, args } = log as unknown as {
+            eventName: string;
+            args: {
+              bidder?: string;
+              amount?: bigint;
+              refunded?: string;
+              refundAmount?: bigint;
+            };
+          };
+          if (eventName === "BidPlaced") {
+            // Tutar ve bidder event'in içinde — ekstra RPC'ye gerek yok
+            if (typeof args.amount === "bigint") {
+              setCurrentBid(parseFloat(formatEther(args.amount)).toFixed(8));
+            }
+            if (args.bidder) {
+              setActiveBidder(args.bidder);
+              setActiveBidderName(
+                `${args.bidder.slice(0, 6)}...${args.bidder.slice(-4)}`,
+              );
+            }
+            getActiveBidder(); // basename çözümü için
+            if (
+              address &&
+              args.refunded &&
+              args.refunded.toLowerCase() === address.toLowerCase()
+            ) {
+              toast.warning(
+                typeof args.refundAmount === "bigint"
+                  ? `You've been outbid — Ξ${fmtEth(formatEther(args.refundAmount))} returned to your wallet.`
+                  : "You've been outbid — your ETH has been returned.",
+                { duration: 8000 },
+              );
+            }
+          } else if (eventName === "SaleSettled") {
+            getCurrentBid();
+            getActiveBidder();
+            getDailyVault();
+            getUserNFTs();
+          } else if (eventName === "Staked") {
+            getDailySigners();
+          } else if (eventName === "Claimed") {
+            getDailyVault();
+          }
+        }
+      },
+      onError: (error) => {
+        console.error("Event watch error:", error);
+      },
+    });
+    return () => unwatch();
+  }, [
+    config,
+    address,
+    getActiveBidder,
+    getCurrentBid,
+    getDailyVault,
+    getDailySigners,
+    getUserNFTs,
+    fmtEth,
+  ]);
 
   const formatTimeRemaining = useCallback((seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
@@ -2364,7 +2460,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.27 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.29 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>
