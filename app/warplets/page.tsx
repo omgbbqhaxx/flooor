@@ -6,7 +6,7 @@ import Link from "next/link";
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useConfig, useAccount, useSwitchChain } from "wagmi";
-import { writeContract, readContract, getBalance, watchContractEvent } from "wagmi/actions";
+import { writeContract, readContract, getBalance, getPublicClient } from "wagmi/actions";
 import { base } from "wagmi/chains";
 import {
   parseEther,
@@ -82,6 +82,42 @@ const isUserRejectedError = (error: unknown): boolean => {
     message.includes("rejected the request") ||
     message.includes("action_rejected")
   );
+};
+
+// Sign/claim/bid anlarında bir kez çalan kısa jingle. Tarayıcı, kullanıcı
+// sayfayla hiç etkileşmediyse çalmayı engelleyebilir — sessizce yutulur.
+let chimeAudio: HTMLAudioElement | null = null;
+const playChime = () => {
+  if (typeof window === "undefined") return;
+  try {
+    if (!chimeAudio) chimeAudio = new Audio("/chime.mp3");
+    chimeAudio.currentTime = 0;
+    void chimeAudio.play().catch(() => {});
+  } catch {
+    // ses çalınamadı — kritik değil
+  }
+};
+
+// Tarayıcı, kullanıcı etkileşimi olmadan ses çalmayı engeller. İlk tıklamada
+// sesi sessizce başlatıp durdurarak izni açarız — sonrasında arka planda
+// gelen bid event'lerinde de ses duyulur.
+const unlockChime = () => {
+  try {
+    if (!chimeAudio) chimeAudio = new Audio("/chime.mp3");
+    chimeAudio.muted = true;
+    void chimeAudio
+      .play()
+      .then(() => {
+        chimeAudio!.pause();
+        chimeAudio!.currentTime = 0;
+        chimeAudio!.muted = false;
+      })
+      .catch(() => {
+        if (chimeAudio) chimeAudio.muted = false;
+      });
+  } catch {
+    // izin açılamadı — playChime yine dener
+  }
 };
 
 const CONTRACT_ADDR = "0x0c2d41b6896a7dde2641a0fe04165df180c43242" as const;
@@ -630,11 +666,39 @@ export default function WarpletsPage() {
   // filtre polling'i kullanır; 15 sn aralık CU tüketimini düşük tutar.
   useEffect(() => {
     if (!IS_DEPLOYED) return;
-    const unwatch = watchContractEvent(config, {
-      address: CONTRACT_ADDR,
-      abi: WARPLETS_ABI,
-      pollingInterval: 15_000,
-      onLogs: (logs) => {
+    let cancelled = false;
+    let lastBlock: bigint | null = null;
+    let polling = false;
+    const pollEvents = async () => {
+      if (polling) return;
+      polling = true;
+      try {
+        const client = getPublicClient(config);
+        if (!client) return;
+        const latest = await client.getBlockNumber();
+        if (lastBlock === null) {
+          // İlk tur: sadece başlangıç noktasını al, geçmişi tarama
+          lastBlock = latest;
+          return;
+        }
+        if (latest <= lastBlock) return;
+        const logs = await client.getContractEvents({
+          address: CONTRACT_ADDR,
+          abi: WARPLETS_ABI as never,
+          fromBlock: lastBlock + BigInt(1),
+          toBlock: latest,
+        });
+        lastBlock = latest;
+        if (cancelled) return;
+        // Batch'i önce bütün olarak değerlendir, sonra TEK tutarlı güncelleme
+        // yap. Aynı aralıkta hem satış hem yeni bid varsa, event arg'larıyla
+        // anlık patch + asenkron zincir okuması yarışıp fiyatı karıştırabilir.
+        let sawSale = false;
+        let sawStake = false;
+        let sawClaim = false;
+        let sawMinBidUpdate = false;
+        let shouldChime = false;
+        let lastBid: { bidder?: string; amount?: bigint } | null = null;
         for (const log of logs) {
           const { eventName, args } = log as unknown as {
             eventName: string;
@@ -646,18 +710,15 @@ export default function WarpletsPage() {
             };
           };
           if (eventName === "BidPlaced") {
-            // Tutar ve bidder event'in içinde — ekstra RPC'ye gerek yok
-            if (typeof args.amount === "bigint") {
-              setCurrentBid(parseFloat(formatEther(args.amount)).toFixed(8));
+            lastBid = { bidder: args.bidder, amount: args.amount };
+            // Kendi bid'imiz handleBid'de anında çalıyor — çift çalmasın
+            if (
+              !address ||
+              !args.bidder ||
+              args.bidder.toLowerCase() !== address.toLowerCase()
+            ) {
+              shouldChime = true;
             }
-            if (args.bidder) {
-              setActiveBidder(args.bidder);
-              setActiveBidderName(
-                `${args.bidder.slice(0, 6)}...${args.bidder.slice(-4)}`,
-              );
-            }
-            getActiveBidder(); // basename çözümü için
-            getChainMinBid(); // nextMinBid yeni bid'le değişir
             if (
               address &&
               args.refunded &&
@@ -671,25 +732,54 @@ export default function WarpletsPage() {
               );
             }
           } else if (eventName === "SaleSettled") {
-            getCurrentBid();
-            getActiveBidder();
-            getDailyVault();
-            getUserNFTs();
-            getChainMinBid();
+            sawSale = true;
           } else if (eventName === "Staked") {
-            getDailySigners();
+            sawStake = true;
           } else if (eventName === "Claimed") {
-            getDailyVault();
+            sawClaim = true;
           } else if (eventName === "MinBidUpdated") {
-            getChainMinBid();
+            sawMinBidUpdate = true;
           }
         }
-      },
-      onError: (error) => {
-        console.error("Event watch error:", error);
-      },
-    });
-    return () => unwatch();
+        if (sawSale) {
+          // Satış bid'i sıfırlar — event arg'larıyla patch'lemek yerine
+          // zincirin son halini tek otorite olarak oku (yeni bid geldiyse
+          // onu da bu okuma getirir)
+          getCurrentBid();
+          getActiveBidder();
+          getDailyVault();
+          getUserNFTs();
+          getChainMinBid();
+        } else if (lastBid) {
+          // Yalnızca bid varsa son bid'in arg'ları anında yansıtılabilir
+          if (typeof lastBid.amount === "bigint") {
+            setCurrentBid(parseFloat(formatEther(lastBid.amount)).toFixed(8));
+          }
+          if (lastBid.bidder) {
+            setActiveBidder(lastBid.bidder);
+            setActiveBidderName(
+              `${lastBid.bidder.slice(0, 6)}...${lastBid.bidder.slice(-4)}`,
+            );
+          }
+          getActiveBidder(); // basename çözümü için
+          getChainMinBid(); // nextMinBid yeni bid'le değişir
+        }
+        if (sawStake) getDailySigners();
+        if (sawClaim) getDailyVault();
+        if (sawMinBidUpdate) getChainMinBid();
+        if (shouldChime) playChime();
+      } catch (error) {
+        console.error("Event poll error:", error);
+      } finally {
+        polling = false;
+      }
+    };
+    pollEvents();
+    const intervalId = setInterval(pollEvents, 15_000);
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
   }, [
     config,
     address,
@@ -701,6 +791,13 @@ export default function WarpletsPage() {
     getChainMinBid,
     fmtEth,
   ]);
+
+  // İlk kullanıcı etkileşiminde ses iznini aç — arka planda gelen bid
+  // event'lerinin sesi tarayıcı autoplay engeline takılmasın
+  useEffect(() => {
+    window.addEventListener("pointerdown", unlockChime, { once: true });
+    return () => window.removeEventListener("pointerdown", unlockChime);
+  }, []);
 
   const formatTimeRemaining = useCallback((seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
@@ -764,6 +861,7 @@ export default function WarpletsPage() {
         dataSuffix: DATA_SUFFIX,
       });
       toast.success("Bid placed successfully!");
+      playChime();
       setSharePrompt({
         type: "bid",
         text: `Just placed a bid of Ξ${fmtEth(bidInput)} on a Warplet at flooor.fun 🔨\n\nIf someone outbids me, my ETH comes right back — no risk, no lockup.\n\nRoyalties to the community.`,
@@ -807,6 +905,7 @@ export default function WarpletsPage() {
           dataSuffix: DATA_SUFFIX,
         });
         toast.success(isSignPhase ? `Token #${idStr} signed!` : `Token #${idStr} claimed!`);
+        playChime();
         if (isSignPhase) {
           setSharePrompt({
             type: "sign",
@@ -1171,7 +1270,7 @@ export default function WarpletsPage() {
               <img
                 src={WARPLETS_IMG}
                 alt="Warplets"
-                className="w-full h-auto max-w-[440px]"
+                className="w-full h-auto max-w-[440px] fade-in-soft"
                 style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.08)" }}
               />
             </div>
@@ -1194,6 +1293,7 @@ export default function WarpletsPage() {
           {/* Lot details */}
           <div>
             <p style={{ ...smallCaps, color: GOLD }}>
+              {IS_DEPLOYED && <span className="live-dot mr-2" aria-hidden />}
               {!IS_DEPLOYED
                 ? "Coming Soon"
                 : `${isSignPhase ? "Live on Base — Sign Phase" : "Live on Base — Claim Phase"} · Epoch ${phaseInfo ? phaseInfo.eid.toString() : "—"}`}

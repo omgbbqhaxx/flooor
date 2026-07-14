@@ -10,7 +10,7 @@ import {
   readContract,
   simulateContract,
   getBalance,
-  watchContractEvent,
+  getPublicClient,
 } from "wagmi/actions";
 import { base } from "wagmi/chains";
 import {
@@ -93,6 +93,42 @@ import NFT_ABI from "@/app/abi/nft.json";
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
 const MINIMUM_BID_FOR_SELL = 0.011;
+
+// Sign/claim/bid anlarında bir kez çalan kısa jingle. Tarayıcı, kullanıcı
+// sayfayla hiç etkileşmediyse çalmayı engelleyebilir — sessizce yutulur.
+let chimeAudio: HTMLAudioElement | null = null;
+const playChime = () => {
+  if (typeof window === "undefined") return;
+  try {
+    if (!chimeAudio) chimeAudio = new Audio("/chime.mp3");
+    chimeAudio.currentTime = 0;
+    void chimeAudio.play().catch(() => {});
+  } catch {
+    // ses çalınamadı — kritik değil
+  }
+};
+
+// Tarayıcı, kullanıcı etkileşimi olmadan ses çalmayı engeller. İlk tıklamada
+// sesi sessizce başlatıp durdurarak izni açarız — sonrasında arka planda
+// gelen bid event'lerinde de ses duyulur.
+const unlockChime = () => {
+  try {
+    if (!chimeAudio) chimeAudio = new Audio("/chime.mp3");
+    chimeAudio.muted = true;
+    void chimeAudio
+      .play()
+      .then(() => {
+        chimeAudio!.pause();
+        chimeAudio!.currentTime = 0;
+        chimeAudio!.muted = false;
+      })
+      .catch(() => {
+        if (chimeAudio) chimeAudio.muted = false;
+      });
+  } catch {
+    // izin açılamadı — playChime yine dener
+  }
+};
 
 // Basename çözümleme — L1 üzerinden CCIP-Read yerine, veri zaten Base'de yaşadığı için
 // Base'in resmi L2Resolver kontratından doğrudan okuyoruz (bkz. github.com/base/basenames)
@@ -729,14 +765,42 @@ export default function BetaPage() {
   }, []);
 
   // Kontrat event'lerini canlı izle — bid/satış/sign 2 dk'lık polling'i
-  // beklemeden saniyeler içinde UI'a yansır. Mevcut RPC transport'u üzerinden
-  // filtre polling'i kullanır; 15 sn aralık CU tüketimini düşük tutar.
+  // beklemeden saniyeler içinde UI'a yansır. RPC filtreleri (eth_newFilter)
+  // fallback geçişlerinde/expiry'de sessizce ölebildiği için durumsuz
+  // getLogs polling'i kullanıyoruz: her turda taze sorgu, kaçırma yok.
   useEffect(() => {
-    const unwatch = watchContractEvent(config, {
-      address: CONTRACT_ADDR,
-      abi: MARKET_ABI,
-      pollingInterval: 15_000,
-      onLogs: (logs) => {
+    let cancelled = false;
+    let lastBlock: bigint | null = null;
+    let polling = false;
+    const pollEvents = async () => {
+      if (polling) return;
+      polling = true;
+      try {
+        const client = getPublicClient(config);
+        if (!client) return;
+        const latest = await client.getBlockNumber();
+        if (lastBlock === null) {
+          // İlk tur: sadece başlangıç noktasını al, geçmişi tarama
+          lastBlock = latest;
+          return;
+        }
+        if (latest <= lastBlock) return;
+        const logs = await client.getContractEvents({
+          address: CONTRACT_ADDR,
+          abi: MARKET_ABI as never,
+          fromBlock: lastBlock + BigInt(1),
+          toBlock: latest,
+        });
+        lastBlock = latest;
+        if (cancelled) return;
+        // Batch'i önce bütün olarak değerlendir, sonra TEK tutarlı güncelleme
+        // yap. Aynı aralıkta hem satış hem yeni bid varsa, event arg'larıyla
+        // anlık patch + asenkron zincir okuması yarışıp fiyatı karıştırabilir.
+        let sawSale = false;
+        let sawStake = false;
+        let sawClaim = false;
+        let shouldChime = false;
+        let lastBid: { bidder?: string; amount?: bigint } | null = null;
         for (const log of logs) {
           const { eventName, args } = log as unknown as {
             eventName: string;
@@ -748,17 +812,15 @@ export default function BetaPage() {
             };
           };
           if (eventName === "BidPlaced") {
-            // Tutar ve bidder event'in içinde — ekstra RPC'ye gerek yok
-            if (typeof args.amount === "bigint") {
-              setCurrentBid(parseFloat(formatEther(args.amount)).toFixed(8));
+            lastBid = { bidder: args.bidder, amount: args.amount };
+            // Kendi bid'imiz handleBid'de anında çalıyor — çift çalmasın
+            if (
+              !address ||
+              !args.bidder ||
+              args.bidder.toLowerCase() !== address.toLowerCase()
+            ) {
+              shouldChime = true;
             }
-            if (args.bidder) {
-              setActiveBidder(args.bidder);
-              setActiveBidderName(
-                `${args.bidder.slice(0, 6)}...${args.bidder.slice(-4)}`,
-              );
-            }
-            getActiveBidder(); // basename çözümü için
             if (
               address &&
               args.refunded &&
@@ -772,22 +834,49 @@ export default function BetaPage() {
               );
             }
           } else if (eventName === "SaleSettled") {
-            getCurrentBid();
-            getActiveBidder();
-            getDailyVault();
-            getUserNFTs();
+            sawSale = true;
           } else if (eventName === "Staked") {
-            getDailySigners();
+            sawStake = true;
           } else if (eventName === "Claimed") {
-            getDailyVault();
+            sawClaim = true;
           }
         }
-      },
-      onError: (error) => {
-        console.error("Event watch error:", error);
-      },
-    });
-    return () => unwatch();
+        if (sawSale) {
+          // Satış bid'i sıfırlar — event arg'larıyla patch'lemek yerine
+          // zincirin son halini tek otorite olarak oku (yeni bid geldiyse
+          // onu da bu okuma getirir)
+          getCurrentBid();
+          getActiveBidder();
+          getDailyVault();
+          getUserNFTs();
+        } else if (lastBid) {
+          // Yalnızca bid varsa son bid'in arg'ları anında yansıtılabilir
+          if (typeof lastBid.amount === "bigint") {
+            setCurrentBid(parseFloat(formatEther(lastBid.amount)).toFixed(8));
+          }
+          if (lastBid.bidder) {
+            setActiveBidder(lastBid.bidder);
+            setActiveBidderName(
+              `${lastBid.bidder.slice(0, 6)}...${lastBid.bidder.slice(-4)}`,
+            );
+          }
+          getActiveBidder(); // basename çözümü için
+        }
+        if (sawStake) getDailySigners();
+        if (sawClaim) getDailyVault();
+        if (shouldChime) playChime();
+      } catch (error) {
+        console.error("Event poll error:", error);
+      } finally {
+        polling = false;
+      }
+    };
+    pollEvents();
+    const intervalId = setInterval(pollEvents, 15_000);
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
   }, [
     config,
     address,
@@ -798,6 +887,13 @@ export default function BetaPage() {
     getUserNFTs,
     fmtEth,
   ]);
+
+  // İlk kullanıcı etkileşiminde ses iznini aç — arka planda gelen bid
+  // event'lerinin sesi tarayıcı autoplay engeline takılmasın
+  useEffect(() => {
+    window.addEventListener("pointerdown", unlockChime, { once: true });
+    return () => window.removeEventListener("pointerdown", unlockChime);
+  }, []);
 
   const formatTimeRemaining = useCallback((seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
@@ -906,6 +1002,7 @@ export default function BetaPage() {
         dataSuffix: DATA_SUFFIX,
       });
       toast.success("Bid placed successfully!");
+      playChime();
       setSharePrompt({
         type: "bid",
         text: `Just placed a bid of Ξ${fmtEth(bidInput)} on a VRNoun at flooor.fun 🔨\n\nIf someone outbids me, my ETH comes right back — no risk, no lockup.\n\nRoyalties to the community.`,
@@ -1162,6 +1259,7 @@ export default function BetaPage() {
         args: [tokenId],
         dataSuffix: DATA_SUFFIX,
       });
+      playChime();
       if (isSignPhase) {
         setUserHasSigned(true);
         toast.success("Sign successful!");
@@ -1390,23 +1488,6 @@ export default function BetaPage() {
         </div>
       </header>
 
-      {/* New collection banner */}
-      <a
-        href="/warplets"
-        className="block transition-opacity hover:opacity-85"
-        style={{ backgroundColor: PLINTH, borderBottom: `1px solid ${HAIRLINE}` }}
-      >
-        <div className="max-w-6xl mx-auto px-5 sm:px-8 py-3 flex items-center justify-center gap-2 text-center">
-          <span style={{ ...smallCaps, color: GREEN }}>New</span>
-          <span className="text-sm" style={{ ...SANS, color: INK }}>
-            Warplets is live on Base — sign, bid, and sell.
-          </span>
-          <span className="text-sm" style={{ ...SANS, color: MUTED }}>
-            →
-          </span>
-        </div>
-      </a>
-
       {/* Network Gate — full-screen block until on Base */}
       {isWrongNetwork && (
         <div
@@ -1459,7 +1540,7 @@ export default function BetaPage() {
                 width={560}
                 height={560}
                 priority
-                className="w-full h-auto max-w-[440px]"
+                className="w-full h-auto max-w-[440px] fade-in-soft"
                 style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.08)" }}
               />
             </div>
@@ -1483,6 +1564,7 @@ export default function BetaPage() {
           {/* Lot details */}
           <div>
             <p style={{ ...smallCaps, color: GOLD }}>
+              <span className="live-dot mr-2" aria-hidden />
               {isSignPhase ? "Live Market — Sign Phase" : "Live Market — Claim Phase"}
               {" · "}Epoch {phaseInfo ? phaseInfo.eid.toString() : "—"}
               {isLoading ? " · syncing" : ""}
@@ -1919,18 +2001,19 @@ export default function BetaPage() {
         {/* Other Collections */}
         <div className="mt-20 pt-14" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
           <p style={smallCaps}>Other Collections</p>
-          <h2
-            className="mt-3"
-            style={{
-              ...SERIF,
-              fontWeight: 500,
-              fontSize: "clamp(26px, 3vw, 36px)",
-            }}
-          >
-            Coming to Flooor
-          </h2>
-          <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-8">
+          <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
             {[
+              {
+                name: "The Warplets",
+                sub: "Base · Farcaster",
+                img: "https://i2c.seadn.io/base/0x699727f9e01a822efdcf7333073f0461e5914b4e/c4dd77598815bd89610930ca12be02/a2c4dd77598815bd89610930ca12be02.jpeg?w=1000",
+                href: "/warplets",
+              },
+              {
+                name: "Gnars",
+                sub: "Base",
+                img: "https://i2c.seadn.io/base/0x880fb3cf5c6cc2d7dfc13a993e839a9411200c17/000d4dde43f1a377b3203d06a1a1ab/bf000d4dde43f1a377b3203d06a1a1ab.webp?w=1000",
+              },
               {
                 name: "OK Computers",
                 sub: "Base",
@@ -1940,12 +2023,6 @@ export default function BetaPage() {
                 name: "Book Games",
                 sub: "Base",
                 img: "https://i2c.seadn.io/admin-uploads/61366691b607f4afc05d5202467d9e/7761366691b607f4afc05d5202467d9e.png",
-              },
-              {
-                name: "The Warplets",
-                sub: "Base · Farcaster",
-                img: "https://i2c.seadn.io/base/0x699727f9e01a822efdcf7333073f0461e5914b4e/c4dd77598815bd89610930ca12be02/a2c4dd77598815bd89610930ca12be02.jpeg?w=1000",
-                href: "/warplets",
               },
             ].map((col) => {
               const isLive = Boolean(col.href);
@@ -1992,11 +2069,7 @@ export default function BetaPage() {
                 </>
               );
               return col.href ? (
-                <a
-                  key={col.name}
-                  href={col.href}
-                  className="block transition-opacity hover:opacity-85"
-                >
+                <a key={col.name} href={col.href} className="block card-zoom">
                   {card}
                 </a>
               ) : (
@@ -2460,7 +2533,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.29 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.36 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>
