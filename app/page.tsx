@@ -2738,6 +2738,15 @@ export default function BetaPage() {
               >
                 Snapshot DAO
               </a>
+              <a
+                href="https://defillama.com/protocol/flooor.fun"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm hover:text-black transition-colors"
+                style={{ color: MUTED }}
+              >
+                DefiLlama
+              </a>
             </div>
           </div>
           <div>
@@ -2821,7 +2830,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.46 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.47 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>
