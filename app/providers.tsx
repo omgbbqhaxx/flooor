@@ -2,6 +2,7 @@
 
 import { base } from "wagmi/chains";
 import type { ReactNode } from "react";
+import { useEffect } from "react";
 import { WagmiProvider, http, fallback, createConfig } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -71,10 +72,28 @@ const config = createConfig({
 const queryClient = new QueryClient();
 
 export function Providers({ children }: { children: ReactNode }) {
-  // ✅ Farcaster splash screen kapatma
-  if (typeof window !== "undefined") {
-    sdk?.actions?.ready?.();
-  }
+  // Farcaster/Base mini-app splash ekranını kapat. Render sırasında değil,
+  // mount SONRASI ve bir sonraki boyama turunda çağırıyoruz — erken
+  // çağrılırsa host splash'i kaldırır ama içerik henüz boyanmamış olur;
+  // native WebView'lar CSS yüklenene kadar varsayılan olarak SİYAH
+  // gösterdiği için bu, kısa bir siyah ekran flaşı olarak görünür.
+  useEffect(() => {
+    let raf1 = 0;
+    let raf2 = 0;
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        try {
+          sdk?.actions?.ready?.();
+        } catch {
+          // mini-app bağlamı dışında (normal web) — sorun değil
+        }
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, []);
 
   return (
     <WagmiProvider config={config}>

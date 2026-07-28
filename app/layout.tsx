@@ -51,7 +51,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={oldschoolGrotesk.variable}>
+    <html
+      lang="en"
+      className={oldschoolGrotesk.variable}
+      style={{ backgroundColor: "#F7F5F1" }}
+    >
       <head>
         <meta name="base:app_id" content="6938998fe6be54f5ed71d4bf" />
         <meta
@@ -83,7 +87,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${oldschoolGrotesk.className} bg-background dark`}>
+      <body className={`${oldschoolGrotesk.className} bg-background`}>
         <Providers>{children}</Providers>
       </body>
     </html>

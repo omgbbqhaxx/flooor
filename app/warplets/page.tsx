@@ -21,6 +21,7 @@ import {
 import { Attribution } from "ox/erc8021";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { Playfair_Display, Inter } from "next/font/google";
+import confetti from "canvas-confetti";
 
 import WARPLETS_ABI from "@/app/abi/warplets.json";
 import NFT_ABI from "@/app/abi/nft.json";
@@ -84,39 +85,146 @@ const isUserRejectedError = (error: unknown): boolean => {
   );
 };
 
-// Sign/claim/bid anlarında bir kez çalan kısa jingle. Tarayıcı, kullanıcı
-// sayfayla hiç etkileşmediyse çalmayı engelleyebilir — sessizce yutulur.
-let chimeAudio: HTMLAudioElement | null = null;
-const playChime = () => {
-  if (typeof window === "undefined") return;
-  try {
-    if (!chimeAudio) chimeAudio = new Audio("/chime.mp3");
-    chimeAudio.currentTime = 0;
-    void chimeAudio.play().catch(() => {});
-  } catch {
-    // ses çalınamadı — kritik değil
+// --- Bildirim sesi: Web Audio API ---
+// Birincil yol <audio> elementi: iOS'ta "medya" sayıldığı için telefonun
+// sessiz anahtarından ETKİLENMEZ (Web Audio sessiz modda tamamen susar).
+// Yedek yol Web Audio buffer'ı. İkisinin de kilidi ilk kullanıcı
+// dokunuşunda açılır ve oturum boyunca açık kalır.
+let chimeMuted = false; // header'daki zil düğmesiyle senkron
+let chimeEl: HTMLAudioElement | null = null;
+let chimeElUnlocked = false;
+let audioCtx: AudioContext | null = null;
+let chimeBuffer: AudioBuffer | null = null;
+let chimeBufferPromise: Promise<void> | null = null;
+
+const ensureChimeEl = (): HTMLAudioElement | null => {
+  if (typeof window === "undefined") return null;
+  if (!chimeEl) {
+    chimeEl = new Audio("/chime.mp3");
+    chimeEl.preload = "auto";
+    (chimeEl as unknown as { playsInline?: boolean }).playsInline = true;
+  }
+  return chimeEl;
+};
+
+const ensureAudioCtx = (): AudioContext | null => {
+  if (typeof window === "undefined") return null;
+  if (!audioCtx) {
+    const Ctor =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+    if (!Ctor) return null;
+    audioCtx = new Ctor();
+  }
+  return audioCtx;
+};
+
+const loadChimeBuffer = (ctx: AudioContext) => {
+  if (!chimeBufferPromise) {
+    chimeBufferPromise = fetch("/chime.mp3")
+      .then((r) => r.arrayBuffer())
+      .then((buf) => ctx.decodeAudioData(buf))
+      .then((decoded) => {
+        chimeBuffer = decoded;
+      })
+      .catch(() => {
+        chimeBufferPromise = null; // sonraki denemede tekrar indirilsin
+      });
+  }
+  return chimeBufferPromise;
+};
+
+// Her kullanıcı etkileşiminde çağrılır; iki yolun da kilidini açar.
+// Açıldıktan sonra no-op.
+const unlockChime = () => {
+  const el = ensureChimeEl();
+  if (el && !chimeElUnlocked) {
+    // Gesture içinde sessiz (volume=0) çal-durdur: elementi kilitten çıkarır.
+    // iOS volume'u yok sayar — orada ilk dokunuşta kısa bir ses duyulabilir,
+    // zararsız.
+    try {
+      el.volume = 0;
+      const p = el.play();
+      if (p) {
+        p.then(() => {
+          el.pause();
+          el.currentTime = 0;
+          el.volume = 1;
+          chimeElUnlocked = true;
+        }).catch(() => {
+          el.volume = 1;
+        });
+      }
+    } catch {
+      // element kilidi açılamadı — Web Audio yolu hâlâ denenecek
+    }
+  }
+  const ctx = ensureAudioCtx();
+  if (ctx) {
+    if (ctx.state === "suspended") void ctx.resume().catch(() => {});
+    void loadChimeBuffer(ctx);
   }
 };
 
-// Tarayıcı, kullanıcı etkileşimi olmadan ses çalmayı engeller. İlk tıklamada
-// sesi sessizce başlatıp durdurarak izni açarız — sonrasında arka planda
-// gelen bid event'lerinde de ses duyulur.
-const unlockChime = () => {
-  try {
-    if (!chimeAudio) chimeAudio = new Audio("/chime.mp3");
-    chimeAudio.muted = true;
-    void chimeAudio
-      .play()
-      .then(() => {
-        chimeAudio!.pause();
-        chimeAudio!.currentTime = 0;
-        chimeAudio!.muted = false;
-      })
-      .catch(() => {
-        if (chimeAudio) chimeAudio.muted = false;
-      });
-  } catch {
-    // izin açılamadı — playChime yine dener
+const playViaWebAudio = (): boolean => {
+  const ctx = ensureAudioCtx();
+  if (ctx && ctx.state === "running" && chimeBuffer) {
+    try {
+      const src = ctx.createBufferSource();
+      src.buffer = chimeBuffer;
+      src.connect(ctx.destination);
+      src.start();
+      return true;
+    } catch {
+      // Web Audio çalamadı
+    }
+  }
+  return false;
+};
+
+let pendingChime = false;
+
+const playChime = () => {
+  if (chimeMuted) return;
+  if (typeof document !== "undefined" && document.hidden) {
+    // Sayfa arka plandayken (örn. bid onayı için cüzdan uygulamasına
+    // geçilmişken) tarayıcı sesi düşürür — öne dönüşte çalmak üzere beklet
+    pendingChime = true;
+    return;
+  }
+  // Önce <audio> elementi (iOS sessiz anahtarına takılmaz), olmazsa Web Audio
+  const el = ensureChimeEl();
+  if (el && chimeElUnlocked) {
+    try {
+      el.currentTime = 0;
+      el.volume = 1;
+      const p = el.play();
+      if (p)
+        p.catch(() => {
+          playViaWebAudio();
+        });
+      return;
+    } catch {
+      // element yolu çalışmadı — Web Audio'ya düş
+    }
+  }
+  if (!playViaWebAudio() && el) {
+    // Son çare: kilit açılmamış olsa da dene; tarayıcı izin veriyorsa çalar
+    try {
+      el.currentTime = 0;
+      void el.play().catch(() => {});
+    } catch {
+      // ses çalınamadı — kritik değil
+    }
+  }
+};
+
+// Sayfa öne dönünce bekleyen sesi çal
+const flushPendingChime = () => {
+  if (pendingChime && typeof document !== "undefined" && !document.hidden) {
+    pendingChime = false;
+    playChime();
   }
 };
 
@@ -124,6 +232,29 @@ const CONTRACT_ADDR = "0x0c2d41b6896a7dde2641a0fe04165df180c43242" as const;
 const COLLECTION_ADDR = "0x699727F9E01A822EFdcf7333073f0461e5914b4E" as const;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const IS_DEPLOYED = CONTRACT_ADDR.toLowerCase() !== ZERO_ADDRESS;
+
+// Claim/sell başarılı olduğunda "Realistic Look" konfeti: farklı hız/yayılımda
+// beş ardışık patlama, site paletiyle (mürekkep/yeşil/altın/fildişi).
+// prefers-reduced-motion'da hiç tetiklenmez.
+const fireConfetti = () => {
+  if (typeof window === "undefined") return;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  const palette = [INK, GREEN, GOLD, IVORY];
+  const count = 200;
+  const defaults = { origin: { y: 0.7 }, colors: palette };
+  const fire = (particleRatio: number, opts: confetti.Options) => {
+    void confetti({
+      ...defaults,
+      ...opts,
+      particleCount: Math.floor(count * particleRatio),
+    });
+  };
+  fire(0.25, { spread: 26, startVelocity: 55 });
+  fire(0.2, { spread: 60 });
+  fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
+  fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
+  fire(0.1, { spread: 120, startVelocity: 45 });
+};
 
 const BASENAME_L2_RESOLVER_ADDRESS = "0xC6d566A56A1aFf6508b41f6c90ff131615583BCD" as const;
 const L2_RESOLVER_ABI = [
@@ -216,6 +347,59 @@ export default function WarpletsPage() {
   const nftImageCache = useRef<{ [key: string]: string }>({});
   // fetchAllData turları üst üste binmesin — önceki tur bitmeden yenisi başlamaz
   const fetchInFlight = useRef(false);
+  const [soundOn, setSoundOn] = useState(true);
+
+  // Kaydedilmiş ses tercihini yükle
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("flooor-sound") === "off") {
+        chimeMuted = true;
+        setSoundOn(false);
+      }
+    } catch {
+      // localStorage erişilemedi — varsayılan açık kalır
+    }
+  }, []);
+
+  // Zil düğmesi: sesi aç/kapat. Açarken örneği hemen çalar — hem ses
+  // kilidini garantili açar hem kullanıcı sistemin kurulduğunu duyar.
+  const toggleSound = useCallback(() => {
+    const next = chimeMuted; // kapalıysa açıyoruz
+    chimeMuted = !next;
+    setSoundOn(next);
+    try {
+      localStorage.setItem("flooor-sound", next ? "on" : "off");
+    } catch {
+      // tercih kaydedilemedi — oturum içinde yine geçerli
+    }
+    if (next) {
+      // Gesture içindeyiz: elementi doğrudan çal (örnek + kilit tek adımda)
+      const el = ensureChimeEl();
+      if (el) {
+        try {
+          el.currentTime = 0;
+          el.volume = 1;
+          const p = el.play();
+          if (p)
+            p.then(() => {
+              chimeElUnlocked = true;
+            }).catch(() => {
+              playViaWebAudio();
+            });
+        } catch {
+          playViaWebAudio();
+        }
+      }
+      const ctx = ensureAudioCtx();
+      if (ctx) {
+        if (ctx.state === "suspended") void ctx.resume().catch(() => {});
+        void loadChimeBuffer(ctx);
+      }
+      toast.success("Bid sound on — you'll hear this chime on new bids.");
+    } else {
+      toast.info("Bid sound off.");
+    }
+  }, []);
 
   const fmtEth = useCallback((eth: string) => {
     const n = parseFloat(eth);
@@ -311,15 +495,38 @@ export default function WarpletsPage() {
   const getDailyVault = useCallback(async () => {
     if (!IS_DEPLOYED) return;
     try {
-      const poolAccrued = (await retryWithBackoff(async () => {
+      // Claim fazında ilk claim, havuzu poolSnap[epoch]'a kilitleyip
+      // poolAccrued'u sıfırlar. Vault olarak hep poolAccrued'u göstermek,
+      // ilk claim'den sonra herkese 0 gösterir (ve paylaşım metnine $0
+      // yazar). Doğrusu: snapshot alındıysa poolSnap, alınmadıysa poolAccrued.
+      const [poolAccrued, epochStart] = (await Promise.all([
+        retryWithBackoff(async () => {
+          return (await readContract(config, {
+            address: CONTRACT_ADDR,
+            abi: WARPLETS_ABI,
+            functionName: "poolAccrued",
+            args: [],
+          })) as bigint;
+        }),
+        retryWithBackoff(async () => {
+          return (await readContract(config, {
+            address: CONTRACT_ADDR,
+            abi: WARPLETS_ABI,
+            functionName: "currentEpochStart",
+            args: [],
+          })) as bigint;
+        }),
+      ])) as [bigint, bigint];
+      const poolSnap = (await retryWithBackoff(async () => {
         return (await readContract(config, {
           address: CONTRACT_ADDR,
           abi: WARPLETS_ABI,
-          functionName: "poolAccrued",
-          args: [],
+          functionName: "poolSnap",
+          args: [epochStart],
         })) as bigint;
       })) as bigint;
-      setDailyVault(parseFloat(formatEther(poolAccrued)).toFixed(8));
+      const effectivePool = poolSnap > BigInt(0) ? poolSnap : poolAccrued;
+      setDailyVault(parseFloat(formatEther(effectivePool)).toFixed(8));
     } catch (error) {
       console.error("Error getting daily vault:", error);
     }
@@ -690,6 +897,13 @@ export default function WarpletsPage() {
         });
         lastBlock = latest;
         if (cancelled) return;
+        if (logs.length) {
+          // Teşhis: konsolda event akışını görünür kıl
+          console.log(
+            "[flooor] events:",
+            logs.map((l) => (l as { eventName?: string }).eventName).join(", "),
+          );
+        }
         // Batch'i önce bütün olarak değerlendir, sonra TEK tutarlı güncelleme
         // yap. Aynı aralıkta hem satış hem yeni bid varsa, event arg'larıyla
         // anlık patch + asenkron zincir okuması yarışıp fiyatı karıştırabilir.
@@ -711,7 +925,9 @@ export default function WarpletsPage() {
           };
           if (eventName === "BidPlaced") {
             lastBid = { bidder: args.bidder, amount: args.amount };
-            // Kendi bid'imiz handleBid'de anında çalıyor — çift çalmasın
+            // Kendi bid'imiz handleBid'de anında çalıyor — çift çalmasın.
+            // (Bilinçli tercih: aynı cüzdan başka cihazda bağlıysa orada da
+            // kendi bid'in için ses çalmaz.)
             if (
               !address ||
               !args.bidder ||
@@ -792,11 +1008,22 @@ export default function WarpletsPage() {
     fmtEth,
   ]);
 
-  // İlk kullanıcı etkileşiminde ses iznini aç — arka planda gelen bid
-  // event'lerinin sesi tarayıcı autoplay engeline takılmasın
+  // Kullanıcı etkileşimlerinde ses iznini aç — arka planda gelen bid
+  // event'lerinin sesi tarayıcı autoplay engeline takılmasın. Kalıcı
+  // dinleyici: ilk deneme başarısız olursa sonraki dokunuşta tekrar dener,
+  // kilit açıldıktan sonra no-op.
   useEffect(() => {
-    window.addEventListener("pointerdown", unlockChime, { once: true });
-    return () => window.removeEventListener("pointerdown", unlockChime);
+    window.addEventListener("pointerdown", unlockChime);
+    window.addEventListener("keydown", unlockChime);
+    window.addEventListener("touchstart", unlockChime);
+    // Cüzdan uygulamasından dönüşte bekleyen sesi çal
+    document.addEventListener("visibilitychange", flushPendingChime);
+    return () => {
+      window.removeEventListener("pointerdown", unlockChime);
+      window.removeEventListener("keydown", unlockChime);
+      window.removeEventListener("touchstart", unlockChime);
+      document.removeEventListener("visibilitychange", flushPendingChime);
+    };
   }, []);
 
   const formatTimeRemaining = useCallback((seconds: number): string => {
@@ -862,6 +1089,7 @@ export default function WarpletsPage() {
       });
       toast.success("Bid placed successfully!");
       playChime();
+      fireConfetti();
       setSharePrompt({
         type: "bid",
         text: `Just placed a bid of Ξ${fmtEth(bidInput)} on a Warplet at flooor.fun 🔨\n\nIf someone outbids me, my ETH comes right back — no risk, no lockup.\n\nRoyalties to the community.`,
@@ -906,6 +1134,7 @@ export default function WarpletsPage() {
         });
         toast.success(isSignPhase ? `Token #${idStr} signed!` : `Token #${idStr} claimed!`);
         playChime();
+        fireConfetti();
         if (isSignPhase) {
           setSharePrompt({
             type: "sign",
@@ -1017,6 +1246,7 @@ export default function WarpletsPage() {
           dataSuffix: DATA_SUFFIX,
         });
         toast.success(`Token #${idStr} sold successfully!`);
+        fireConfetti();
         const soldUsd = toUsd(currentBid);
         setSharePrompt({
           type: "sell",
@@ -1131,6 +1361,16 @@ export default function WarpletsPage() {
   const hasBid = activeBidder && activeBidder !== ZERO_ADDRESS && parseFloat(currentBid) > 0;
   const minOutbidAmount = parseFloat(chainNextMinBid) || 0;
 
+  // Yıllık projeksiyon: günlük yield × 365. APR, giriş maliyeti olarak
+  // zincirdeki bir sonraki minimum bid'i (şu anki alım fiyatı) baz alır.
+  // Aktif bid yokken nextMinBid ~sıfır olduğundan (minbidAM = 10^8 wei)
+  // anlamsız devasa APR üretmemek için makul bir taban şartı aranır.
+  const annualYieldEth = (parseFloat(yieldPerSigner) || 0) * 365;
+  const projectedApr =
+    annualYieldEth > 0 && minOutbidAmount >= 0.000001
+      ? (annualYieldEth / minOutbidAmount) * 100
+      : 0;
+
   return (
     <div
       className={`${playfair.variable} ${inter.variable}`}
@@ -1184,6 +1424,33 @@ export default function WarpletsPage() {
               Collection
             </a>
           </nav>
+          <div className="flex items-center gap-3">
+          <button
+            onClick={toggleSound}
+            type="button"
+            title={soundOn ? "Bid sound on — click to mute" : "Bid sound off — click to enable"}
+            aria-label={soundOn ? "Mute bid sound" : "Enable bid sound"}
+            className="p-3 transition-colors hover:text-black"
+            style={{
+              color: soundOn ? INK : MUTED,
+              border: `1px solid ${HAIRLINE}`,
+              backgroundColor: "transparent",
+            }}
+          >
+            {soundOn ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.7 21a2 2 0 01-3.4 0" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M13.7 21a2 2 0 01-3.4 0" />
+                <path d="M18.6 13A17.9 17.9 0 0118 8a6 6 0 00-9.3-5" />
+                <path d="M6.3 6.3C6.1 6.9 6 7.4 6 8c0 7-3 9-3 9h14" />
+                <line x1="1" y1="1" x2="23" y2="23" />
+              </svg>
+            )}
+          </button>
           <ConnectButton.Custom>
             {({ account, chain, openAccountModal, openChainModal, openConnectModal, mounted }) => {
               const ready = mounted;
@@ -1254,6 +1521,7 @@ export default function WarpletsPage() {
               );
             }}
           </ConnectButton.Custom>
+          </div>
         </div>
       </header>
 
@@ -1416,10 +1684,24 @@ export default function WarpletsPage() {
                 {/* Signers, vault, yield, epoch */}
                 <div className="mt-10">
                   {[
-                    { label: "Signers", value: `${dailySigners}`, sub: "this epoch", green: false },
-                    { label: "Vault", value: `Ξ ${fmtEth(dailyVault)}`, sub: toUsd(dailyVault), green: false },
-                    { label: "Yield per Signer", value: `Ξ ${fmtEth(yieldPerSigner)}`, sub: toUsd(yieldPerSigner), green: true },
-                    { label: "Epoch", value: phaseInfo ? phaseInfo.eid.toString() : "—", sub: "24-hour cycle", green: false },
+                    { label: "Signers", value: `${dailySigners}`, sub: "this epoch", green: false, rainbow: false },
+                    { label: "Vault", value: `Ξ ${fmtEth(dailyVault)}`, sub: toUsd(dailyVault), green: false, rainbow: false },
+                    { label: "Yield per Signer", value: `Ξ ${fmtEth(yieldPerSigner)}`, sub: toUsd(yieldPerSigner), green: true, rainbow: false },
+                    {
+                      label: "Projected APR",
+                      value:
+                        projectedApr > 0
+                          ? `${projectedApr >= 10 ? projectedApr.toFixed(0) : projectedApr.toFixed(1)}%${
+                              toUsd(String(annualYieldEth))
+                                ? ` ~ ${toUsd(String(annualYieldEth))}`
+                                : ""
+                            }`
+                          : "—",
+                      sub: null,
+                      green: false,
+                      rainbow: true,
+                    },
+                    { label: "Epoch", value: phaseInfo ? phaseInfo.eid.toString() : "—", sub: "24-hour cycle", green: false, rainbow: false },
                   ].map((row) => (
                     <div
                       key={row.label}
@@ -1431,7 +1713,12 @@ export default function WarpletsPage() {
                         className="tabular-nums text-base"
                         style={{ ...SANS, fontWeight: 500, color: row.green ? GREEN : INK }}
                       >
-                        {row.value}
+                        {/* Tayf yalnızca değerin kendisine uygulanır; alt bilgi soluk kalır */}
+                        {row.rainbow ? (
+                          <span className="apr-rainbow">{row.value}</span>
+                        ) : (
+                          row.value
+                        )}
                         {row.sub ? (
                           <span style={{ color: FAINT, fontWeight: 400 }}> · {row.sub}</span>
                         ) : null}

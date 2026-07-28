@@ -105,6 +105,34 @@ body::before {
   transform: scale(1.035);
 }
 
+/* APR değeri: sitenin yeşil/altın paletiyle harmanlanmış, yavaşça kayan
+   zarif bir tayf — ilk ve son renk aynı olduğu için kesintisiz döner */
+@keyframes apr-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+.apr-rainbow {
+  background: linear-gradient(
+    90deg,
+    #1e7b4f,
+    #2e6fa3,
+    #7b4fa0,
+    #b3543d,
+    #a4863d,
+    #1e7b4f
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: apr-shimmer 7s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .fade-in-soft,
   .live-dot {
@@ -112,5 +140,8 @@ body::before {
   }
   .card-zoom img {
     transition: none;
+  }
+  .apr-rainbow {
+    animation: none;
   }
 }
