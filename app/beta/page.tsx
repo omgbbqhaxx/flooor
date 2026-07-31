@@ -2317,24 +2317,69 @@ export default function BetaPage() {
               },
             ].map((col) => {
               const isLive = Boolean(col.href);
+              const isFeatured = col.name === "Based Onchain Dinos";
               const card = (
                 <>
                   <div
                     className="relative aspect-square overflow-hidden"
-                    style={{ backgroundColor: PLINTH }}
+                    style={{
+                      backgroundColor: isFeatured ? "#f6efe3" : PLINTH,
+                      border: isFeatured ? `1px solid ${HAIRLINE}` : undefined,
+                      borderRadius: isFeatured ? 18 : undefined,
+                      boxShadow: isFeatured
+                        ? "0 18px 38px rgba(26, 26, 26, 0.12)"
+                        : undefined,
+                    }}
                   >
+                    {isFeatured ? (
+                      <div
+                        className="absolute inset-0"
+                        style={{
+                          background:
+                            "linear-gradient(135deg, rgba(255,255,255,0.8), rgba(255,255,255,0.05) 45%, rgba(26,26,26,0.06))",
+                          pointerEvents: "none",
+                        }}
+                      />
+                    ) : null}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={col.img}
                       alt={col.name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full"
                       style={
-                        isLive
-                          ? undefined
-                          : { filter: "blur(10px)", transform: "scale(1.12)" }
+                        isFeatured
+                          ? {
+                              objectFit: "contain",
+                              padding: "26px",
+                              transform: "scale(1.04)",
+                              filter: "drop-shadow(0 8px 18px rgba(0,0,0,0.12))",
+                            }
+                          : isLive
+                            ? { objectFit: "cover" }
+                            : {
+                                objectFit: "cover",
+                                filter: "blur(10px)",
+                                transform: "scale(1.12)",
+                              }
                       }
                     />
-                    <div className="absolute inset-0 flex items-center justify-center">
+                    {isFeatured ? (
+                      <div className="absolute left-4 top-4">
+                        <span
+                          style={{
+                            ...smallCaps,
+                            color: "#fff",
+                            backgroundColor: GREEN,
+                            padding: "7px 12px",
+                            letterSpacing: "0.16em",
+                            boxShadow: "0 6px 18px rgba(30,123,79,0.38)",
+                          }}
+                        >
+                          New collection
+                        </span>
+                      </div>
+                    ) : null}
+                    <div className="absolute inset-0 flex items-end justify-start p-4">
                       <span
                         style={{
                           ...smallCaps,
@@ -2342,6 +2387,7 @@ export default function BetaPage() {
                           backgroundColor: isLive ? GREEN : "rgba(26,26,26,0.65)",
                           padding: "6px 16px",
                           letterSpacing: "0.15em",
+                          boxShadow: "0 8px 18px rgba(0,0,0,0.24)",
                         }}
                       >
                         {isLive ? "Live →" : "Soon"}
@@ -2833,7 +2879,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.47 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.49 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>

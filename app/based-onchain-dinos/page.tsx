@@ -1,8 +1,9 @@
 "use client";
 
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useRef } from "react";
 import { Playfair_Display, Inter } from "next/font/google";
 
 const playfair = Playfair_Display({
@@ -18,16 +19,25 @@ const inter = Inter({
   variable: "--font-sans",
 });
 
+// Not deployed yet — same gate pattern used on /warplets. Flip once the
+// contract ships and wire the real address + ABI in (see the
+// contract-vs-frontend-sync project skill before touching this).
+const CONTRACT_ADDR = "0x0000000000000000000000000000000000000000" as const;
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+const IS_DEPLOYED = CONTRACT_ADDR.toLowerCase() !== ZERO_ADDRESS;
+
 const INK = "#1A1A1A";
 const MUTED = "#75716A";
 const HAIRLINE = "#E6E2DA";
 const IVORY = "#F7F5F1";
-const GREEN = "#1E7B4F";
+const PLINTH = "#F1EEE8";
 const GOLD = "#A4863D";
 const SKY = "#99ccff";
 
-const serif = { fontFamily: "var(--font-serif)" } as const;
-const sans = { fontFamily: "var(--font-sans)" } as const;
+const SERIF = { fontFamily: "var(--font-serif)" } as const;
+const SANS = { fontFamily: "var(--font-sans)" } as const;
+const serif = SERIF;
+const sans = SANS;
 const smallCaps = {
   ...sans,
   fontSize: "11px",
@@ -100,46 +110,70 @@ const dummyCards = [
   },
 ];
 
-function HoloCard({
-  card,
-}: {
-  card: (typeof dummyCards)[number];
-}) {
-  const [tilt, setTilt] = useState({ x: 0, y: 0, glowX: 50, glowY: 50 });
+// Pointer-driven holographic card, modeled on the poke-holo.simey.me technique:
+// mouse position is written directly to CSS custom properties on the DOM node
+// (no React re-render per move) and the foil/sparkle/glare layers read those
+// vars for their gradient position + opacity.
+function HoloCard({ card }: { card: (typeof dummyCards)[number] }) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const frameRef = useRef<number | null>(null);
 
-  const style = useMemo(() => {
-    return {
-      transform: `perspective(1100px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
-      backgroundImage: `
-        radial-gradient(circle at ${tilt.glowX}% ${tilt.glowY}%, rgba(255,255,255,0.95), rgba(255,255,255,0.25) 20%, rgba(0,0,0,0) 50%),
-        linear-gradient(135deg, rgba(17,24,39,0.95), rgba(75,85,99,0.9)),
-        linear-gradient(120deg, ${SKY}, #9b5de5, #f15bb5, #00bbf9)
-      `,
-    } as const;
-  }, [tilt]);
+  const updateFromPointer = useCallback((clientX: number, clientY: number) => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const px = ((clientX - rect.left) / rect.width) * 100;
+    const py = ((clientY - rect.top) / rect.height) * 100;
+    const clampedX = Math.min(100, Math.max(0, px));
+    const clampedY = Math.min(100, Math.max(0, py));
+
+    // Distance of the pointer from the card center, 0 (center) -> 1 (corner).
+    const centerDist = Math.min(
+      1,
+      Math.hypot(clampedX - 50, clampedY - 50) / 70,
+    );
+
+    const rotateY = ((clampedX / 100) * 22 - 11).toFixed(2);
+    const rotateX = (9 - (clampedY / 100) * 18).toFixed(2);
+
+    el.style.setProperty("--px", `${clampedX}%`);
+    el.style.setProperty("--py", `${clampedY}%`);
+    el.style.setProperty("--rx", `${rotateY}deg`);
+    el.style.setProperty("--ry", `${rotateX}deg`);
+    el.style.setProperty("--pointer-from-center", centerDist.toFixed(3));
+  }, []);
 
   const handleMove = (event: React.MouseEvent<HTMLDivElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    const px = (x / rect.width) * 100;
-    const py = (y / rect.height) * 100;
-    const rotateY = ((x / rect.width) * 18 - 9).toFixed(2);
-    const rotateX = (9 - (y / rect.height) * 18).toFixed(2);
+    const { clientX, clientY } = event;
+    if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    frameRef.current = requestAnimationFrame(() =>
+      updateFromPointer(clientX, clientY),
+    );
+  };
 
-    setTilt({
-      x: Number(rotateX),
-      y: Number(rotateY),
-      glowX: px,
-      glowY: py,
-    });
+  const handleLeave = () => {
+    if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    const el = wrapRef.current;
+    if (!el) return;
+    el.style.setProperty("--px", "50%");
+    el.style.setProperty("--py", "50%");
+    el.style.setProperty("--rx", "0deg");
+    el.style.setProperty("--ry", "0deg");
+    el.style.setProperty("--pointer-from-center", "0");
+    el.classList.remove("is-active");
+  };
+
+  const handleEnter = () => {
+    wrapRef.current?.classList.add("is-active");
   };
 
   return (
     <div
+      ref={wrapRef}
       onMouseMove={handleMove}
-      onMouseLeave={() => setTilt({ x: 0, y: 0, glowX: 50, glowY: 50 })}
-      className="card-shell"
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
+      className="dino-holo-card"
       style={{
         position: "relative",
         width: 250,
@@ -149,13 +183,38 @@ function HoloCard({
         background:
           "linear-gradient(135deg, rgba(255,255,255,0.95), rgba(210,222,252,0.8), rgba(255,255,255,0.95))",
         boxShadow: "0 18px 36px rgba(17, 24, 39, 0.12)",
-        transition: "transform 180ms ease",
       }}
     >
+      <style jsx>{`
+        .dino-holo-card {
+          --px: 50%;
+          --py: 50%;
+          --rx: 0deg;
+          --ry: 0deg;
+          --pointer-from-center: 0;
+          perspective: 1200px;
+        }
+        .dino-holo-card__inner {
+          transform: perspective(1100px) rotateX(var(--ry)) rotateY(var(--rx));
+          transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+        .dino-holo-card.is-active .dino-holo-card__inner {
+          transition: transform 0.08s ease-out;
+        }
+        .dino-holo-card__foil,
+        .dino-holo-card__sparkle,
+        .dino-holo-card__glare {
+          transition: opacity 0.6s ease;
+        }
+        .dino-holo-card.is-active .dino-holo-card__foil,
+        .dino-holo-card.is-active .dino-holo-card__sparkle,
+        .dino-holo-card.is-active .dino-holo-card__glare {
+          transition: opacity 0.15s ease;
+        }
+      `}</style>
       <div
-        className="card-art"
+        className="dino-holo-card__inner card-art"
         style={{
-          ...style,
           position: "relative",
           width: "100%",
           height: "100%",
@@ -163,9 +222,11 @@ function HoloCard({
           overflow: "hidden",
           color: "#fff",
           border: "1px solid rgba(255,255,255,0.34)",
-          transition: "transform 150ms ease",
+          backgroundImage:
+            "linear-gradient(135deg, rgba(17,24,39,0.95), rgba(75,85,99,0.9))",
         }}
       >
+        {/* base texture — soft diagonal sheen */}
         <div
           style={{
             position: "absolute",
@@ -177,6 +238,52 @@ function HoloCard({
             pointerEvents: "none",
           }}
         />
+
+        {/* rainbow foil — parallax rainbow bands that track the pointer */}
+        <div
+          className="dino-holo-card__foil"
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage: `repeating-linear-gradient(115deg, ${SKY} 0%, #9b5de5 12%, #f15bb5 24%, #ffd166 36%, #00bbf9 48%, ${SKY} 60%)`,
+            backgroundSize: "220% 220%",
+            backgroundPosition: "var(--px) var(--py)",
+            mixBlendMode: "color-dodge",
+            opacity: "calc(0.15 + var(--pointer-from-center) * 0.55)",
+            pointerEvents: "none",
+          }}
+        />
+
+        {/* glitter — fine sparkle grid, also parallaxed by pointer */}
+        <div
+          className="dino-holo-card__sparkle"
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage:
+              "radial-gradient(circle, rgba(255,255,255,0.95) 1px, transparent 1.6px)",
+            backgroundSize: "7px 7px",
+            backgroundPosition: "var(--px) var(--py)",
+            mixBlendMode: "color-dodge",
+            opacity: "calc(var(--pointer-from-center) * 0.5)",
+            pointerEvents: "none",
+          }}
+        />
+
+        {/* glare — soft spotlight that follows the cursor */}
+        <div
+          className="dino-holo-card__glare"
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "radial-gradient(circle at var(--px) var(--py), rgba(255,255,255,0.85), rgba(255,255,255,0) 55%)",
+            mixBlendMode: "overlay",
+            opacity: "calc(0.08 + var(--pointer-from-center) * 0.55)",
+            pointerEvents: "none",
+          }}
+        />
+
         <div
           style={{
             position: "absolute",
@@ -239,181 +346,275 @@ function HoloCard({
 
 export default function BasedOnchainDinosPage() {
   return (
-    <main
+    <div
       style={{ backgroundColor: IVORY, color: INK, minHeight: "100vh" }}
       className={`${playfair.variable} ${inter.variable}`}
     >
-      <div style={{ maxWidth: 1120, margin: "0 auto", padding: "40px 24px 96px" }}>
-        <Link
-          href="/"
-          style={{
-            ...smallCaps,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            textDecoration: "none",
-            color: INK,
-            border: `1px solid ${HAIRLINE}`,
-            padding: "10px 14px",
-            backgroundColor: "#fff",
-          }}
-        >
-          ← Back to Flooor
-        </Link>
+      {/* Header — same shell as /warplets so every collection page reads as one family */}
+      <header
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 100,
+          backgroundColor: "rgba(247,245,241,0.92)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+          borderBottom: `1px solid ${HAIRLINE}`,
+        }}
+      >
+        <div className="max-w-6xl mx-auto px-5 sm:px-8 h-[72px] flex items-center justify-between">
+          <Link
+            href="/"
+            style={{
+              ...SERIF,
+              fontWeight: 500,
+              fontSize: "26px",
+              letterSpacing: "0.02em",
+              color: INK,
+            }}
+          >
+            Flooor
+          </Link>
+          <nav className="hidden md:flex items-center gap-10">
+            <a
+              href="https://vrnouns.gitbook.io/flooor/documentation/documentation-en"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={smallCaps}
+              className="hover:text-black transition-colors"
+            >
+              Docs
+            </a>
+            <a
+              href="https://snapshot.org/#/s:vrnouns.eth"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={smallCaps}
+              className="hover:text-black transition-colors"
+            >
+              DAO
+            </a>
+          </nav>
+          <div className="flex items-center gap-3">
+            <ConnectButton.Custom>
+              {({
+                account,
+                chain,
+                openAccountModal,
+                openChainModal,
+                openConnectModal,
+                mounted,
+              }) => {
+                const ready = mounted;
+                const connected = ready && account && chain;
+                return (
+                  <div
+                    {...(!ready && {
+                      "aria-hidden": true,
+                      style: {
+                        opacity: 0,
+                        pointerEvents: "none",
+                        userSelect: "none",
+                      },
+                    })}
+                  >
+                    {!connected ? (
+                      <button
+                        onClick={openConnectModal}
+                        type="button"
+                        style={{
+                          ...SANS,
+                          fontSize: "11px",
+                          fontWeight: 500,
+                          letterSpacing: "0.1em",
+                          textTransform: "uppercase",
+                          padding: "10px 20px",
+                          backgroundColor: INK,
+                          color: IVORY,
+                          border: "none",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Connect
+                      </button>
+                    ) : chain.unsupported ? (
+                      <button
+                        onClick={openChainModal}
+                        type="button"
+                        style={{
+                          ...SANS,
+                          fontSize: "11px",
+                          fontWeight: 500,
+                          letterSpacing: "0.1em",
+                          textTransform: "uppercase",
+                          padding: "10px 20px",
+                          backgroundColor: "#9B1C1C",
+                          color: "#fff",
+                          border: "none",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Wrong Network
+                      </button>
+                    ) : (
+                      <button
+                        onClick={openAccountModal}
+                        type="button"
+                        style={{
+                          ...SANS,
+                          fontSize: "11px",
+                          fontWeight: 500,
+                          letterSpacing: "0.1em",
+                          textTransform: "uppercase",
+                          padding: "10px 20px",
+                          backgroundColor: "transparent",
+                          color: INK,
+                          border: `1px solid ${HAIRLINE}`,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {account.displayName}
+                      </button>
+                    )}
+                  </div>
+                );
+              }}
+            </ConnectButton.Custom>
+          </div>
+        </div>
+      </header>
 
-        <section
-          style={{
-            marginTop: 32,
-            padding: "36px",
-            border: `1px solid ${HAIRLINE}`,
-            backgroundColor: "#fff",
-            boxShadow: "0 10px 30px rgba(0,0,0,0.04)",
-          }}
-        >
-          <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
-            <Image
-              src="/onchdin.svg"
-              alt="Based Onchain Dinos"
-              width={140}
-              height={140}
-              style={{ objectFit: "contain", border: `1px solid ${HAIRLINE}` }}
-            />
-            <div style={{ flex: 1, minWidth: 240 }}>
-              <p style={smallCaps}>New collection</p>
-              <h1
-                style={{
-                  ...serif,
-                  fontSize: "clamp(2rem, 4vw, 3rem)",
-                  margin: "10px 0 12px",
-                  lineHeight: 1.05,
-                }}
-              >
-                Based Onchain Dinos
-              </h1>
+      <main className="max-w-6xl mx-auto px-5 sm:px-8">
+        {/* Lot hero */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 pt-12 lg:pt-16 items-start">
+          {/* Artwork */}
+          <div className="lg:sticky lg:top-28">
+            <div
+              className="flex items-center justify-center p-8 sm:p-14"
+              style={{ backgroundColor: PLINTH }}
+            >
+              <Image
+                src="/onchdin.svg"
+                alt="Based Onchain Dinos"
+                width={440}
+                height={440}
+                className="w-full h-auto max-w-[440px] fade-in-soft"
+                style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.08)" }}
+              />
+            </div>
+            <div className="mt-4 flex items-baseline justify-between gap-3">
               <p
-                style={{
-                  ...sans,
-                  fontSize: "1rem",
-                  lineHeight: 1.75,
-                  color: MUTED,
-                  maxWidth: 760,
-                  margin: 0,
-                }}
+                className="text-sm flex-1 min-w-0"
+                style={{ ...SERIF, fontStyle: "italic", color: MUTED }}
               >
-                A Base-native collectible preview experience with a temporary Poke Holo-inspired
-                showcase. The current art direction is a warmup for the real collection metadata,
-                drop mechanics, and onchain mint flow that will arrive soon.
+                Based Onchain Dinos — Base, onchain
               </p>
-
-              <div
-                style={{
-                  marginTop: 24,
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 12,
-                }}
-              >
-                <Link
-                  href="/"
-                  style={{
-                    ...smallCaps,
-                    textDecoration: "none",
-                    color: "#fff",
-                    backgroundColor: GREEN,
-                    padding: "12px 16px",
-                  }}
-                >
-                  Go to home
-                </Link>
-                <span
-                  style={{
-                    ...smallCaps,
-                    border: `1px solid ${HAIRLINE}`,
-                    padding: "12px 16px",
-                    backgroundColor: IVORY,
-                  }}
-                >
-                  Placeholder mint deck · dummy Base data
-                </span>
-              </div>
             </div>
           </div>
-        </section>
 
-        <section
-          style={{
-            marginTop: 24,
-            padding: "28px",
-            border: `1px solid ${HAIRLINE}`,
-            background: "linear-gradient(135deg, #fff 0%, #f6f0df 100%)",
-          }}
-        >
-          <p style={{ ...smallCaps, color: GOLD }}>Preview cards</p>
+          {/* Lot details */}
+          <div>
+            <p style={{ ...smallCaps, color: GOLD }}>
+              {IS_DEPLOYED && <span className="live-dot mr-2" aria-hidden />}
+              {!IS_DEPLOYED ? "Coming Soon" : "Live on Base"}
+            </p>
+            <h1
+              className="mt-4"
+              style={{
+                ...SERIF,
+                fontWeight: 500,
+                fontSize: "clamp(36px, 4.6vw, 58px)",
+                lineHeight: 1.08,
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Based Onchain Dinos
+            </h1>
+            <p
+              className="mt-3 text-base leading-relaxed"
+              style={{ ...SANS, color: MUTED, maxWidth: "48ch" }}
+            >
+              A new collection on Flooor. Every sale feeds the vault —
+              distributed to holders daily.
+            </p>
+
+            <div
+              className="mt-10 px-8 py-6"
+              style={{ backgroundColor: PLINTH, border: `1px solid ${HAIRLINE}` }}
+            >
+              <p style={{ ...smallCaps, marginBottom: "8px" }}>
+                Royalties to the community
+              </p>
+              <p style={{ ...SANS, fontSize: "14px", color: MUTED, lineHeight: 1.6 }}>
+                The Based Onchain Dinos contract is being finalized and
+                isn&apos;t live yet. Connect your wallet to be ready when it
+                ships.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Preview cards — poke-holo-style art direction warmup */}
+        <div className="mt-20 pt-14" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
+          <p style={smallCaps}>Preview cards</p>
+          <p
+            className="mt-3 text-base leading-relaxed"
+            style={{ ...SANS, color: MUTED, maxWidth: "60ch" }}
+          >
+            A holographic art-direction preview — dummy metadata standing in
+            for the real collection until mint mechanics are finalized.
+          </p>
           <div
-            style={{
-              marginTop: 18,
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-              gap: 16,
-              justifyItems: "center",
-            }}
+            className="mt-8 grid gap-4 justify-items-center"
+            style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}
           >
             {dummyCards.map((card, index) => (
               <HoloCard key={`${card.name}-${index}`} card={card} />
             ))}
           </div>
-        </section>
+        </div>
+      </main>
 
-        <section
-          style={{
-            marginTop: 24,
-            display: "grid",
-            gap: 16,
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          }}
-        >
-          {[
-            {
-              title: "Status",
-              value: "Preview mode",
-              desc: "NFT visuals are mocked with realistic Base-themed metadata placeholders.",
-            },
-            {
-              title: "Contract",
-              value: "TBD",
-              desc: "The deployed contract address and ABI will be wired here as soon as the drop is ready.",
-            },
-            {
-              title: "Launch plan",
-              value: "Soon",
-              desc: "After the rollout is finalized, the dummy data will be replaced with the real collection metadata.",
-            },
-          ].map((item) => (
-            <div
-              key={item.title}
+      {/* Footer */}
+      <footer
+        style={{ borderTop: `1px solid ${HAIRLINE}`, padding: "40px 0", marginTop: "80px" }}
+      >
+        <div className="max-w-6xl mx-auto px-5 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex flex-col gap-2">
+            <span style={{ ...SANS, fontSize: "12px", color: MUTED }}>
+              © 2024 Flooor. Built on Base.
+            </span>
+            <span
               style={{
-                border: `1px solid ${HAIRLINE}`,
-                backgroundColor: "#fff",
-                padding: "24px",
+                ...SANS,
+                fontSize: "11px",
+                color: MUTED,
+                fontFamily: "monospace",
               }}
             >
-              <p style={{ ...smallCaps, color: GOLD }}>{item.title}</p>
-              <h2
-                style={{
-                  ...serif,
-                  fontSize: "1.35rem",
-                  margin: "8px 0 6px",
-                }}
-              >
-                {item.value}
-              </h2>
-              <p style={{ ...sans, margin: 0, color: MUTED, lineHeight: 1.7 }}>
-                {item.desc}
-              </p>
-            </div>
-          ))}
-        </section>
-      </div>
-    </main>
+              Contract: TBD
+            </span>
+          </div>
+          <div className="flex items-center gap-6">
+            <a
+              href="https://x.com/vrnouns"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ ...SANS, fontSize: "12px", color: MUTED }}
+            >
+              X / Twitter
+            </a>
+            <a
+              href="https://farcaster.xyz/miniapps/pIFtRBsgnWAF/flooorfun"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ ...SANS, fontSize: "12px", color: MUTED }}
+            >
+              Farcaster
+            </a>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }
