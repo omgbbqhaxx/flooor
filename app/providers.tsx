@@ -4,6 +4,7 @@ import { base } from "wagmi/chains";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { WagmiProvider, http, fallback, createConfig } from "wagmi";
+import { reconnect } from "wagmi/actions";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   RainbowKitProvider,
@@ -95,8 +96,34 @@ export function Providers({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // <WagmiProvider>'ın varsayılan reconnectOnMount'u TÜM bağlayıcıları
+  // (storage'da kayıtlı olan her connector'ı) sessizce reconnect etmeye
+  // çalışır — bu yüzden normal masaüstü tarayıcıda MetaMask'e zaten bağlıyken
+  // farcasterMiniApp connector'ı da eth_accounts ister ve miniapp SDK
+  // köprüsü üzerinden istenmeyen bir Base App bağlanma denemesi/popup'ı
+  // tetikler. Bunu kapatıp reconnect'i kendimiz kontrollü şekilde yapıyoruz:
+  // gerçekten bir mini-app içinde değilsek farcasterMiniApp'i hariç tutuyoruz.
+  useEffect(() => {
+    (async () => {
+      let isMiniApp = false;
+      try {
+        isMiniApp = await sdk.isInMiniApp();
+      } catch {
+        isMiniApp = false;
+      }
+      const connectorsToReconnect = isMiniApp
+        ? config.connectors
+        : config.connectors.filter((c) => c.type !== farcasterMiniApp.type);
+      try {
+        await reconnect(config, { connectors: connectorsToReconnect });
+      } catch {
+        // reconnect denemesi başarısız olsa da uygulamayı bloklamaz
+      }
+    })();
+  }, []);
+
   return (
-    <WagmiProvider config={config}>
+    <WagmiProvider config={config} reconnectOnMount={false}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
           initialChain={base}

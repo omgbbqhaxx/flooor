@@ -26,6 +26,7 @@ import {
 import { Attribution } from "ox/erc8021";
 import { sdk } from "@farcaster/miniapp-sdk";
 import Image from "next/image";
+import Link from "next/link";
 import { Playfair_Display, Inter } from "next/font/google";
 import confetti from "canvas-confetti";
 import { HoloFrame } from "@/app/components/HoloFrame";
@@ -1636,8 +1637,8 @@ export default function BetaPage() {
         }}
       >
         <div className="max-w-6xl mx-auto px-5 sm:px-8 h-[72px] flex items-center justify-between">
-          <a
-            href="/beta"
+          <Link
+            href="/"
             style={{
               ...SERIF,
               fontWeight: 500,
@@ -1647,7 +1648,7 @@ export default function BetaPage() {
             }}
           >
             Flooor
-          </a>
+          </Link>
           <nav className="hidden md:flex items-center gap-10">
             <a
               href="/warplets"
@@ -3164,7 +3165,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.61 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.67 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>

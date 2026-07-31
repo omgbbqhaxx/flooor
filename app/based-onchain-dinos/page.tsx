@@ -6,7 +6,7 @@ import Link from "next/link";
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useConfig, useAccount, useSwitchChain } from "wagmi";
-import { writeContract, readContract, readContracts, getBalance, getPublicClient } from "wagmi/actions";
+import { writeContract, readContract, getBalance, getPublicClient } from "wagmi/actions";
 import { base } from "wagmi/chains";
 import {
   parseEther,
@@ -25,6 +25,7 @@ import confetti from "canvas-confetti";
 
 import ONCHAINDINOS_ABI from "@/app/abi/onchaindinos.json";
 import NFT_ABI from "@/app/abi/nft.json";
+import { scanOwnedTokenIds } from "@/app/lib/scanOwnedTokenIds";
 import { HoloFrame } from "@/app/components/HoloFrame";
 
 const playfair = Playfair_Display({
@@ -619,52 +620,22 @@ export default function BasedOnchainDinosPage() {
 
   // Based Onchain Dinos koleksiyonu ERC721Enumerable değil (tokenOfOwnerByIndex
   // yok — bkz. supportsInterface(0x780e9d63) === false), bu yüzden Warplets'in
-  // enumeration yaklaşımı burada çalışmıyor. Sahiplik, totalSupply kadar
-  // tokenId için ownerOf() taranarak (multicall ile toplu) tespit ediliyor.
+  // enumeration yaklaşımı burada çalışmıyor. Sahiplik Alchemy'nin transfer
+  // indeksinden (alchemy_getAssetTransfers) tespit ediliyor — bkz.
+  // scanOwnedTokenIds.ts.
   const getUserNFTs = useCallback(async () => {
     if (!address || !config) {
       setUserNFTs((prev) => (prev.length === 0 ? prev : []));
       return;
     }
     try {
-      const totalSupply = (await retryWithBackoff(async () => {
-        return (await readContract(config, {
-          address: COLLECTION_ADDR,
-          abi: NFT_ABI,
-          functionName: "totalSupply",
-        })) as bigint;
-      })) as bigint;
-      const supply = Number(totalSupply);
-
-      const ids: bigint[] = [];
-      const CHUNK = 250;
-      for (let start = 1; start <= supply; start += CHUNK) {
-        const end = Math.min(start + CHUNK - 1, supply);
-        const chunkIds: bigint[] = [];
-        for (let i = start; i <= end; i++) chunkIds.push(BigInt(i));
-
-        const results = (await retryWithBackoff(async () => {
-          return readContracts(config, {
-            contracts: chunkIds.map((tokenId) => ({
-              address: COLLECTION_ADDR,
-              abi: NFT_ABI,
-              functionName: "ownerOf",
-              args: [tokenId],
-            })) as never,
-            allowFailure: true,
-          });
-        })) as { status: "success" | "failure"; result?: unknown }[];
-
-        results.forEach((r, idx) => {
-          if (
-            r.status === "success" &&
-            typeof r.result === "string" &&
-            r.result.toLowerCase() === address.toLowerCase()
-          ) {
-            ids.push(chunkIds[idx]);
-          }
-        });
-      }
+      const ids = await scanOwnedTokenIds({
+        config,
+        collectionAddress: COLLECTION_ADDR,
+        abi: NFT_ABI,
+        owner: address,
+        retryWithBackoff,
+      });
 
       // Liste değişmediyse referansı koru — downstream effect zincirini tetiklemez
       setUserNFTs((prev) =>
