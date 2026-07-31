@@ -2301,16 +2301,19 @@ export default function BetaPage() {
                 name: "Gnars",
                 sub: "Base",
                 img: "https://i2c.seadn.io/base/0x880fb3cf5c6cc2d7dfc13a993e839a9411200c17/000d4dde43f1a377b3203d06a1a1ab/bf000d4dde43f1a377b3203d06a1a1ab.webp?w=1000",
+                href: "/gnars",
               },
               {
                 name: "OK Computers",
                 sub: "Base",
                 img: "https://i2c.seadn.io/base/05d807397e5b420d8b9cc7cb8cb07a0d/549fb12b972ea6f3790a2965d31686/55549fb12b972ea6f3790a2965d31686.gif",
+                href: "/ok-computers",
               },
               {
-                name: "Book Games",
-                sub: "Base",
-                img: "https://i2c.seadn.io/admin-uploads/61366691b607f4afc05d5202467d9e/7761366691b607f4afc05d5202467d9e.png",
+                name: "Based Onchain Dinos",
+                sub: "Base · Onchain",
+                img: "/onchdin.svg",
+                href: "/based-onchain-dinos",
               },
             ].map((col) => {
               const isLive = Boolean(col.href);
@@ -2783,6 +2786,15 @@ export default function BetaPage() {
                 style={{ color: MUTED }}
               >
                 X / Twitter
+              </a>
+              <a
+                href="https://t.me/richkidsofun"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm hover:text-black transition-colors"
+                style={{ color: MUTED }}
+              >
+                Telegram
               </a>
               <a
                 href="https://farcaster.xyz/miniapps/pIFtRBsgnWAF/flooorfun"
