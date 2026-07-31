@@ -28,6 +28,7 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import Image from "next/image";
 import { Playfair_Display, Inter } from "next/font/google";
 import confetti from "canvas-confetti";
+import { HoloFrame } from "@/app/components/HoloFrame";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -73,8 +74,9 @@ const retryWithBackoff = async (
 };
 
 const isUserRejectedError = (error: unknown): boolean => {
-  const message =
-    (error instanceof Error ? error.message : String(error)).toLowerCase();
+  const message = (
+    error instanceof Error ? error.message : String(error)
+  ).toLowerCase();
   const code =
     typeof error === "object" && error !== null && "code" in error
       ? (error as { code?: unknown }).code
@@ -263,7 +265,8 @@ const fireConfetti = () => {
 
 // Basename çözümleme — L1 üzerinden CCIP-Read yerine, veri zaten Base'de yaşadığı için
 // Base'in resmi L2Resolver kontratından doğrudan okuyoruz (bkz. github.com/base/basenames)
-const BASENAME_L2_RESOLVER_ADDRESS = "0xC6d566A56A1aFf6508b41f6c90ff131615583BCD" as const;
+const BASENAME_L2_RESOLVER_ADDRESS =
+  "0xC6d566A56A1aFf6508b41f6c90ff131615583BCD" as const;
 const L2_RESOLVER_ABI = [
   {
     inputs: [{ name: "node", type: "bytes32" }],
@@ -284,7 +287,9 @@ const convertChainIdToCoinType = (chainId: number): string => {
 const convertReverseNodeToBytes = (address: Address, chainId: number) => {
   const addressFormatted = address.toLowerCase().substring(2);
   const addressNode = keccak256(toHex(addressFormatted));
-  const baseReverseNode = namehash(`${convertChainIdToCoinType(chainId)}.reverse`);
+  const baseReverseNode = namehash(
+    `${convertChainIdToCoinType(chainId)}.reverse`,
+  );
   return keccak256(
     encodePacked(["bytes32", "bytes32"], [baseReverseNode, addressNode]),
   );
@@ -703,7 +708,9 @@ export default function BetaPage() {
               address: BASENAME_L2_RESOLVER_ADDRESS,
               abi: L2_RESOLVER_ABI,
               functionName: "name",
-              args: [convertReverseNodeToBytes(bidderAddress as Address, base.id)],
+              args: [
+                convertReverseNodeToBytes(bidderAddress as Address, base.id),
+              ],
               chainId: base.id,
             })) as string;
           });
@@ -843,7 +850,9 @@ export default function BetaPage() {
     // Görseller zincirde değişmez — daha önce çekildiyse tekrar RPC'ye gitme
     const cached = nftImageCache.current[tokenIdStr];
     if (cached) {
-      setNftImages((prev) => (prev[tokenIdStr] === cached ? prev : { [tokenIdStr]: cached }));
+      setNftImages((prev) =>
+        prev[tokenIdStr] === cached ? prev : { [tokenIdStr]: cached },
+      );
       return;
     }
     try {
@@ -1258,7 +1267,18 @@ export default function BetaPage() {
         action: { label: "Retry", onClick: () => handleBid() },
       });
     }
-  }, [config, ensureBase, bidInput, address, connectedChain, currentBid, activeBidder, getCurrentBid, getActiveBidder, fmtEth]);
+  }, [
+    config,
+    ensureBase,
+    bidInput,
+    address,
+    connectedChain,
+    currentBid,
+    activeBidder,
+    getCurrentBid,
+    getActiveBidder,
+    fmtEth,
+  ]);
 
   const handleSellNFT = useCallback(
     async (tokenId: bigint) => {
@@ -1424,7 +1444,8 @@ export default function BetaPage() {
           toast.info("Transaction cancelled.");
           return;
         }
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         toast.error(`Send failed: ${errorMessage}`, {
           duration: 5000,
           action: { label: "Retry", onClick: () => handleSendNFT(tokenId, to) },
@@ -1655,100 +1676,122 @@ export default function BetaPage() {
             </a>
           </nav>
           <div className="flex items-center gap-3">
-          <button
-            onClick={toggleSound}
-            type="button"
-            title={soundOn ? "Bid sound on — click to mute" : "Bid sound off — click to enable"}
-            aria-label={soundOn ? "Mute bid sound" : "Enable bid sound"}
-            className="p-3 transition-colors hover:text-black"
-            style={{
-              color: soundOn ? INK : MUTED,
-              border: `1px solid ${HAIRLINE}`,
-              backgroundColor: "transparent",
-            }}
-          >
-            {soundOn ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.7 21a2 2 0 01-3.4 0" />
-              </svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M13.7 21a2 2 0 01-3.4 0" />
-                <path d="M18.6 13A17.9 17.9 0 0118 8a6 6 0 00-9.3-5" />
-                <path d="M6.3 6.3C6.1 6.9 6 7.4 6 8c0 7-3 9-3 9h14" />
-                <line x1="1" y1="1" x2="23" y2="23" />
-              </svg>
-            )}
-          </button>
-          <ConnectButton.Custom>
-            {({
-              account,
-              chain,
-              openAccountModal,
-              openChainModal,
-              openConnectModal,
-              mounted,
-            }) => {
-              const ready = mounted;
-              const connected = ready && account && chain;
-              return (
-                <div
-                  {...(!ready && {
-                    "aria-hidden": true,
-                    style: {
-                      opacity: 0,
-                      pointerEvents: "none",
-                      userSelect: "none",
-                    },
-                  })}
+            <button
+              onClick={toggleSound}
+              type="button"
+              title={
+                soundOn
+                  ? "Bid sound on — click to mute"
+                  : "Bid sound off — click to enable"
+              }
+              aria-label={soundOn ? "Mute bid sound" : "Enable bid sound"}
+              className="p-3 transition-colors hover:text-black"
+              style={{
+                color: soundOn ? INK : MUTED,
+                border: `1px solid ${HAIRLINE}`,
+                backgroundColor: "transparent",
+              }}
+            >
+              {soundOn ? (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 >
-                  {!connected ? (
-                    <button
-                      onClick={openConnectModal}
-                      type="button"
-                      className="px-6 py-3 transition-opacity hover:opacity-80"
-                      style={{
-                        ...smallCaps,
-                        color: "#fff",
-                        backgroundColor: INK,
-                      }}
-                    >
-                      Connect
-                    </button>
-                  ) : chain.unsupported ? (
-                    <button
-                      onClick={openChainModal}
-                      type="button"
-                      className="px-6 py-3"
-                      style={{
-                        ...smallCaps,
-                        color: "#9B1C1C",
-                        border: "1px solid #9B1C1C",
-                        backgroundColor: "#fff",
-                      }}
-                    >
-                      Wrong Network
-                    </button>
-                  ) : (
-                    <button
-                      onClick={openAccountModal}
-                      type="button"
-                      className="px-6 py-3 transition-colors hover:bg-black hover:text-white"
-                      style={{
-                        ...smallCaps,
-                        color: INK,
-                        border: `1px solid ${INK}`,
-                        backgroundColor: "#fff",
-                      }}
-                    >
-                      {account.displayName}
-                    </button>
-                  )}
-                </div>
-              );
-            }}
-          </ConnectButton.Custom>
+                  <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.7 21a2 2 0 01-3.4 0" />
+                </svg>
+              ) : (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M13.7 21a2 2 0 01-3.4 0" />
+                  <path d="M18.6 13A17.9 17.9 0 0118 8a6 6 0 00-9.3-5" />
+                  <path d="M6.3 6.3C6.1 6.9 6 7.4 6 8c0 7-3 9-3 9h14" />
+                  <line x1="1" y1="1" x2="23" y2="23" />
+                </svg>
+              )}
+            </button>
+            <ConnectButton.Custom>
+              {({
+                account,
+                chain,
+                openAccountModal,
+                openChainModal,
+                openConnectModal,
+                mounted,
+              }) => {
+                const ready = mounted;
+                const connected = ready && account && chain;
+                return (
+                  <div
+                    {...(!ready && {
+                      "aria-hidden": true,
+                      style: {
+                        opacity: 0,
+                        pointerEvents: "none",
+                        userSelect: "none",
+                      },
+                    })}
+                  >
+                    {!connected ? (
+                      <button
+                        onClick={openConnectModal}
+                        type="button"
+                        className="px-6 py-3 transition-opacity hover:opacity-80"
+                        style={{
+                          ...smallCaps,
+                          color: "#fff",
+                          backgroundColor: INK,
+                        }}
+                      >
+                        Connect
+                      </button>
+                    ) : chain.unsupported ? (
+                      <button
+                        onClick={openChainModal}
+                        type="button"
+                        className="px-6 py-3"
+                        style={{
+                          ...smallCaps,
+                          color: "#9B1C1C",
+                          border: "1px solid #9B1C1C",
+                          backgroundColor: "#fff",
+                        }}
+                      >
+                        Wrong Network
+                      </button>
+                    ) : (
+                      <button
+                        onClick={openAccountModal}
+                        type="button"
+                        className="px-6 py-3 transition-colors hover:bg-black hover:text-white"
+                        style={{
+                          ...smallCaps,
+                          color: INK,
+                          border: `1px solid ${INK}`,
+                          backgroundColor: "#fff",
+                        }}
+                      >
+                        {account.displayName}
+                      </button>
+                    )}
+                  </div>
+                );
+              }}
+            </ConnectButton.Custom>
           </div>
         </div>
       </header>
@@ -1757,27 +1800,58 @@ export default function BetaPage() {
       {isWrongNetwork && (
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center px-6"
-          style={{ backgroundColor: "rgba(26,26,26,0.72)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
+          style={{
+            backgroundColor: "rgba(26,26,26,0.72)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+          }}
         >
           <div
             className="w-full max-w-sm p-8 sm:p-10 text-center"
-            style={{ backgroundColor: "#fff", border: `1px solid ${HAIRLINE}`, boxShadow: "0 24px 64px -16px rgba(0,0,0,0.3)" }}
+            style={{
+              backgroundColor: "#fff",
+              border: `1px solid ${HAIRLINE}`,
+              boxShadow: "0 24px 64px -16px rgba(0,0,0,0.3)",
+            }}
           >
             <div
               className="mx-auto mb-6 flex items-center justify-center"
-              style={{ width: 48, height: 48, borderRadius: "50%", backgroundColor: "#FBF3F3", border: "1px solid #F3CACA" }}
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: "50%",
+                backgroundColor: "#FBF3F3",
+                border: "1px solid #F3CACA",
+              }}
             >
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M10 2L2 17h16L10 2z" stroke="#9B1C1C" strokeWidth="1.5" strokeLinejoin="round"/>
-                <path d="M10 8v4M10 14.5v.5" stroke="#9B1C1C" strokeWidth="1.5" strokeLinecap="round"/>
+                <path
+                  d="M10 2L2 17h16L10 2z"
+                  stroke="#9B1C1C"
+                  strokeWidth="1.5"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M10 8v4M10 14.5v.5"
+                  stroke="#9B1C1C"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
               </svg>
             </div>
             <p style={{ ...smallCaps, color: "#9B1C1C" }}>Wrong Network</p>
-            <h3 className="mt-3" style={{ ...SERIF, fontWeight: 500, fontSize: "22px" }}>
+            <h3
+              className="mt-3"
+              style={{ ...SERIF, fontWeight: 500, fontSize: "22px" }}
+            >
               Switch to Base
             </h3>
-            <p className="mt-3 text-sm leading-relaxed" style={{ color: MUTED }}>
-              Flooor runs on Base. Please switch your wallet to the Base network to continue.
+            <p
+              className="mt-3 text-sm leading-relaxed"
+              style={{ color: MUTED }}
+            >
+              Flooor runs on Base. Please switch your wallet to the Base network
+              to continue.
             </p>
             <button
               onClick={() => ensureBase()}
@@ -1795,34 +1869,120 @@ export default function BetaPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 pt-12 lg:pt-16 items-start">
           {/* Artwork */}
           <div className="lg:sticky lg:top-28">
-            <div
-              className="flex items-center justify-center p-8 sm:p-14"
-              style={{ backgroundColor: PLINTH }}
-            >
-              <Image
-                src={heroToken?.image ?? "/bg.png"}
-                alt={heroToken ? `VRNoun #${heroToken.id}` : "VRNouns"}
-                width={560}
-                height={560}
-                priority
-                className="w-full h-auto max-w-[440px] fade-in-soft"
-                style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.08)" }}
-              />
-            </div>
-            <div className="mt-4 flex items-baseline justify-between gap-3">
-              <p className="text-sm flex-1 min-w-0" style={{ ...SERIF, fontStyle: "italic", color: MUTED }}>
-                {heroToken ? `VRNoun No. ${heroToken.id}` : "VRNouns"} — onchain
-                SVG, Base
-              </p>
-              <a
-                href="https://opensea.io/collection/vrnouns"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs hover:text-black transition-colors flex-shrink-0 whitespace-nowrap"
-                style={{ ...smallCaps }}
+            <div className="flex items-center justify-center py-4">
+              {/* Trading-card shell — gold foil border + cardstock body, matching /warplets and /based-onchain-dinos */}
+              <div
+                className="w-full max-w-[420px] fade-in-soft"
+                style={{
+                  padding: 9,
+                  borderRadius: 24,
+                  backgroundImage:
+                    "linear-gradient(155deg, #f6e2a0 0%, #c9a13d 22%, #fff6d9 42%, #a9782a 62%, #f6e2a0 80%, #dcb44e 100%)",
+                  boxShadow:
+                    "0 24px 48px rgba(17,24,39,0.22), 0 2px 6px rgba(0,0,0,0.12)",
+                }}
               >
-                View Collection
-              </a>
+                <div
+                  style={{
+                    borderRadius: 18,
+                    backgroundColor: "#fdfaf1",
+                    padding: 12,
+                    border: "1px solid rgba(0,0,0,0.06)",
+                  }}
+                >
+                  {/* Name + rarity row */}
+                  <div className="flex items-center justify-between gap-2 px-1">
+                    <span style={{ ...SERIF, fontWeight: 600, fontSize: 17, color: INK }}>
+                      VRNouns
+                    </span>
+                    <span
+                      style={{
+                        ...smallCaps,
+                        fontSize: 9,
+                        color: GOLD,
+                        border: `1px solid ${GOLD}`,
+                        padding: "3px 8px",
+                        borderRadius: 999,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      flooor.fun ✦
+                    </span>
+                  </div>
+
+                  {/* Art window */}
+                  <div className="mt-2">
+                    <HoloFrame
+                      className="w-full"
+                      overlay={
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: 10,
+                            right: 10,
+                            bottom: 10,
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <span
+                            style={{
+                              ...smallCaps,
+                              color: "#fff",
+                              fontSize: 9,
+                              padding: "4px 9px",
+                              backgroundColor: "rgba(5,12,28,0.42)",
+                              backdropFilter: "blur(6px)",
+                              border: "1px solid rgba(255,255,255,0.22)",
+                            }}
+                          >
+                            Base
+                          </span>
+                          <span
+                            style={{
+                              ...smallCaps,
+                              color: "#fff",
+                              fontSize: 9,
+                              padding: "4px 9px",
+                              backgroundColor: "rgba(5,12,28,0.42)",
+                              backdropFilter: "blur(6px)",
+                              border: "1px solid rgba(255,255,255,0.22)",
+                            }}
+                          >
+                            Onchain
+                          </span>
+                        </div>
+                      }
+                    >
+                      <Image
+                        src={heroToken?.image ?? "/bg.png"}
+                        alt={heroToken ? `VRNoun #${heroToken.id}` : "VRNouns"}
+                        width={560}
+                        height={560}
+                        priority
+                        className="w-full h-auto"
+                      />
+                    </HoloFrame>
+                  </div>
+
+                  {/* Meta strip */}
+                  <div className="mt-3 flex items-center justify-between px-1">
+                    <span style={{ ...smallCaps, fontSize: 9 }}>
+                      No. {heroToken ? heroToken.id : "—"} · Base
+                    </span>
+                    <a
+                      href="https://opensea.io/collection/vrnouns"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ ...smallCaps, fontSize: 9 }}
+                      className="hover:text-black transition-colors"
+                    >
+                      View Collection
+                    </a>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1830,7 +1990,9 @@ export default function BetaPage() {
           <div>
             <p style={{ ...smallCaps, color: GOLD }}>
               <span className="live-dot mr-2" aria-hidden />
-              {isSignPhase ? "Live Market — Sign Phase" : "Live Market — Claim Phase"}
+              {isSignPhase
+                ? "Live Market — Sign Phase"
+                : "Live Market — Claim Phase"}
               {" · "}Epoch {phaseInfo ? phaseInfo.eid.toString() : "—"}
               {isLoading ? " · syncing" : ""}
             </p>
@@ -1850,12 +2012,15 @@ export default function BetaPage() {
               className="mt-3 text-base leading-relaxed"
               style={{ ...SANS, color: MUTED, maxWidth: "48ch" }}
             >
-              Bid on the flooor, or sell your VRNoun instantly — no listings,
-              no waiting. Royalties flow back to the community.
+              Bid on the flooor, or sell your VRNoun instantly — no listings, no
+              waiting. Royalties flow back to the community.
             </p>
 
             {/* Current bid */}
-            <div className="mt-10 pt-8" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
+            <div
+              className="mt-10 pt-8"
+              style={{ borderTop: `1px solid ${HAIRLINE}` }}
+            >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
                 <div>
                   <p style={smallCaps}>Current Bid</p>
@@ -1912,18 +2077,31 @@ export default function BetaPage() {
               {hasBid && (
                 <div
                   className="mt-8 px-4 py-3 flex items-start gap-3"
-                  style={{ backgroundColor: PLINTH, border: `1px solid ${HAIRLINE}` }}
+                  style={{
+                    backgroundColor: PLINTH,
+                    border: `1px solid ${HAIRLINE}`,
+                  }}
                 >
-                  <span style={{ color: MUTED, fontSize: "13px", lineHeight: 1.5, ...SANS }}>
-                    Current bid is Ξ {fmtEth(currentBid)} — you must bid at least{" "}
-                    <strong>Ξ {minOutbidAmount.toFixed(6)}</strong> to outbid (5% above current).
+                  <span
+                    style={{
+                      color: MUTED,
+                      fontSize: "13px",
+                      lineHeight: 1.5,
+                      ...SANS,
+                    }}
+                  >
+                    Current bid is Ξ {fmtEth(currentBid)} — you must bid at
+                    least <strong>Ξ {minOutbidAmount.toFixed(6)}</strong> to
+                    outbid (5% above current).
                   </span>
                 </div>
               )}
 
               {/* Bid — tam çerçeveli kutu */}
               <div
-                className={hasBid ? "mt-3 flex items-stretch" : "mt-8 flex items-stretch"}
+                className={
+                  hasBid ? "mt-3 flex items-stretch" : "mt-8 flex items-stretch"
+                }
                 style={{
                   border: `1px solid ${bidError ? "#9B1C1C" : INK}`,
                 }}
@@ -2055,7 +2233,10 @@ export default function BetaPage() {
             </div>
 
             {/* Daily sign */}
-            <div className="mt-10 pt-8" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
+            <div
+              className="mt-10 pt-8"
+              style={{ borderTop: `1px solid ${HAIRLINE}` }}
+            >
               <p style={smallCaps}>Daily Sign</p>
               <p
                 className="mt-3 text-base leading-relaxed"
@@ -2129,144 +2310,189 @@ export default function BetaPage() {
               </p>
             </div>
           ) : userNFTs.length > 0 ? (
-            <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-8">
+            <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
               {userNFTs.map((tokenId) => {
                 const tokenIdStr = tokenId.toString();
                 const approved = nftApprovalStatus[tokenIdStr];
                 const busy = nftBusy[tokenIdStr] === true;
                 return (
-                  <div key={tokenIdStr} className="flex flex-col">
+                  <div
+                    key={tokenIdStr}
+                    className="flex flex-col p-2.5"
+                    style={{
+                      border: `1px solid ${HAIRLINE}`,
+                      borderRadius: 16,
+                      backgroundColor: "#fff",
+                    }}
+                  >
                     <button
                       onClick={() => requestSellNFT(tokenId)}
                       title={`Sell Noun #${tokenIdStr} to highest bid`}
-                      className="group text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-black"
+                      className="group relative w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-black"
                     >
-                      <div
-                        className="relative aspect-square flex items-center justify-center p-6 transition-colors"
-                        style={{ backgroundColor: PLINTH }}
-                      >
-                        {nftImages[tokenIdStr] ? (
-                          <Image
-                            src={nftImages[tokenIdStr]}
-                            alt={`Noun ${tokenIdStr}`}
-                            width={220}
-                            height={220}
-                            className="w-full h-auto transition-transform duration-300 group-hover:scale-[1.03]"
-                            style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.08)" }}
-                          />
-                        ) : (
-                          <span
-                            style={{ ...SERIF, fontStyle: "italic", color: MUTED }}
-                          >
-                            No. {tokenIdStr}
-                          </span>
-                        )}
-                        {nftLoadingStatus[tokenIdStr] && (
+                      <HoloFrame
+                        className="w-full"
+                        overlay={
                           <div
-                            className="absolute inset-0 flex items-center justify-center"
-                            style={{ backgroundColor: "rgba(255,255,255,0.85)" }}
+                            style={{
+                              position: "absolute",
+                              left: 8,
+                              right: 8,
+                              top: 8,
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                            }}
                           >
-                            <span style={smallCaps}>Approving…</span>
+                            <span
+                              style={{
+                                ...smallCaps,
+                                color: "#fff",
+                                fontSize: 8,
+                                padding: "3px 7px",
+                                backgroundColor: "rgba(5,12,28,0.42)",
+                                backdropFilter: "blur(6px)",
+                                border: "1px solid rgba(255,255,255,0.22)",
+                              }}
+                            >
+                              Base
+                            </span>
+                            <span
+                              style={{
+                                ...smallCaps,
+                                color: "#fff",
+                                fontSize: 8,
+                                padding: "3px 7px",
+                                backgroundColor: "rgba(5,12,28,0.42)",
+                                backdropFilter: "blur(6px)",
+                                border: "1px solid rgba(255,255,255,0.22)",
+                              }}
+                            >
+                              #{tokenIdStr}
+                            </span>
                           </div>
-                        )}
+                        }
+                      >
                         <div
-                          className="absolute inset-x-0 bottom-0 py-2.5 text-center opacity-0 group-hover:opacity-100 transition-opacity"
-                          style={{ backgroundColor: INK }}
+                          className="relative aspect-square flex items-center justify-center p-4"
+                          style={{ backgroundColor: PLINTH }}
                         >
-                          <span style={{ ...smallCaps, color: "#fff" }}>
+                          {nftImages[tokenIdStr] ? (
+                            <Image
+                              src={nftImages[tokenIdStr]}
+                              alt={`Noun ${tokenIdStr}`}
+                              width={220}
+                              height={220}
+                              className="w-full h-auto"
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                ...SERIF,
+                                fontStyle: "italic",
+                                color: MUTED,
+                              }}
+                            >
+                              No. {tokenIdStr}
+                            </span>
+                          )}
+                        </div>
+                      </HoloFrame>
+                      {nftLoadingStatus[tokenIdStr] && (
+                        <div
+                          className="absolute inset-0 flex items-center justify-center"
+                          style={{ backgroundColor: "rgba(255,255,255,0.85)" }}
+                        >
+                          <span style={smallCaps}>Approving…</span>
+                        </div>
+                      )}
+                      {hasBid && (
+                        <div
+                          className="absolute inset-x-0 bottom-0 py-2 text-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          style={{ backgroundColor: "rgba(26,26,26,0.85)", borderRadius: "0 0 10px 10px" }}
+                        >
+                          <span style={{ ...smallCaps, color: "#fff", fontSize: 9 }}>
                             Sell to Highest Bid
                           </span>
                         </div>
-                      </div>
-                      <p
-                        className="mt-3"
-                        style={{ ...SERIF, fontWeight: 500, fontSize: "17px" }}
-                      >
-                        VRNoun No. {tokenIdStr}
-                      </p>
-                      <p
-                        className="mt-0.5 text-xs"
-                        style={{ color: approved ? GREEN : AMBER }}
-                      >
-                        {approved ? "Approved for sale" : "Approval required"}
-                      </p>
+                      )}
                     </button>
+
+                    <p
+                      className="mt-2 px-1 text-xs"
+                      style={{ ...smallCaps, fontSize: 9, color: approved ? GREEN : AMBER }}
+                    >
+                      {approved ? "Approved for sale" : "Approval required"}
+                    </p>
+
                     <button
                       onClick={() => requestSellNFT(tokenId)}
                       disabled={busy || !hasBid}
-                      title={hasBid ? `Sell Noun #${tokenIdStr} to highest bid` : "No active bid yet"}
-                      className="mt-3 w-full transition-opacity enabled:hover:opacity-85"
+                      title={
+                        hasBid
+                          ? `Sell Noun #${tokenIdStr} to highest bid`
+                          : "No active bid yet"
+                      }
+                      className="mt-2 w-full transition-opacity enabled:hover:opacity-85"
                       style={{
-                        ...smallCaps,
-                        padding: "10px",
-                        backgroundColor: "transparent",
-                        color: !hasBid ? MUTED : INK,
-                        border: `1px solid ${HAIRLINE}`,
+                        ...SANS,
+                        fontSize: "11px",
+                        fontWeight: 500,
+                        letterSpacing: "0.05em",
+                        textTransform: "uppercase",
+                        padding: "9px",
+                        borderRadius: 9,
+                        backgroundColor: !hasBid ? IVORY : INK,
+                        color: !hasBid ? MUTED : "#fff",
+                        border: !hasBid ? `1px solid ${HAIRLINE}` : "none",
                         cursor: !hasBid ? "not-allowed" : "pointer",
                       }}
                     >
                       Sell to Highest Bid
                     </button>
-                    <button
-                      onClick={() => requestSendNFT(tokenId)}
-                      disabled={busy}
-                      title={`Send Noun #${tokenIdStr} to another address`}
-                      className="mt-2 w-full transition-opacity enabled:hover:opacity-85"
-                      style={{
-                        ...smallCaps,
-                        padding: "10px",
-                        backgroundColor: "transparent",
-                        color: busy ? MUTED : INK,
-                        border: `1px solid ${HAIRLINE}`,
-                        cursor: busy ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      Send
-                    </button>
-                    {userNFTs.length > 1 ? (
+
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => requestSendNFT(tokenId)}
+                        disabled={busy}
+                        title={`Send Noun #${tokenIdStr} to another address`}
+                        className="flex items-center justify-center gap-1.5 transition-opacity enabled:hover:opacity-70"
+                        style={{
+                          padding: "8px",
+                          borderRadius: 9,
+                          backgroundColor: "transparent",
+                          color: busy ? MUTED : INK,
+                          border: `1px solid ${HAIRLINE}`,
+                          cursor: busy ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="22" y1="2" x2="11" y2="13" />
+                          <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                        </svg>
+                        <span style={{ ...smallCaps, fontSize: 10 }}>Send</span>
+                      </button>
                       <button
                         onClick={handleSign}
                         disabled={isSignButtonDisabled()}
                         title={getSignButtonText()}
-                        className="mt-2 self-end p-2 transition-opacity enabled:hover:opacity-85"
+                        className="flex items-center justify-center gap-1.5 transition-opacity enabled:hover:opacity-70"
                         style={{
+                          padding: "8px",
+                          borderRadius: 9,
                           backgroundColor: "transparent",
-                          border: `1px solid ${HAIRLINE}`,
                           color: isSignButtonDisabled() ? MUTED : INK,
+                          border: `1px solid ${HAIRLINE}`,
                           cursor: isSignButtonDisabled() ? "not-allowed" : "pointer",
                         }}
                       >
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                           <circle cx="7.5" cy="15.5" r="5.5" />
                           <path d="M21 2l-9.6 9.6M15.5 7.5l3 3L22 7l-3-3" />
                         </svg>
+                        <span style={{ ...smallCaps, fontSize: 10 }}>Sign</span>
                       </button>
-                    ) : (
-                      <button
-                        onClick={handleSign}
-                        disabled={isSignButtonDisabled()}
-                        className="mt-2 w-full transition-opacity enabled:hover:opacity-85"
-                        style={{
-                          ...smallCaps,
-                          padding: "10px",
-                          backgroundColor: "transparent",
-                          color: isSignButtonDisabled() ? MUTED : INK,
-                          border: `1px solid ${HAIRLINE}`,
-                          cursor: isSignButtonDisabled() ? "not-allowed" : "pointer",
-                        }}
-                      >
-                        {getSignButtonText()}
-                      </button>
-                    )}
+                    </div>
                   </div>
                 );
               })}
@@ -2287,7 +2513,10 @@ export default function BetaPage() {
         </div>
 
         {/* Other Collections */}
-        <div className="mt-20 pt-14" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
+        <div
+          className="mt-20 pt-14"
+          style={{ borderTop: `1px solid ${HAIRLINE}` }}
+        >
           <p style={smallCaps}>Other Collections</p>
           <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
             {[
@@ -2324,75 +2553,103 @@ export default function BetaPage() {
                     className="relative aspect-square overflow-hidden"
                     style={{
                       backgroundColor: isFeatured ? "#f6efe3" : PLINTH,
-                      border: isFeatured ? `1px solid ${HAIRLINE}` : undefined,
-                      borderRadius: isFeatured ? 18 : undefined,
+                      border: `1px solid ${HAIRLINE}`,
+                      borderRadius: 16,
                       boxShadow: isFeatured
                         ? "0 18px 38px rgba(26, 26, 26, 0.12)"
-                        : undefined,
+                        : "0 6px 18px rgba(26, 26, 26, 0.05)",
                     }}
                   >
-                    {isFeatured ? (
-                      <div
-                        className="absolute inset-0"
-                        style={{
-                          background:
-                            "linear-gradient(135deg, rgba(255,255,255,0.8), rgba(255,255,255,0.05) 45%, rgba(26,26,26,0.06))",
-                          pointerEvents: "none",
-                        }}
-                      />
-                    ) : null}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={col.img}
-                      alt={col.name}
+                    <HoloFrame
                       className="w-full h-full"
-                      style={
-                        isFeatured
-                          ? {
-                              objectFit: "contain",
-                              padding: "26px",
-                              transform: "scale(1.04)",
-                              filter: "drop-shadow(0 8px 18px rgba(0,0,0,0.12))",
-                            }
-                          : isLive
-                            ? { objectFit: "cover" }
-                            : {
-                                objectFit: "cover",
-                                filter: "blur(10px)",
-                                transform: "scale(1.12)",
-                              }
+                      overlay={
+                        <>
+                          <div className="absolute left-3 top-3">
+                            <span
+                              style={{
+                                ...smallCaps,
+                                color: "#fff",
+                                fontSize: 9,
+                                padding: "4px 9px",
+                                backgroundColor: "rgba(5,12,28,0.42)",
+                                backdropFilter: "blur(6px)",
+                                border: "1px solid rgba(255,255,255,0.22)",
+                              }}
+                            >
+                              Base
+                            </span>
+                          </div>
+                          {isFeatured ? (
+                            <div className="absolute right-3 top-3">
+                              <span
+                                style={{
+                                  ...smallCaps,
+                                  color: "#fff",
+                                  fontSize: 9,
+                                  padding: "4px 9px",
+                                  backgroundColor: GREEN,
+                                  letterSpacing: "0.14em",
+                                  boxShadow: "0 4px 12px rgba(30,123,79,0.38)",
+                                }}
+                              >
+                                New
+                              </span>
+                            </div>
+                          ) : null}
+                          <div className="absolute inset-x-3 bottom-3 flex justify-end">
+                            <span
+                              style={{
+                                ...smallCaps,
+                                color: "#fff",
+                                fontSize: 9,
+                                padding: "4px 9px",
+                                backgroundColor: isLive
+                                  ? "rgba(30,123,79,0.85)"
+                                  : "rgba(26,26,26,0.65)",
+                                backdropFilter: "blur(6px)",
+                              }}
+                            >
+                              {isLive ? "Live →" : "Soon"}
+                            </span>
+                          </div>
+                        </>
                       }
-                    />
-                    {isFeatured ? (
-                      <div className="absolute left-4 top-4">
-                        <span
+                    >
+                      {isFeatured ? (
+                        <div
+                          className="absolute inset-0"
                           style={{
-                            ...smallCaps,
-                            color: "#fff",
-                            backgroundColor: GREEN,
-                            padding: "7px 12px",
-                            letterSpacing: "0.16em",
-                            boxShadow: "0 6px 18px rgba(30,123,79,0.38)",
+                            background:
+                              "linear-gradient(135deg, rgba(255,255,255,0.8), rgba(255,255,255,0.05) 45%, rgba(26,26,26,0.06))",
+                            pointerEvents: "none",
+                            zIndex: 1,
                           }}
-                        >
-                          New collection
-                        </span>
-                      </div>
-                    ) : null}
-                    <div className="absolute inset-0 flex items-end justify-start p-4">
-                      <span
-                        style={{
-                          ...smallCaps,
-                          color: "#fff",
-                          backgroundColor: isLive ? GREEN : "rgba(26,26,26,0.65)",
-                          padding: "6px 16px",
-                          letterSpacing: "0.15em",
-                          boxShadow: "0 8px 18px rgba(0,0,0,0.24)",
-                        }}
-                      >
-                        {isLive ? "Live →" : "Soon"}
-                      </span>
-                    </div>
+                        />
+                      ) : null}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={col.img}
+                        alt={col.name}
+                        className="w-full h-full"
+                        style={
+                          isFeatured
+                            ? {
+                                objectFit: "contain",
+                                padding: "26px",
+                                transform: "scale(1.04)",
+                                filter:
+                                  "drop-shadow(0 8px 18px rgba(0,0,0,0.12))",
+                              }
+                            : isLive
+                              ? { objectFit: "cover" }
+                              : {
+                                  objectFit: "cover",
+                                  filter: "blur(10px)",
+                                  transform: "scale(1.12)",
+                                }
+                        }
+                      />
+                    </HoloFrame>
                   </div>
                   <p
                     className="mt-3"
@@ -2417,7 +2674,10 @@ export default function BetaPage() {
         </div>
 
         {/* How it works */}
-        <div className="mt-24 pt-14" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
+        <div
+          className="mt-24 pt-14"
+          style={{ borderTop: `1px solid ${HAIRLINE}` }}
+        >
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
             <div>
               <p
@@ -2435,7 +2695,10 @@ export default function BetaPage() {
               <p className="mt-4" style={{ ...smallCaps, color: INK }}>
                 Sign &amp; Earn
               </p>
-              <p className="mt-3 text-base leading-relaxed" style={{ color: MUTED }}>
+              <p
+                className="mt-3 text-base leading-relaxed"
+                style={{ color: MUTED }}
+              >
                 Light stake by signing with your NFT. Five percent of all
                 royalties are shared with signers, every day.
               </p>
@@ -2456,7 +2719,10 @@ export default function BetaPage() {
               <p className="mt-4" style={{ ...smallCaps, color: INK }}>
                 Bid or Sell
               </p>
-              <p className="mt-3 text-base leading-relaxed" style={{ color: MUTED }}>
+              <p
+                className="mt-3 text-base leading-relaxed"
+                style={{ color: MUTED }}
+              >
                 No listings, no negotiation. Place a bid, or sell your work
                 instantly at the standing price — settled on-chain.
               </p>
@@ -2477,7 +2743,10 @@ export default function BetaPage() {
               <p className="mt-4" style={{ ...smallCaps, color: INK }}>
                 Game Theory
               </p>
-              <p className="mt-3 text-base leading-relaxed" style={{ color: MUTED }}>
+              <p
+                className="mt-3 text-base leading-relaxed"
+                style={{ color: MUTED }}
+              >
                 Built on game theory and designed with a single intention: the
                 whole group wins together.
               </p>
@@ -2657,7 +2926,14 @@ export default function BetaPage() {
           className="fixed inset-0 z-[200] flex items-center justify-center px-4"
           style={{ backgroundColor: "rgba(26,26,26,0.5)" }}
         >
-          <div className="w-full" style={{ maxWidth: "400px", backgroundColor: IVORY, border: `1px solid ${HAIRLINE}` }}>
+          <div
+            className="w-full"
+            style={{
+              maxWidth: "400px",
+              backgroundColor: IVORY,
+              border: `1px solid ${HAIRLINE}`,
+            }}
+          >
             <div className="px-6 py-6">
               <p style={{ ...SERIF, fontSize: "20px", marginBottom: "12px" }}>
                 {sharePrompt.type === "sign"
@@ -2888,7 +3164,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.49 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.59 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>

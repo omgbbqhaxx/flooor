@@ -25,6 +25,7 @@ import confetti from "canvas-confetti";
 
 import WARPLETS_ABI from "@/app/abi/warplets.json";
 import NFT_ABI from "@/app/abi/nft.json";
+import { HoloFrame } from "@/app/components/HoloFrame";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -1530,31 +1531,116 @@ export default function WarpletsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 pt-12 lg:pt-16 items-start">
           {/* Artwork */}
           <div className="lg:sticky lg:top-28">
-            <div
-              className="flex items-center justify-center p-8 sm:p-14"
-              style={{ backgroundColor: PLINTH }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={WARPLETS_IMG}
-                alt="Warplets"
-                className="w-full h-auto max-w-[440px] fade-in-soft"
-                style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.08)" }}
-              />
-            </div>
-            <div className="mt-4 flex items-baseline justify-between gap-3">
-              <p className="text-sm flex-1 min-w-0" style={{ ...SERIF, fontStyle: "italic", color: MUTED }}>
-                Warplets — Base, Farcaster
-              </p>
-              <a
-                href="https://opensea.io/assets/base/0x699727F9E01A822EFdcf7333073f0461e5914b4E"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs hover:text-black transition-colors flex-shrink-0 whitespace-nowrap"
-                style={smallCaps}
+            <div className="flex items-center justify-center py-4">
+              {/* Trading-card shell — gold foil border + cardstock body, matching /based-onchain-dinos */}
+              <div
+                className="w-full max-w-[420px] fade-in-soft"
+                style={{
+                  padding: 9,
+                  borderRadius: 24,
+                  backgroundImage:
+                    "linear-gradient(155deg, #f6e2a0 0%, #c9a13d 22%, #fff6d9 42%, #a9782a 62%, #f6e2a0 80%, #dcb44e 100%)",
+                  boxShadow:
+                    "0 24px 48px rgba(17,24,39,0.22), 0 2px 6px rgba(0,0,0,0.12)",
+                }}
               >
-                View Collection
-              </a>
+                <div
+                  style={{
+                    borderRadius: 18,
+                    backgroundColor: "#fdfaf1",
+                    padding: 12,
+                    border: "1px solid rgba(0,0,0,0.06)",
+                  }}
+                >
+                  {/* Name + rarity row */}
+                  <div className="flex items-center justify-between gap-2 px-1">
+                    <span style={{ ...SERIF, fontWeight: 600, fontSize: 17, color: INK }}>
+                      Warplets
+                    </span>
+                    <span
+                      style={{
+                        ...smallCaps,
+                        fontSize: 9,
+                        color: GOLD,
+                        border: `1px solid ${GOLD}`,
+                        padding: "3px 8px",
+                        borderRadius: 999,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      flooor.fun ✦
+                    </span>
+                  </div>
+
+                  {/* Art window */}
+                  <div className="mt-2">
+                    <HoloFrame
+                      className="w-full"
+                      overlay={
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: 10,
+                            right: 10,
+                            bottom: 10,
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <span
+                            style={{
+                              ...smallCaps,
+                              color: "#fff",
+                              fontSize: 9,
+                              padding: "4px 9px",
+                              backgroundColor: "rgba(5,12,28,0.42)",
+                              backdropFilter: "blur(6px)",
+                              border: "1px solid rgba(255,255,255,0.22)",
+                            }}
+                          >
+                            Base
+                          </span>
+                          <span
+                            style={{
+                              ...smallCaps,
+                              color: "#fff",
+                              fontSize: 9,
+                              padding: "4px 9px",
+                              backgroundColor: "rgba(5,12,28,0.42)",
+                              backdropFilter: "blur(6px)",
+                              border: "1px solid rgba(255,255,255,0.22)",
+                            }}
+                          >
+                            Farcaster
+                          </span>
+                        </div>
+                      }
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={WARPLETS_IMG}
+                        alt="Warplets"
+                        className="w-full h-auto"
+                      />
+                    </HoloFrame>
+                  </div>
+
+                  {/* Meta strip */}
+                  <div className="mt-3 flex items-center justify-between px-1">
+                    <span style={{ ...smallCaps, fontSize: 9 }}>No. 001 · Base</span>
+                    <a
+                      href="https://opensea.io/assets/base/0x699727F9E01A822EFdcf7333073f0461e5914b4E"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ ...smallCaps, fontSize: 9 }}
+                      className="hover:text-black transition-colors"
+                    >
+                      View Collection
+                    </a>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1752,7 +1838,7 @@ export default function WarpletsPage() {
                   No Warplets found in this wallet.
                 </p>
               ) : (
-                <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
+                <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
                   {userNFTs.map((tokenId) => {
                     const idStr = tokenId.toString();
                     const signed = nftSignedStatus[idStr] === true;
@@ -1766,7 +1852,15 @@ export default function WarpletsPage() {
                       busy || (isSignPhase ? signed : !signed || claimed);
                     const isClaimReady = !isSignPhase && signed && !claimed;
                     return (
-                      <div key={idStr} className="flex flex-col">
+                      <div
+                        key={idStr}
+                        className="flex flex-col p-2.5"
+                        style={{
+                          border: `1px solid ${HAIRLINE}`,
+                          borderRadius: 16,
+                          backgroundColor: "#fff",
+                        }}
+                      >
                         <button
                           onClick={() => requestSellNFT(tokenId)}
                           disabled={!hasBid}
@@ -1774,38 +1868,83 @@ export default function WarpletsPage() {
                           className="group relative w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-black"
                           style={{ cursor: hasBid ? "pointer" : "default" }}
                         >
-                          <div
-                            style={{
-                              aspectRatio: "1 / 1",
-                              backgroundColor: PLINTH,
-                              backgroundImage: image ? `url(${image})` : undefined,
-                              backgroundSize: "cover",
-                              backgroundPosition: "center",
-                            }}
-                          />
+                          <HoloFrame
+                            className="w-full"
+                            overlay={
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  left: 8,
+                                  right: 8,
+                                  top: 8,
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    ...smallCaps,
+                                    color: "#fff",
+                                    fontSize: 8,
+                                    padding: "3px 7px",
+                                    backgroundColor: "rgba(5,12,28,0.42)",
+                                    backdropFilter: "blur(6px)",
+                                    border: "1px solid rgba(255,255,255,0.22)",
+                                  }}
+                                >
+                                  Base
+                                </span>
+                                <span
+                                  style={{
+                                    ...smallCaps,
+                                    color: "#fff",
+                                    fontSize: 8,
+                                    padding: "3px 7px",
+                                    backgroundColor: "rgba(5,12,28,0.42)",
+                                    backdropFilter: "blur(6px)",
+                                    border: "1px solid rgba(255,255,255,0.22)",
+                                  }}
+                                >
+                                  #{idStr}
+                                </span>
+                              </div>
+                            }
+                          >
+                            <div
+                              style={{
+                                aspectRatio: "1 / 1",
+                                backgroundColor: PLINTH,
+                                backgroundImage: image ? `url(${image})` : undefined,
+                                backgroundSize: "cover",
+                                backgroundPosition: "center",
+                              }}
+                            />
+                          </HoloFrame>
                           {hasBid && (
                             <div
-                              className="absolute inset-x-0 bottom-0 py-2.5 text-center opacity-0 group-hover:opacity-100 transition-opacity"
-                              style={{ backgroundColor: INK }}
+                              className="absolute inset-x-0 bottom-0 py-2 text-center opacity-0 group-hover:opacity-100 transition-opacity"
+                              style={{ backgroundColor: "rgba(26,26,26,0.85)", borderRadius: "0 0 10px 10px" }}
                             >
-                              <span style={{ ...smallCaps, color: "#fff" }}>Sell at Current Bid</span>
+                              <span style={{ ...smallCaps, color: "#fff", fontSize: 9 }}>
+                                Sell at Current Bid
+                              </span>
                             </div>
                           )}
                         </button>
-                        <p style={{ ...SERIF, fontWeight: 500, fontSize: "15px", marginTop: "10px" }}>
-                          Warplet #{idStr}
-                        </p>
+
                         <button
                           onClick={() => handleSignOrClaim(tokenId)}
                           disabled={signClaimDisabled}
-                          className="mt-2 w-full transition-opacity enabled:hover:opacity-85"
+                          className="mt-2.5 w-full transition-opacity enabled:hover:opacity-85"
                           style={{
                             ...SANS,
                             fontSize: "11px",
                             fontWeight: 500,
-                            letterSpacing: "0.06em",
+                            letterSpacing: "0.05em",
                             textTransform: "uppercase",
-                            padding: "10px",
+                            padding: "9px",
+                            borderRadius: 9,
                             backgroundColor: signClaimDisabled ? IVORY : isClaimReady ? GREEN : INK,
                             color: signClaimDisabled ? MUTED : "#fff",
                             border: signClaimDisabled ? `1px solid ${HAIRLINE}` : "none",
@@ -1814,46 +1953,49 @@ export default function WarpletsPage() {
                         >
                           {busy ? "..." : signClaimLabel}
                         </button>
-                        <button
-                          onClick={() => requestSellNFT(tokenId)}
-                          disabled={busy || !hasBid}
-                          title={hasBid ? `Sell #${idStr} at current bid` : "No active bid yet"}
-                          className="mt-2 w-full transition-opacity enabled:hover:opacity-85"
-                          style={{
-                            ...SANS,
-                            fontSize: "11px",
-                            fontWeight: 500,
-                            letterSpacing: "0.06em",
-                            textTransform: "uppercase",
-                            padding: "10px",
-                            backgroundColor: "transparent",
-                            color: !hasBid ? MUTED : INK,
-                            border: `1px solid ${HAIRLINE}`,
-                            cursor: !hasBid ? "not-allowed" : "pointer",
-                          }}
-                        >
-                          Sell at Current Bid
-                        </button>
-                        <button
-                          onClick={() => requestSendNFT(tokenId)}
-                          disabled={busy}
-                          title={`Send #${idStr} to another address`}
-                          className="mt-2 w-full transition-opacity enabled:hover:opacity-85"
-                          style={{
-                            ...SANS,
-                            fontSize: "11px",
-                            fontWeight: 500,
-                            letterSpacing: "0.06em",
-                            textTransform: "uppercase",
-                            padding: "10px",
-                            backgroundColor: "transparent",
-                            color: busy ? MUTED : INK,
-                            border: `1px solid ${HAIRLINE}`,
-                            cursor: busy ? "not-allowed" : "pointer",
-                          }}
-                        >
-                          Send
-                        </button>
+
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => requestSellNFT(tokenId)}
+                            disabled={busy || !hasBid}
+                            title={hasBid ? `Sell #${idStr} at current bid` : "No active bid yet"}
+                            className="flex items-center justify-center gap-1.5 transition-opacity enabled:hover:opacity-70"
+                            style={{
+                              padding: "8px",
+                              borderRadius: 9,
+                              backgroundColor: "transparent",
+                              color: !hasBid ? MUTED : INK,
+                              border: `1px solid ${HAIRLINE}`,
+                              cursor: !hasBid ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M20.59 13.41L13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+                              <line x1="7" y1="7" x2="7.01" y2="7" />
+                            </svg>
+                            <span style={{ ...smallCaps, fontSize: 10 }}>Sell</span>
+                          </button>
+                          <button
+                            onClick={() => requestSendNFT(tokenId)}
+                            disabled={busy}
+                            title={`Send #${idStr} to another address`}
+                            className="flex items-center justify-center gap-1.5 transition-opacity enabled:hover:opacity-70"
+                            style={{
+                              padding: "8px",
+                              borderRadius: 9,
+                              backgroundColor: "transparent",
+                              color: busy ? MUTED : INK,
+                              border: `1px solid ${HAIRLINE}`,
+                              cursor: busy ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="22" y1="2" x2="11" y2="13" />
+                              <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                            </svg>
+                            <span style={{ ...smallCaps, fontSize: 10 }}>Send</span>
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
