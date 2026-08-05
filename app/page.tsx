@@ -2564,9 +2564,15 @@ export default function BetaPage() {
                 img: "/onchdin.svg",
                 href: "/based-onchain-dinos",
               },
+              {
+                name: "Base Day One",
+                sub: "Base",
+                img: "https://ipfs.io/ipfs/bafybeidkxtd2qck3omiccqhi2iebklr5yfsm33vivmgyfarlh62l462zka",
+                href: "/base-day-one",
+              },
             ].map((col) => {
               const isLive = Boolean(col.href);
-              const isFeatured = col.name === "Based Onchain Dinos";
+              const isFeatured = col.name === "Base Day One";
               const card = (
                 <>
                   <div
@@ -3184,7 +3190,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.79 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.80 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>
