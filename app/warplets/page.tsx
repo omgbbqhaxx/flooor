@@ -1137,11 +1137,13 @@ export default function WarpletsPage() {
         playChime();
         fireConfetti();
         if (isSignPhase) {
+          setNftSignedStatus((prev) => ({ ...prev, [idStr]: true }));
           setSharePrompt({
             type: "sign",
             text: `Just signed my Warplet on flooor.fun 🖊️\n\n${dailySigners + 1} signers sharing today's vault of Ξ${fmtEth(dailyVault)}.\n\nSign daily, earn daily. Royalties to the community.`,
           });
         } else {
+          setNftClaimedStatus((prev) => ({ ...prev, [idStr]: true }));
           const claimedUsd = toUsd(yieldPerSigner);
           setSharePrompt({
             type: "claim",

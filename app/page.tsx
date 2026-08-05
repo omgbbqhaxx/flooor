@@ -96,7 +96,7 @@ import NFT_ABI from "@/app/abi/nft.json";
 
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
-const MINIMUM_BID_FOR_SELL = 0.006;
+const MINIMUM_BID_FOR_SELL = 0.015;
 
 // --- Bildirim sesi: hibrit (HTMLAudio + Web Audio) ---
 // Birincil yol <audio> elementi: iOS'ta "medya" sayıldığı için telefonun
@@ -802,8 +802,16 @@ export default function BetaPage() {
       return;
     }
     try {
+      const balance = (await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: COLLECTION_ADDR,
+          abi: NFT_ABI,
+          functionName: "balanceOf",
+          args: [address],
+        })) as bigint;
+      })) as bigint;
       const nfts: bigint[] = [];
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < Number(balance); i++) {
         try {
           const tokenId = (await retryWithBackoff(async () => {
             return (await readContract(config, {
@@ -846,34 +854,34 @@ export default function BetaPage() {
       return;
     }
     const images: { [key: string]: string } = {};
-    const highestTokenId = userNFTs.reduce((a, b) => (a > b ? a : b));
-    const tokenIdStr = highestTokenId.toString();
-    // Görseller zincirde değişmez — daha önce çekildiyse tekrar RPC'ye gitme
-    const cached = nftImageCache.current[tokenIdStr];
-    if (cached) {
-      setNftImages((prev) =>
-        prev[tokenIdStr] === cached ? prev : { [tokenIdStr]: cached },
-      );
-      return;
-    }
-    try {
-      const tokenURI = (await retryWithBackoff(async () => {
-        return (await readContract(config, {
-          address: COLLECTION_ADDR,
-          abi: NFT_ABI,
-          functionName: "tokenURI",
-          args: [highestTokenId],
-        })) as string;
-      })) as string;
-      const image = decodeTokenImage(tokenURI);
-      if (image) {
-        images[tokenIdStr] = image;
-        nftImageCache.current[tokenIdStr] = image;
-      }
-    } catch (error) {
-      console.error(`Error getting image for token ${highestTokenId}:`, error);
-      return;
-    }
+    await Promise.all(
+      userNFTs.map(async (tokenId) => {
+        const tokenIdStr = tokenId.toString();
+        // Görseller zincirde değişmez — daha önce çekildiyse tekrar RPC'ye gitme
+        const cached = nftImageCache.current[tokenIdStr];
+        if (cached) {
+          images[tokenIdStr] = cached;
+          return;
+        }
+        try {
+          const tokenURI = (await retryWithBackoff(async () => {
+            return (await readContract(config, {
+              address: COLLECTION_ADDR,
+              abi: NFT_ABI,
+              functionName: "tokenURI",
+              args: [tokenId],
+            })) as string;
+          })) as string;
+          const image = decodeTokenImage(tokenURI);
+          if (image) {
+            images[tokenIdStr] = image;
+            nftImageCache.current[tokenIdStr] = image;
+          }
+        } catch (error) {
+          console.error(`Error getting image for token ${tokenId}:`, error);
+        }
+      }),
+    );
     setNftImages(images);
   }, [userNFTs, config]);
 
@@ -2316,6 +2324,17 @@ export default function BetaPage() {
                 const tokenIdStr = tokenId.toString();
                 const approved = nftApprovalStatus[tokenIdStr];
                 const busy = nftBusy[tokenIdStr] === true;
+                const signBtnDisabled = isSignButtonDisabled();
+                const compactSignLabel = (() => {
+                  if (!phaseInfo) return "Sign";
+                  const signPhaseNow = phaseInfo.currentPhase
+                    .toLowerCase()
+                    .includes("sign");
+                  if (signPhaseNow) return userHasSigned ? "Claim 🔒" : "Sign";
+                  if (userHasClaimed) return "Claimed";
+                  if (userHasSigned) return "Claim";
+                  return "Missed";
+                })();
                 return (
                   <div
                     key={tokenIdStr}
@@ -2475,23 +2494,23 @@ export default function BetaPage() {
                       </button>
                       <button
                         onClick={handleSign}
-                        disabled={isSignButtonDisabled()}
+                        disabled={signBtnDisabled}
                         title={getSignButtonText()}
                         className="flex items-center justify-center gap-1.5 transition-opacity enabled:hover:opacity-70"
                         style={{
                           padding: "8px",
                           borderRadius: 9,
                           backgroundColor: "transparent",
-                          color: isSignButtonDisabled() ? MUTED : INK,
+                          color: signBtnDisabled ? MUTED : INK,
                           border: `1px solid ${HAIRLINE}`,
-                          cursor: isSignButtonDisabled() ? "not-allowed" : "pointer",
+                          cursor: signBtnDisabled ? "not-allowed" : "pointer",
                         }}
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                           <circle cx="7.5" cy="15.5" r="5.5" />
                           <path d="M21 2l-9.6 9.6M15.5 7.5l3 3L22 7l-3-3" />
                         </svg>
-                        <span style={{ ...smallCaps, fontSize: 10 }}>Sign</span>
+                        <span style={{ ...smallCaps, fontSize: 10 }}>{compactSignLabel}</span>
                       </button>
                     </div>
                   </div>
@@ -3165,7 +3184,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.67 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.75 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>

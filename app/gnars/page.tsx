@@ -1130,11 +1130,13 @@ export default function GnarsPage() {
         playChime();
         fireConfetti();
         if (isSignPhase) {
+          setNftSignedStatus((prev) => ({ ...prev, [idStr]: true }));
           setSharePrompt({
             type: "sign",
             text: `Just signed my Gnar on flooor.fun 🖊️\n\n${dailySigners + 1} signers sharing today's vault of Ξ${fmtEth(dailyVault)}.\n\nSign daily, earn daily. Royalties to the community.`,
           });
         } else {
+          setNftClaimedStatus((prev) => ({ ...prev, [idStr]: true }));
           const claimedUsd = toUsd(yieldPerSigner);
           setSharePrompt({
             type: "claim",
@@ -1167,11 +1169,12 @@ export default function GnarsPage() {
     async (platform: "x" | "farcaster") => {
       if (!sharePrompt) return;
       // Mention biçimleri platforma göre farklı: Farcaster'da @farcaster
-      // hesabı + /flooor kanalı (ayrı token'lar), X'te üç ayrı handle
+      // hesabı + /flooor kanalı (ayrı token'lar), X'te flooor/Base
+      // handle'larına ek olarak Gnars'ın kendi hesabı da etiketleniyor
       const mentions =
         platform === "farcaster"
           ? "@farcaster /flooor"
-          : "@vrnouns @base @baseapp";
+          : "@vrnouns @base @baseapp @gnars_dao";
       const text = `${sharePrompt.text}\n\n${mentions}`;
       const url = "https://flooor.fun/gnars";
       setSharePrompt(null);

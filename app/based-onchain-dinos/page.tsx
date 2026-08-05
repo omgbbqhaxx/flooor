@@ -1129,11 +1129,13 @@ export default function BasedOnchainDinosPage() {
         playChime();
         fireConfetti();
         if (isSignPhase) {
+          setNftSignedStatus((prev) => ({ ...prev, [idStr]: true }));
           setSharePrompt({
             type: "sign",
             text: `Just signed my Based Onchain Dino on flooor.fun 🖊️\n\n${dailySigners + 1} signers sharing today's vault of Ξ${fmtEth(dailyVault)}.\n\nSign daily, earn daily. Royalties to the community.`,
           });
         } else {
+          setNftClaimedStatus((prev) => ({ ...prev, [idStr]: true }));
           const claimedUsd = toUsd(yieldPerSigner);
           setSharePrompt({
             type: "claim",
@@ -1166,11 +1168,13 @@ export default function BasedOnchainDinosPage() {
     async (platform: "x" | "farcaster") => {
       if (!sharePrompt) return;
       // Mention biçimleri platforma göre farklı: Farcaster'da @farcaster
-      // hesabı + /flooor kanalı (ayrı token'lar), X'te üç ayrı handle
+      // hesabı + /flooor kanalı (ayrı token'lar), X'te flooor/Base
+      // handle'larına ek olarak Based Onchain Dinos'un kendi hesapları da
+      // etiketleniyor
       const mentions =
         platform === "farcaster"
           ? "@farcaster /flooor"
-          : "@vrnouns @base @baseapp";
+          : "@vrnouns @base @baseapp @OnChainDinos @apex_ether";
       const text = `${sharePrompt.text}\n\n${mentions}`;
       const url = "https://flooor.fun/based-onchain-dinos";
       setSharePrompt(null);
