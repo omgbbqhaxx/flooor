@@ -1658,13 +1658,13 @@ export default function BetaPage() {
             Flooor
           </Link>
           <nav className="hidden md:flex items-center gap-10">
-            <a
+            <Link
               href="/warplets"
               style={smallCaps}
               className="hover:text-black transition-colors"
             >
               Warplets
-            </a>
+            </Link>
             <a
               href="https://vrnouns.gitbook.io/flooor/documentation/documentation-en"
               target="_blank"
@@ -2683,9 +2683,9 @@ export default function BetaPage() {
                 </>
               );
               return col.href ? (
-                <a key={col.name} href={col.href} className="block card-zoom">
+                <Link key={col.name} href={col.href} className="block card-zoom">
                   {card}
-                </a>
+                </Link>
               ) : (
                 <div key={col.name}>{card}</div>
               );
@@ -3184,7 +3184,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.75 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.78 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>
