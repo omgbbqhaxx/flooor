@@ -1169,12 +1169,12 @@ export default function OkComputersPage() {
     async (platform: "x" | "farcaster") => {
       if (!sharePrompt) return;
       // Mention biçimleri platforma göre farklı: Farcaster'da @farcaster
-      // hesabı + /flooor kanalı (ayrı token'lar), X'te genel üçlü
-      // (OK Computers'a özel bir handle belirtilmedi — bkz. social-share-mentions memory)
+      // hesabı + /flooor kanalı (ayrı token'lar), X'te genel üçlüye ek
+      // olarak OK Computers'ın kendi hesabı (@dailofrog) da etiketleniyor
       const mentions =
         platform === "farcaster"
           ? "@farcaster /flooor"
-          : "@vrnouns @base @baseapp";
+          : "@vrnouns @base @baseapp @dailofrog";
       const text = `${sharePrompt.text}\n\n${mentions}`;
       const url = "https://flooor.fun/ok-computers";
       setSharePrompt(null);
