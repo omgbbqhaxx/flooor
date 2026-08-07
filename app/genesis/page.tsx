@@ -114,6 +114,10 @@ export default function Page() {
     null,
   );
   const config = useConfig();
+
+  useEffect(() => {
+    document.title = "Genesis · Flooor";
+  }, []);
   const chainId = useChainId();
   const { address } = useAccount();
   const [showNetworkWarning, setShowNetworkWarning] = useState(false);

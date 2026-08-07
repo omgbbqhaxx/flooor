@@ -103,7 +103,7 @@ const MINIMUM_BID_FOR_SELL = 0.015;
 // sessiz anahtarından ETKİLENMEZ (Web Audio sessiz modda tamamen susar).
 // Yedek yol Web Audio buffer'ı. İkisinin de kilidi ilk kullanıcı
 // dokunuşunda açılır ve oturum boyunca açık kalır.
-let chimeMuted = false; // header'daki zil düğmesiyle senkron
+let chimeMuted = true; // varsayılan kapalı — header'daki zil düğmesiyle senkron
 let chimeEl: HTMLAudioElement | null = null;
 let chimeElUnlocked = false;
 let audioCtx: AudioContext | null = null;
@@ -151,6 +151,10 @@ const loadChimeBuffer = (ctx: AudioContext) => {
 // Her kullanıcı etkileşiminde çağrılır; iki yolun da kilidini açar.
 // Açıldıktan sonra no-op.
 const unlockChime = () => {
+  // Ses kapalıyken audio elementini hiç çalmaya gerek yok — özellikle iOS
+  // volume=0'ı yok saydığı için bu "sessiz" unlock denemesi orada kısa ama
+  // GERÇEKTEN duyulabilir bir sese dönüşüyordu. Sadece ses açıkken kilit aç.
+  if (chimeMuted) return;
   const el = ensureChimeEl();
   if (el && !chimeElUnlocked) {
     // Gesture içinde sessiz (volume=0) çal-durdur: elementi kilitten çıkarır.
@@ -369,18 +373,22 @@ export default function BetaPage() {
     id: string;
     image: string;
   } | null>(null);
-  const [soundOn, setSoundOn] = useState(true);
+  const [soundOn, setSoundOn] = useState(false);
   const config = useConfig();
 
-  // Kaydedilmiş ses tercihini yükle
+  useEffect(() => {
+    document.title = "VRNouns · Flooor";
+  }, []);
+
+  // Kaydedilmiş ses tercihini yükle — varsayılan kapalı, kullanıcı açtıysa hatırla
   useEffect(() => {
     try {
-      if (localStorage.getItem("flooor-sound") === "off") {
-        chimeMuted = true;
-        setSoundOn(false);
+      if (localStorage.getItem("flooor-sound") === "on") {
+        chimeMuted = false;
+        setSoundOn(true);
       }
     } catch {
-      // localStorage erişilemedi — varsayılan açık kalır
+      // localStorage erişilemedi — varsayılan kapalı kalır
     }
   }, []);
 
@@ -1609,7 +1617,7 @@ export default function BetaPage() {
     [sharePrompt],
   );
 
-  const isWrongNetwork = !!address && connectedChain?.id !== base.id;
+  const isWrongNetwork = !!address && !!connectedChain && connectedChain.id !== base.id;
 
   const isSignPhase =
     phaseInfo?.currentPhase.toLowerCase().includes("sign") ||
@@ -2553,12 +2561,6 @@ export default function BetaPage() {
                 href: "/gnars",
               },
               {
-                name: "OK Computers",
-                sub: "Base",
-                img: "https://i2c.seadn.io/base/05d807397e5b420d8b9cc7cb8cb07a0d/549fb12b972ea6f3790a2965d31686/55549fb12b972ea6f3790a2965d31686.gif",
-                href: "/ok-computers",
-              },
-              {
                 name: "Based Onchain Dinos",
                 sub: "Base · Onchain",
                 img: "/onchdin.svg",
@@ -3190,7 +3192,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.80 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.86 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>

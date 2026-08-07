@@ -74,25 +74,44 @@ const queryClient = new QueryClient();
 
 export function Providers({ children }: { children: ReactNode }) {
   // Farcaster/Base mini-app splash ekranını kapat. Render sırasında değil,
-  // mount SONRASI ve bir sonraki boyama turunda çağırıyoruz — erken
-  // çağrılırsa host splash'i kaldırır ama içerik henüz boyanmamış olur;
-  // native WebView'lar CSS yüklenene kadar varsayılan olarak SİYAH
-  // gösterdiği için bu, kısa bir siyah ekran flaşı olarak görünür.
+  // içerik gerçekten BOYANDIKTAN sonra çağırıyoruz — erken çağrılırsa host
+  // splash'i kaldırır ama native WebView'lar CSS/font yüklenene kadar
+  // varsayılan olarak SİYAH gösterdiği için bu, (yavaş bağlantıda uzayabilen)
+  // bir siyah ekran olarak görünür. Sadece 2 rAF beklemek CSS/font'un fiilen
+  // uygulandığını garanti etmiyor; bu yüzden font yüklenmesini de bekliyoruz
+  // — yine de sonsuza kadar takılı kalmasın diye 3sn'lik bir üst sınır var.
   useEffect(() => {
-    let raf1 = 0;
-    let raf2 = 0;
-    raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        try {
-          sdk?.actions?.ready?.();
-        } catch {
-          // mini-app bağlamı dışında (normal web) — sorun değil
-        }
+    let cancelled = false;
+    const callReady = () => {
+      if (cancelled) return;
+      cancelled = true;
+      clearTimeout(fallbackTimer);
+      try {
+        sdk?.actions?.ready?.();
+      } catch {
+        // mini-app bağlamı dışında (normal web) — sorun değil
+      }
+    };
+    (async () => {
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
       });
-    });
+      try {
+        if (typeof document !== "undefined" && "fonts" in document) {
+          await Promise.race([
+            document.fonts.ready,
+            new Promise((resolve) => setTimeout(resolve, 1500)),
+          ]);
+        }
+      } catch {
+        // font durumu okunamadı — yine de devam et
+      }
+      callReady();
+    })();
+    const fallbackTimer = setTimeout(callReady, 3000);
     return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
+      cancelled = true;
+      clearTimeout(fallbackTimer);
     };
   }, []);
 

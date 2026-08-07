@@ -92,7 +92,7 @@ const isUserRejectedError = (error: unknown): boolean => {
 // sessiz anahtarından ETKİLENMEZ (Web Audio sessiz modda tamamen susar).
 // Yedek yol Web Audio buffer'ı. İkisinin de kilidi ilk kullanıcı
 // dokunuşunda açılır ve oturum boyunca açık kalır.
-let chimeMuted = false; // header'daki zil düğmesiyle senkron
+let chimeMuted = true; // varsayılan kapalı — header'daki zil düğmesiyle senkron
 let chimeEl: HTMLAudioElement | null = null;
 let chimeElUnlocked = false;
 let audioCtx: AudioContext | null = null;
@@ -140,6 +140,10 @@ const loadChimeBuffer = (ctx: AudioContext) => {
 // Her kullanıcı etkileşiminde çağrılır; iki yolun da kilidini açar.
 // Açıldıktan sonra no-op.
 const unlockChime = () => {
+  // Ses kapalıyken audio elementini hiç çalmaya gerek yok — özellikle iOS
+  // volume=0'ı yok saydığı için bu "sessiz" unlock denemesi orada kısa ama
+  // GERÇEKTEN duyulabilir bir sese dönüşüyordu. Sadece ses açıkken kilit aç.
+  if (chimeMuted) return;
   const el = ensureChimeEl();
   if (el && !chimeElUnlocked) {
     // Gesture içinde sessiz (volume=0) çal-durdur: elementi kilitten çıkarır.
@@ -314,6 +318,10 @@ type PhaseInfo = {
 
 export default function BasedOnchainDinosPage() {
   const config = useConfig();
+
+  useEffect(() => {
+    document.title = "Based Onchain Dinos · Flooor";
+  }, []);
   const { address, chain: connectedChain } = useAccount();
   const { switchChain: switchChainHook } = useSwitchChain();
 
@@ -348,17 +356,17 @@ export default function BasedOnchainDinosPage() {
   const nftImageCache = useRef<{ [key: string]: string }>({});
   // fetchAllData turları üst üste binmesin — önceki tur bitmeden yenisi başlamaz
   const fetchInFlight = useRef(false);
-  const [soundOn, setSoundOn] = useState(true);
+  const [soundOn, setSoundOn] = useState(false);
 
-  // Kaydedilmiş ses tercihini yükle
+  // Kaydedilmiş ses tercihini yükle — varsayılan kapalı, kullanıcı açtıysa hatırla
   useEffect(() => {
     try {
-      if (localStorage.getItem("flooor-sound") === "off") {
-        chimeMuted = true;
-        setSoundOn(false);
+      if (localStorage.getItem("flooor-sound") === "on") {
+        chimeMuted = false;
+        setSoundOn(true);
       }
     } catch {
-      // localStorage erişilemedi — varsayılan açık kalır
+      // localStorage erişilemedi — varsayılan kapalı kalır
     }
   }, []);
 
