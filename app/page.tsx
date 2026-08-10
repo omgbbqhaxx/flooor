@@ -356,12 +356,19 @@ export default function BetaPage() {
   // fetchAllData turları üst üste binmesin — önceki tur bitmeden yenisi başlamaz
   const fetchInFlight = useRef(false);
   const [remainingTimeDisplay, setRemainingTimeDisplay] = useState<number>(0);
-  const [pendingSellTokenId, setPendingSellTokenId] = useState<bigint | null>(
-    null,
-  );
   const [pendingSendTokenId, setPendingSendTokenId] = useState<bigint | null>(
     null,
   );
+  // "MORE" ile açılan Send/Sell satırı — kart başına ayrı durum
+  const [expandedCards, setExpandedCards] = useState<{
+    [key: string]: boolean;
+  }>({});
+  // Sell iki dokunuşlu: ilk tık silahlandırır (kırmızı + "CONFIRM"), ikinci
+  // tık satışı yapar. 5sn içinde ikinci tık gelmezse otomatik geri alınır.
+  const [armedSell, setArmedSell] = useState<{ [key: string]: boolean }>({});
+  const armedSellTimers = useRef<{
+    [key: string]: ReturnType<typeof setTimeout>;
+  }>({});
   const [sendAddressInput, setSendAddressInput] = useState("");
   const [sendAddressError, setSendAddressError] = useState(false);
   const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
@@ -1411,8 +1418,10 @@ export default function BetaPage() {
     ],
   );
 
-  // Mobil webview'larda window.confirm çalışmadığı için kendi modalımızla onay alıyoruz
-  const requestSellNFT = useCallback(
+  // Sell butonu iki dokunuşlu bir "arm/confirm" davranışı kullanır — kaza
+  // eseri satışları önlemek için. İlk tık silahlandırır (5sn sonra otomatik
+  // geri alınır), silahlıyken ikinci tık asıl satışı tetikler.
+  const armSell = useCallback(
     (tokenId: bigint) => {
       if (!address) {
         toast.warning("Please connect your wallet first");
@@ -1424,16 +1433,42 @@ export default function BetaPage() {
         );
         return;
       }
-      setPendingSellTokenId(tokenId);
+      const tokenIdStr = tokenId.toString();
+      setArmedSell((prev) => ({ ...prev, [tokenIdStr]: true }));
+      clearTimeout(armedSellTimers.current[tokenIdStr]);
+      armedSellTimers.current[tokenIdStr] = setTimeout(() => {
+        setArmedSell((prev) => ({ ...prev, [tokenIdStr]: false }));
+      }, 5000);
     },
     [address, currentBid],
   );
 
-  const confirmSellNFT = useCallback(() => {
-    const tokenId = pendingSellTokenId;
-    setPendingSellTokenId(null);
-    if (tokenId !== null) handleSellNFT(tokenId);
-  }, [pendingSellTokenId, handleSellNFT]);
+  const confirmSellNFT = useCallback(
+    (tokenId: bigint) => {
+      const tokenIdStr = tokenId.toString();
+      clearTimeout(armedSellTimers.current[tokenIdStr]);
+      setArmedSell((prev) => ({ ...prev, [tokenIdStr]: false }));
+      handleSellNFT(tokenId);
+    },
+    [handleSellNFT],
+  );
+
+  const handleSellButtonClick = useCallback(
+    (tokenId: bigint) => {
+      const tokenIdStr = tokenId.toString();
+      if (armedSell[tokenIdStr]) {
+        confirmSellNFT(tokenId);
+      } else {
+        armSell(tokenId);
+      }
+    },
+    [armedSell, armSell, confirmSellNFT],
+  );
+
+  const toggleCardExpanded = useCallback((tokenId: bigint) => {
+    const tokenIdStr = tokenId.toString();
+    setExpandedCards((prev) => ({ ...prev, [tokenIdStr]: !prev[tokenIdStr] }));
+  }, []);
 
   const handleSendNFT = useCallback(
     async (tokenId: bigint, to: Address) => {
@@ -2283,7 +2318,7 @@ export default function BetaPage() {
             Works in your wallet
           </h2>
           <p className="mt-2 text-sm" style={{ color: MUTED }}>
-            Select a work to sell instantly at the current bid.
+            Sign daily from each card below, or tap More to send or sell.
             {isCheckingApproval ? " Checking approval…" : ""}
           </p>
 
@@ -2300,201 +2335,277 @@ export default function BetaPage() {
               </p>
             </div>
           ) : userNFTs.length > 0 ? (
-            <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
+            <div className="mt-8 works-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {userNFTs.map((tokenId) => {
                 const tokenIdStr = tokenId.toString();
                 const approved = nftApprovalStatus[tokenIdStr];
                 const busy = nftBusy[tokenIdStr] === true;
-                const signBtnDisabled = isSignButtonDisabled();
-                const compactSignLabel = (() => {
-                  if (!phaseInfo) return "Sign";
-                  const signPhaseNow = phaseInfo.currentPhase
-                    .toLowerCase()
-                    .includes("sign");
-                  if (signPhaseNow) return userHasSigned ? "Claim 🔒" : "Sign";
-                  if (userHasClaimed) return "Claimed";
-                  if (userHasSigned) return "Claim";
-                  return "Missed";
-                })();
+                const isExpanded = expandedCards[tokenIdStr] === true;
+                const isArmed = armedSell[tokenIdStr] === true;
+                const isSignPhaseNow =
+                  phaseInfo?.currentPhase.toLowerCase().includes("sign") ??
+                  false;
+                const signedWaitingForClaim = isSignPhaseNow && userHasSigned;
+                const primaryDisabled = isSignButtonDisabled();
+                const primaryLabel = signedWaitingForClaim
+                  ? `Signed — Epoch ${phaseInfo ? phaseInfo.eid.toString() : "—"}`
+                  : getSignButtonText();
+
                 return (
-                  <div
+                  <article
                     key={tokenIdStr}
-                    className="flex flex-col p-2.5"
+                    data-token-id={tokenIdStr}
+                    className="flex flex-col work-card"
                     style={{
                       border: `1px solid ${HAIRLINE}`,
-                      borderRadius: 16,
                       backgroundColor: "#fff",
                     }}
                   >
-                    <button
-                      onClick={() => requestSellNFT(tokenId)}
-                      title={`Sell Noun #${tokenIdStr} to highest bid`}
-                      className="group relative w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-black"
+                    {/* Lot line */}
+                    <div
+                      className="flex items-center justify-between px-3.5 py-2.5"
+                      style={{ borderBottom: `1px solid ${HAIRLINE}` }}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <svg
+                          width="15"
+                          height="15"
+                          viewBox="0 0 22 22"
+                          aria-hidden="true"
+                        >
+                          <path
+                            fill={GOLD}
+                            d="M11 0l2.2 1.6 2.6-.7 1.4 2.3 2.6.7.1 2.7 2.1 1.6-1.2 2.4 1.2 2.4-2.1 1.6-.1 2.7-2.6.7-1.4 2.3-2.6-.7L11 22l-2.2-1.6-2.6.7-1.4-2.3-2.6-.7-.1-2.7L0 13.8l1.2-2.4L0 9l2.1-1.6.1-2.7 2.6-.7L6.2.9 8.8 1.6 11 0z"
+                          />
+                          <path
+                            fill="#fff"
+                            d="M9.6 14.9L6.3 11.6l1.1-1.1 2.2 2.2 5-5 1.1 1.1z"
+                          />
+                        </svg>
+                        <span
+                          className="tabular-nums"
+                          style={{
+                            ...SANS,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: INK,
+                          }}
+                        >
+                          #{tokenIdStr}
+                        </span>
+                      </span>
+                      <span style={{ ...smallCaps, fontSize: 9 }}>Base</span>
+                    </div>
+
+                    {/* Art plate */}
+                    <div
+                      className="p-4"
+                      style={{
+                        backgroundColor: IVORY,
+                        borderBottom: `1px solid ${HAIRLINE}`,
+                      }}
                     >
                       <HoloFrame
                         className="w-full"
                         overlay={
-                          <div
-                            style={{
-                              position: "absolute",
-                              left: 8,
-                              right: 8,
-                              top: 8,
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                            }}
-                          >
-                            <span
-                              style={{
-                                ...smallCaps,
-                                color: "#fff",
-                                fontSize: 8,
-                                padding: "3px 7px",
-                                backgroundColor: "rgba(5,12,28,0.42)",
-                                backdropFilter: "blur(6px)",
-                                border: "1px solid rgba(255,255,255,0.22)",
-                              }}
+                          nftLoadingStatus[tokenIdStr] ? (
+                            <div
+                              className="absolute inset-0 flex items-center justify-center"
+                              style={{ backgroundColor: "rgba(255,255,255,0.9)" }}
                             >
-                              Base
-                            </span>
-                            <span
-                              style={{
-                                ...smallCaps,
-                                color: "#fff",
-                                fontSize: 8,
-                                padding: "3px 7px",
-                                backgroundColor: "rgba(5,12,28,0.42)",
-                                backdropFilter: "blur(6px)",
-                                border: "1px solid rgba(255,255,255,0.22)",
-                              }}
-                            >
-                              #{tokenIdStr}
-                            </span>
-                          </div>
+                              <span style={smallCaps}>Approving…</span>
+                            </div>
+                          ) : undefined
                         }
                       >
-                        <div
-                          className="relative aspect-square flex items-center justify-center p-4"
-                          style={{ backgroundColor: PLINTH }}
-                        >
-                          {nftImages[tokenIdStr] ? (
-                            <Image
-                              src={nftImages[tokenIdStr]}
-                              alt={`Noun ${tokenIdStr}`}
-                              width={220}
-                              height={220}
-                              className="w-full h-auto"
-                            />
-                          ) : (
-                            <span
-                              style={{
-                                ...SERIF,
-                                fontStyle: "italic",
-                                color: MUTED,
-                              }}
-                            >
-                              No. {tokenIdStr}
-                            </span>
-                          )}
-                        </div>
-                      </HoloFrame>
-                      {nftLoadingStatus[tokenIdStr] && (
-                        <div
-                          className="absolute inset-0 flex items-center justify-center"
-                          style={{ backgroundColor: "rgba(255,255,255,0.85)" }}
-                        >
-                          <span style={smallCaps}>Approving…</span>
-                        </div>
-                      )}
-                      {hasBid && (
-                        <div
-                          className="absolute inset-x-0 bottom-0 py-2 text-center opacity-0 group-hover:opacity-100 transition-opacity"
-                          style={{ backgroundColor: "rgba(26,26,26,0.85)", borderRadius: "0 0 10px 10px" }}
-                        >
-                          <span style={{ ...smallCaps, color: "#fff", fontSize: 9 }}>
-                            Sell to Highest Bid
+                      <div className="relative aspect-square flex items-center justify-center">
+                        {nftImages[tokenIdStr] ? (
+                          <Image
+                            src={nftImages[tokenIdStr]}
+                            alt={`VRNoun #${tokenIdStr}`}
+                            width={280}
+                            height={280}
+                            className="w-full h-auto"
+                            style={{ imageRendering: "pixelated" }}
+                          />
+                        ) : (
+                          <span
+                            style={{ ...SERIF, fontStyle: "italic", color: MUTED }}
+                          >
+                            No. {tokenIdStr}
                           </span>
-                        </div>
-                      )}
-                    </button>
+                        )}
+                      </div>
+                      </HoloFrame>
+                    </div>
 
-                    <p
-                      className="mt-2 px-1 text-xs"
-                      style={{ ...smallCaps, fontSize: 9, color: approved ? GREEN : AMBER }}
-                    >
-                      {approved ? "Approved for sale" : "Approval required"}
-                    </p>
+                    <div className="p-3.5 flex flex-col flex-1">
+                      {/* Title */}
+                      <p style={{ ...SERIF, fontWeight: 500, fontSize: 19 }}>
+                        VRNoun #{tokenIdStr}
+                      </p>
 
-                    <button
-                      onClick={() => requestSellNFT(tokenId)}
-                      disabled={busy || !hasBid}
-                      title={
-                        hasBid
-                          ? `Sell Noun #${tokenIdStr} to highest bid`
-                          : "No active bid yet"
-                      }
-                      className="mt-2 w-full transition-opacity enabled:hover:opacity-85"
-                      style={{
-                        ...SANS,
-                        fontSize: "11px",
-                        fontWeight: 500,
-                        letterSpacing: "0.05em",
-                        textTransform: "uppercase",
-                        padding: "9px",
-                        borderRadius: 9,
-                        backgroundColor: !hasBid ? IVORY : INK,
-                        color: !hasBid ? MUTED : "#fff",
-                        border: !hasBid ? `1px solid ${HAIRLINE}` : "none",
-                        cursor: !hasBid ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      Sell to Highest Bid
-                    </button>
-
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      <button
-                        onClick={() => requestSendNFT(tokenId)}
-                        disabled={busy}
-                        title={`Send Noun #${tokenIdStr} to another address`}
-                        className="flex items-center justify-center gap-1.5 transition-opacity enabled:hover:opacity-70"
+                      {/* Approval status */}
+                      <p
+                        className="mt-1.5 flex items-center gap-1.5"
                         style={{
-                          padding: "8px",
-                          borderRadius: 9,
-                          backgroundColor: "transparent",
-                          color: busy ? MUTED : INK,
-                          border: `1px solid ${HAIRLINE}`,
-                          cursor: busy ? "not-allowed" : "pointer",
+                          ...smallCaps,
+                          fontSize: 9.5,
+                          color: approved ? GREEN : AMBER,
                         }}
                       >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="22" y1="2" x2="11" y2="13" />
-                          <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                        <svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                          {approved && <path d="M9 12l2 2 4-4" />}
                         </svg>
-                        <span style={{ ...smallCaps, fontSize: 10 }}>Send</span>
-                      </button>
+                        {approved ? "Approved for sale" : "Approval required"}
+                      </p>
+
+                      {/* Primary action — Sign */}
                       <button
                         onClick={handleSign}
-                        disabled={signBtnDisabled}
-                        title={getSignButtonText()}
-                        className="flex items-center justify-center gap-1.5 transition-opacity enabled:hover:opacity-70"
+                        disabled={primaryDisabled}
+                        title={primaryLabel}
+                        className="mt-3 w-full transition-opacity enabled:hover:opacity-85"
                         style={{
-                          padding: "8px",
-                          borderRadius: 9,
-                          backgroundColor: "transparent",
-                          color: signBtnDisabled ? MUTED : INK,
-                          border: `1px solid ${HAIRLINE}`,
-                          cursor: signBtnDisabled ? "not-allowed" : "pointer",
+                          ...smallCaps,
+                          fontSize: 10.5,
+                          letterSpacing: "0.16em",
+                          padding: "13px",
+                          minHeight: 44,
+                          color: primaryDisabled
+                            ? signedWaitingForClaim
+                              ? INK
+                              : FAINT
+                            : "#fff",
+                          backgroundColor: primaryDisabled
+                            ? signedWaitingForClaim
+                              ? "#fff"
+                              : IVORY
+                            : isClaimReady
+                              ? GREEN
+                              : INK,
+                          border: primaryDisabled
+                            ? `1px solid ${signedWaitingForClaim ? INK : HAIRLINE}`
+                            : "none",
+                          cursor: primaryDisabled ? "not-allowed" : "pointer",
                         }}
                       >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="7.5" cy="15.5" r="5.5" />
-                          <path d="M21 2l-9.6 9.6M15.5 7.5l3 3L22 7l-3-3" />
-                        </svg>
-                        <span style={{ ...smallCaps, fontSize: 10 }}>{compactSignLabel}</span>
+                        {primaryLabel}
                       </button>
+
+                      {/* More toggle */}
+                      <button
+                        onClick={() => toggleCardExpanded(tokenId)}
+                        aria-expanded={isExpanded}
+                        className="mt-3 w-full text-center transition-colors hover:text-black"
+                        style={{
+                          ...smallCaps,
+                          fontSize: 9,
+                          color: MUTED,
+                          padding: "10px 0 0",
+                          minHeight: 32,
+                          borderTop: `1px solid ${HAIRLINE}`,
+                        }}
+                      >
+                        {isExpanded ? "Less ▲" : "More ▼"}
+                      </button>
+
+                      {/* Hidden row — Send / Sell at Bid */}
+                      {isExpanded && (
+                        <div className="mt-2.5 grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => requestSendNFT(tokenId)}
+                            disabled={busy}
+                            title={`Send VRNoun #${tokenIdStr} to another address`}
+                            className="flex items-center justify-center gap-1.5 transition-opacity enabled:hover:opacity-85"
+                            style={{
+                              ...smallCaps,
+                              fontSize: 10,
+                              padding: "12px 8px",
+                              minHeight: 44,
+                              backgroundColor: busy ? IVORY : INK,
+                              color: busy ? MUTED : "#fff",
+                              border: busy ? `1px solid ${HAIRLINE}` : "none",
+                              cursor: busy ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            <svg
+                              width="13"
+                              height="13"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.8"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <line x1="22" y1="2" x2="11" y2="13" />
+                              <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                            </svg>
+                            Send
+                          </button>
+                          <button
+                            onClick={() => handleSellButtonClick(tokenId)}
+                            disabled={busy || !hasBid}
+                            title={
+                              hasBid
+                                ? `Sell VRNoun #${tokenIdStr} to highest bid`
+                                : "No active bid yet"
+                            }
+                            className="flex items-center justify-center gap-1.5 transition-opacity enabled:hover:opacity-85"
+                            style={{
+                              ...smallCaps,
+                              fontSize: 10,
+                              padding: "12px 8px",
+                              minHeight: 44,
+                              backgroundColor:
+                                !hasBid || busy
+                                  ? IVORY
+                                  : isArmed
+                                    ? "#9A2D2D"
+                                    : INK,
+                              color: !hasBid || busy ? MUTED : "#fff",
+                              border:
+                                !hasBid || busy ? `1px solid ${HAIRLINE}` : "none",
+                              cursor: !hasBid || busy ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            {isArmed ? (
+                              `Confirm — Ξ${fmtEth(currentBid)}`
+                            ) : (
+                              <>
+                                <svg
+                                  width="13"
+                                  height="13"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.8"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <line x1="4" y1="20" x2="4" y2="10" />
+                                  <line x1="12" y1="20" x2="12" y2="4" />
+                                  <line x1="20" y1="20" x2="20" y2="14" />
+                                </svg>
+                                Sell at Bid
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  </article>
                 );
               })}
             </div>
@@ -2779,68 +2890,6 @@ export default function BetaPage() {
         </div>
       </div>
 
-      {/* Sell confirmation modal */}
-      {pendingSellTokenId !== null && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center px-6"
-          style={{ backgroundColor: "rgba(26,26,26,0.4)" }}
-          onClick={() => setPendingSellTokenId(null)}
-        >
-          <div
-            className="w-full max-w-md p-8 sm:p-10"
-            style={{
-              backgroundColor: "#fff",
-              border: `1px solid ${HAIRLINE}`,
-              boxShadow: "0 24px 64px -16px rgba(0,0,0,0.25)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p style={smallCaps}>Confirm Sale</p>
-            <h3
-              className="mt-3"
-              style={{ ...SERIF, fontWeight: 500, fontSize: "26px" }}
-            >
-              VRNoun No. {pendingSellTokenId.toString()}
-            </h3>
-            <p
-              className="mt-4 text-sm leading-relaxed"
-              style={{ color: MUTED }}
-            >
-              You are about to sell this work for{" "}
-              <strong style={{ color: INK }}>
-                Ξ {fmtEth(currentBid)}
-                {toUsd(currentBid) ? ` (${toUsd(currentBid)})` : ""}
-              </strong>
-              . This action is final and cannot be undone.
-            </p>
-            <div className="mt-8 flex gap-4">
-              <button
-                onClick={() => setPendingSellTokenId(null)}
-                className="flex-1 py-3.5 transition-colors hover:bg-black hover:text-white"
-                style={{
-                  ...smallCaps,
-                  color: INK,
-                  border: `1px solid ${INK}`,
-                  backgroundColor: "#fff",
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmSellNFT}
-                className="flex-1 py-3.5 transition-opacity hover:opacity-85"
-                style={{
-                  ...smallCaps,
-                  color: "#fff",
-                  backgroundColor: GREEN,
-                }}
-              >
-                Confirm Sale
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Send confirmation modal */}
       {pendingSendTokenId !== null && (
@@ -3150,9 +3199,17 @@ export default function BetaPage() {
           </div>
         </div>
         <div
-          className="py-6 text-center px-5"
+          className="relative py-6 px-5 sm:px-20 text-center overflow-hidden"
           style={{ borderTop: `1px solid ${HAIRLINE}` }}
         >
+          <Image
+            src="/left-adorn.png"
+            alt=""
+            aria-hidden="true"
+            width={64}
+            height={64}
+            className="hidden sm:block absolute left-2 md:left-8 bottom-0 w-16 h-auto pointer-events-none select-none"
+          />
           <p
             style={{
               ...SERIF,
@@ -3165,9 +3222,17 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.92 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.98 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
+          <Image
+            src="/right-adorn.png"
+            alt=""
+            aria-hidden="true"
+            width={64}
+            height={64}
+            className="hidden sm:block absolute right-2 md:right-8 bottom-0 w-16 h-auto pointer-events-none select-none"
+          />
         </div>
       </footer>
     </div>
