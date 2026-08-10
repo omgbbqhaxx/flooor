@@ -1,6 +1,7 @@
 "use client";
 
 import { base } from "wagmi/chains";
+import { defineChain } from "viem";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { WagmiProvider, http, fallback, createConfig } from "wagmi";
@@ -34,6 +35,22 @@ const rpcTransports = fallback([
   ),
 ]);
 
+// Robinhood Chain — yeni eklenen ağ, kontratlar henüz deploy edilmedi
+export const robinhoodChain = defineChain({
+  id: 4663,
+  name: "Robinhood Chain",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: {
+      http: ["https://robinhood-mainnet.g.alchemy.com/v2/R11AN4bze2Uyhg3V6KZ7m"],
+    },
+  },
+});
+
+const robinhoodTransport = http(
+  "https://robinhood-mainnet.g.alchemy.com/v2/R11AN4bze2Uyhg3V6KZ7m",
+);
+
 // 1️⃣ Project ID
 const projectId =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
@@ -60,9 +77,9 @@ const connectors = connectorsForWallets(
 
 // 3️⃣ Wagmi config
 const config = createConfig({
-  chains: [base],
+  chains: [base, robinhoodChain],
   connectors: [...connectors, farcasterMiniApp()],
-  transports: { [base.id]: rpcTransports },
+  transports: { [base.id]: rpcTransports, [robinhoodChain.id]: robinhoodTransport },
   // Aynı anda fırlayan eth_call'ları tek Multicall3 çağrısında toplar —
   // RPC compute unit tüketimini ve 429 burst'lerini ciddi azaltır
   batch: { multicall: { wait: 16 } },

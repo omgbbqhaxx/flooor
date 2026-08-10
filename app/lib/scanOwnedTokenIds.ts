@@ -20,6 +20,7 @@ async function verifyCurrentOwnership({
   owner,
   candidateIds,
   retryWithBackoff,
+  chainId,
 }: {
   config: Config;
   collectionAddress: `0x${string}`;
@@ -27,6 +28,7 @@ async function verifyCurrentOwnership({
   owner: `0x${string}`;
   candidateIds: bigint[];
   retryWithBackoff: RetryFn;
+  chainId?: number;
 }): Promise<bigint[]> {
   if (candidateIds.length === 0) return [];
   const CHUNK = 250;
@@ -44,6 +46,7 @@ async function verifyCurrentOwnership({
               args: [tokenId],
             })) as never,
             allowFailure: true,
+            ...(chainId ? { chainId } : {}),
           }),
         5,
         1200,
@@ -75,12 +78,14 @@ async function scanViaAlchemyTransfers({
   config,
   collectionAddress,
   owner,
+  chainId,
 }: {
   config: Config;
   collectionAddress: `0x${string}`;
   owner: `0x${string}`;
+  chainId?: number;
 }): Promise<bigint[]> {
-  const client = getPublicClient(config);
+  const client = getPublicClient(config, chainId ? { chainId } : undefined);
   if (!client) throw new Error("no public client");
 
   const candidateIds = new Set<string>();
@@ -127,6 +132,7 @@ async function scanViaBruteForceRange({
   owner,
   chunkSize,
   retryWithBackoff,
+  chainId,
 }: {
   config: Config;
   collectionAddress: `0x${string}`;
@@ -134,12 +140,14 @@ async function scanViaBruteForceRange({
   owner: `0x${string}`;
   chunkSize: number;
   retryWithBackoff: RetryFn;
+  chainId?: number;
 }): Promise<bigint[]> {
   const totalSupply = (await retryWithBackoff(async () => {
     return (await readContract(config, {
       address: collectionAddress,
       abi: abi as never,
       functionName: "totalSupply",
+      ...(chainId ? { chainId } : {}),
     })) as bigint;
   })) as bigint;
   const supply = Number(totalSupply);
@@ -161,6 +169,7 @@ async function scanViaBruteForceRange({
               args: [tokenId],
             })) as never,
             allowFailure: true,
+            ...(chainId ? { chainId } : {}),
           }),
         5,
         1200,
@@ -190,6 +199,7 @@ export async function scanOwnedTokenIds({
   owner,
   chunkSize = 250,
   retryWithBackoff,
+  chainId,
 }: {
   config: Config;
   collectionAddress: `0x${string}`;
@@ -197,12 +207,14 @@ export async function scanOwnedTokenIds({
   owner: `0x${string}`;
   chunkSize?: number;
   retryWithBackoff: RetryFn;
+  chainId?: number;
 }): Promise<bigint[]> {
   try {
     const candidateIds = await scanViaAlchemyTransfers({
       config,
       collectionAddress,
       owner,
+      chainId,
     });
     return await verifyCurrentOwnership({
       config,
@@ -211,6 +223,7 @@ export async function scanOwnedTokenIds({
       owner,
       candidateIds,
       retryWithBackoff,
+      chainId,
     });
   } catch (error) {
     console.error(
@@ -224,6 +237,7 @@ export async function scanOwnedTokenIds({
       owner,
       chunkSize,
       retryWithBackoff,
+      chainId,
     });
   }
 }
