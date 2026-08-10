@@ -27,6 +27,8 @@ import { Attribution } from "ox/erc8021";
 import { sdk } from "@farcaster/miniapp-sdk";
 import Image from "next/image";
 import Link from "next/link";
+import Footer from "@/app/components/Footer";
+import WorkCard from "@/app/components/WorkCard";
 import { Playfair_Display, Inter } from "next/font/google";
 import confetti from "canvas-confetti";
 import { HoloFrame } from "@/app/components/HoloFrame";
@@ -308,7 +310,6 @@ const HAIRLINE = "#E6E2DA";
 const IVORY = "#F7F5F1";
 const PLINTH = "#F1EEE8";
 const GREEN = "#1E7B4F";
-const AMBER = "#A9731E";
 const GOLD = "#A4863D";
 
 const SERIF = { fontFamily: "var(--font-serif)" } as const;
@@ -2168,9 +2169,39 @@ export default function BetaPage() {
                 </button>
               </div>
               <p className="mt-3 text-xs" style={{ color: FAINT }}>
-                {hasBid
-                  ? `Minimum outbid Ξ ${minOutbidAmount.toFixed(6)} — if someone outbids you, your ETH is returned automatically.`
-                  : `Minimum bid Ξ ${MINIMUM_BID_FOR_SELL} — if someone outbids you, your ETH is returned automatically. Every sale feeds the vault.`}
+                {hasBid ? (
+                  <>
+                    Minimum outbid Ξ{" "}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setBidInput(minOutbidAmount.toFixed(6))
+                      }
+                      className="underline decoration-dotted underline-offset-2 hover:brightness-110 transition-[filter]"
+                      style={{ color: GOLD, fontWeight: 600 }}
+                    >
+                      {minOutbidAmount.toFixed(6)}
+                    </button>{" "}
+                    — if someone outbids you, your ETH is returned
+                    automatically.
+                  </>
+                ) : (
+                  <>
+                    Minimum bid Ξ{" "}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setBidInput(`${MINIMUM_BID_FOR_SELL}`)
+                      }
+                      className="underline decoration-dotted underline-offset-2 hover:brightness-110 transition-[filter]"
+                      style={{ color: GOLD, fontWeight: 600 }}
+                    >
+                      {MINIMUM_BID_FOR_SELL}
+                    </button>{" "}
+                    — if someone outbids you, your ETH is returned
+                    automatically. Every sale feeds the vault.
+                  </>
+                )}
               </p>
             </div>
 
@@ -2352,260 +2383,31 @@ export default function BetaPage() {
                   : getSignButtonText();
 
                 return (
-                  <article
+                  <WorkCard
                     key={tokenIdStr}
-                    data-token-id={tokenIdStr}
-                    className="flex flex-col work-card"
-                    style={{
-                      border: `1px solid ${HAIRLINE}`,
-                      backgroundColor: "#fff",
-                    }}
-                  >
-                    {/* Lot line */}
-                    <div
-                      className="flex items-center justify-between px-3.5 py-2.5"
-                      style={{ borderBottom: `1px solid ${HAIRLINE}` }}
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <svg
-                          width="15"
-                          height="15"
-                          viewBox="0 0 22 22"
-                          aria-hidden="true"
-                        >
-                          <path
-                            fill={GOLD}
-                            d="M11 0l2.2 1.6 2.6-.7 1.4 2.3 2.6.7.1 2.7 2.1 1.6-1.2 2.4 1.2 2.4-2.1 1.6-.1 2.7-2.6.7-1.4 2.3-2.6-.7L11 22l-2.2-1.6-2.6.7-1.4-2.3-2.6-.7-.1-2.7L0 13.8l1.2-2.4L0 9l2.1-1.6.1-2.7 2.6-.7L6.2.9 8.8 1.6 11 0z"
-                          />
-                          <path
-                            fill="#fff"
-                            d="M9.6 14.9L6.3 11.6l1.1-1.1 2.2 2.2 5-5 1.1 1.1z"
-                          />
-                        </svg>
-                        <span
-                          className="tabular-nums"
-                          style={{
-                            ...SANS,
-                            fontSize: 13,
-                            fontWeight: 600,
-                            color: INK,
-                          }}
-                        >
-                          #{tokenIdStr}
-                        </span>
-                      </span>
-                      <span style={{ ...smallCaps, fontSize: 9 }}>Base</span>
-                    </div>
-
-                    {/* Art plate */}
-                    <div
-                      className="p-4"
-                      style={{
-                        backgroundColor: IVORY,
-                        borderBottom: `1px solid ${HAIRLINE}`,
-                      }}
-                    >
-                      <HoloFrame
-                        className="w-full"
-                        overlay={
-                          nftLoadingStatus[tokenIdStr] ? (
-                            <div
-                              className="absolute inset-0 flex items-center justify-center"
-                              style={{ backgroundColor: "rgba(255,255,255,0.9)" }}
-                            >
-                              <span style={smallCaps}>Approving…</span>
-                            </div>
-                          ) : undefined
-                        }
-                      >
-                      <div className="relative aspect-square flex items-center justify-center">
-                        {nftImages[tokenIdStr] ? (
-                          <Image
-                            src={nftImages[tokenIdStr]}
-                            alt={`VRNoun #${tokenIdStr}`}
-                            width={280}
-                            height={280}
-                            className="w-full h-auto"
-                            style={{ imageRendering: "pixelated" }}
-                          />
-                        ) : (
-                          <span
-                            style={{ ...SERIF, fontStyle: "italic", color: MUTED }}
-                          >
-                            No. {tokenIdStr}
-                          </span>
-                        )}
-                      </div>
-                      </HoloFrame>
-                    </div>
-
-                    <div className="p-3.5 flex flex-col flex-1">
-                      {/* Title */}
-                      <p style={{ ...SERIF, fontWeight: 500, fontSize: 19 }}>
-                        VRNoun #{tokenIdStr}
-                      </p>
-
-                      {/* Approval status */}
-                      <p
-                        className="mt-1.5 flex items-center gap-1.5"
-                        style={{
-                          ...smallCaps,
-                          fontSize: 9.5,
-                          color: approved ? GREEN : AMBER,
-                        }}
-                      >
-                        <svg
-                          width="13"
-                          height="13"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                          {approved && <path d="M9 12l2 2 4-4" />}
-                        </svg>
-                        {approved ? "Approved for sale" : "Approval required"}
-                      </p>
-
-                      {/* Primary action — Sign */}
-                      <button
-                        onClick={handleSign}
-                        disabled={primaryDisabled}
-                        title={primaryLabel}
-                        className="mt-3 w-full transition-opacity enabled:hover:opacity-85"
-                        style={{
-                          ...smallCaps,
-                          fontSize: 10.5,
-                          letterSpacing: "0.16em",
-                          padding: "13px",
-                          minHeight: 44,
-                          color: primaryDisabled
-                            ? signedWaitingForClaim
-                              ? INK
-                              : FAINT
-                            : "#fff",
-                          backgroundColor: primaryDisabled
-                            ? signedWaitingForClaim
-                              ? "#fff"
-                              : IVORY
-                            : isClaimReady
-                              ? GREEN
-                              : INK,
-                          border: primaryDisabled
-                            ? `1px solid ${signedWaitingForClaim ? INK : HAIRLINE}`
-                            : "none",
-                          cursor: primaryDisabled ? "not-allowed" : "pointer",
-                        }}
-                      >
-                        {primaryLabel}
-                      </button>
-
-                      {/* More toggle */}
-                      <button
-                        onClick={() => toggleCardExpanded(tokenId)}
-                        aria-expanded={isExpanded}
-                        className="mt-3 w-full text-center transition-colors hover:text-black"
-                        style={{
-                          ...smallCaps,
-                          fontSize: 9,
-                          color: MUTED,
-                          padding: "10px 0 0",
-                          minHeight: 32,
-                          borderTop: `1px solid ${HAIRLINE}`,
-                        }}
-                      >
-                        {isExpanded ? "Less ▲" : "More ▼"}
-                      </button>
-
-                      {/* Hidden row — Send / Sell at Bid */}
-                      {isExpanded && (
-                        <div className="mt-2.5 grid grid-cols-2 gap-2">
-                          <button
-                            onClick={() => requestSendNFT(tokenId)}
-                            disabled={busy}
-                            title={`Send VRNoun #${tokenIdStr} to another address`}
-                            className="flex items-center justify-center gap-1.5 transition-opacity enabled:hover:opacity-85"
-                            style={{
-                              ...smallCaps,
-                              fontSize: 10,
-                              padding: "12px 8px",
-                              minHeight: 44,
-                              backgroundColor: busy ? IVORY : INK,
-                              color: busy ? MUTED : "#fff",
-                              border: busy ? `1px solid ${HAIRLINE}` : "none",
-                              cursor: busy ? "not-allowed" : "pointer",
-                            }}
-                          >
-                            <svg
-                              width="13"
-                              height="13"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <line x1="22" y1="2" x2="11" y2="13" />
-                              <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                            </svg>
-                            Send
-                          </button>
-                          <button
-                            onClick={() => handleSellButtonClick(tokenId)}
-                            disabled={busy || !hasBid}
-                            title={
-                              hasBid
-                                ? `Sell VRNoun #${tokenIdStr} to highest bid`
-                                : "No active bid yet"
-                            }
-                            className="flex items-center justify-center gap-1.5 transition-opacity enabled:hover:opacity-85"
-                            style={{
-                              ...smallCaps,
-                              fontSize: 10,
-                              padding: "12px 8px",
-                              minHeight: 44,
-                              backgroundColor:
-                                !hasBid || busy
-                                  ? IVORY
-                                  : isArmed
-                                    ? "#9A2D2D"
-                                    : INK,
-                              color: !hasBid || busy ? MUTED : "#fff",
-                              border:
-                                !hasBid || busy ? `1px solid ${HAIRLINE}` : "none",
-                              cursor: !hasBid || busy ? "not-allowed" : "pointer",
-                            }}
-                          >
-                            {isArmed ? (
-                              `Confirm — Ξ${fmtEth(currentBid)}`
-                            ) : (
-                              <>
-                                <svg
-                                  width="13"
-                                  height="13"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="1.8"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <line x1="4" y1="20" x2="4" y2="10" />
-                                  <line x1="12" y1="20" x2="12" y2="4" />
-                                  <line x1="20" y1="20" x2="20" y2="14" />
-                                </svg>
-                                Sell at Bid
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </article>
+                    tokenIdStr={tokenIdStr}
+                    itemName="VRNoun"
+                    image={nftImages[tokenIdStr]}
+                    approved={approved === true}
+                    primaryLabel={primaryLabel}
+                    primaryDisabled={primaryDisabled}
+                    primaryTone={
+                      signedWaitingForClaim
+                        ? "waiting"
+                        : isClaimReady
+                          ? "ready"
+                          : "default"
+                    }
+                    onPrimaryClick={handleSign}
+                    isExpanded={isExpanded}
+                    onToggleExpand={() => toggleCardExpanded(tokenId)}
+                    busy={busy || nftLoadingStatus[tokenIdStr] === true}
+                    onSend={() => requestSendNFT(tokenId)}
+                    hasBid={!!hasBid}
+                    isArmed={isArmed}
+                    currentBidDisplay={fmtEth(currentBid)}
+                    onSellClick={() => handleSellButtonClick(tokenId)}
+                  />
                 );
               })}
             </div>
@@ -3069,172 +2871,7 @@ export default function BetaPage() {
         </div>
       )}
 
-      {/* Footer */}
-      <footer style={{ borderTop: `1px solid ${HAIRLINE}` }}>
-        <div className="max-w-6xl mx-auto px-5 sm:px-8 py-14 grid grid-cols-2 md:grid-cols-4 gap-10">
-          <div className="col-span-2 md:col-span-1">
-            <p style={{ ...SERIF, fontWeight: 500, fontSize: "22px" }}>
-              Flooor
-            </p>
-            <p
-              className="mt-3 text-sm leading-relaxed"
-              style={{ color: MUTED }}
-            >
-              A daily auction house for onchain art. Base · CC0.
-            </p>
-          </div>
-          <div>
-            <p style={smallCaps}>Protocol</p>
-            <div className="mt-4 flex flex-col gap-2.5">
-              <a
-                href="https://vrnouns.gitbook.io/flooor/documentation/documentation-en"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm hover:text-black transition-colors"
-                style={{ color: MUTED }}
-              >
-                Documentation
-              </a>
-              <a
-                href="https://github.com/omgbbqhaxx/flooor"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm hover:text-black transition-colors"
-                style={{ color: MUTED }}
-              >
-                GitHub
-              </a>
-              <a
-                href="https://snapshot.org/#/s:vrnouns.eth"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm hover:text-black transition-colors"
-                style={{ color: MUTED }}
-              >
-                Snapshot DAO
-              </a>
-              <a
-                href="https://defillama.com/protocol/flooor.fun"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm hover:text-black transition-colors"
-                style={{ color: MUTED }}
-              >
-                DefiLlama
-              </a>
-            </div>
-          </div>
-          <div>
-            <p style={smallCaps}>Contracts</p>
-            <div className="mt-4 flex flex-col gap-2.5">
-              <a
-                href="https://basescan.org/address/0xbb56a9359df63014b3347585565d6f80ac6305fd#readContract"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm hover:text-black transition-colors"
-                style={{ color: MUTED }}
-              >
-                VRNouns
-              </a>
-              <a
-                href="https://basescan.org/address/0xf6b2c2411a101db46c8513ddaef10b11184c58ff#readContract"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm hover:text-black transition-colors"
-                style={{ color: MUTED }}
-              >
-                Flooor
-              </a>
-              <a
-                href="https://opensea.io/collection/vrnouns"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm hover:text-black transition-colors"
-                style={{ color: MUTED }}
-              >
-                OpenSea
-              </a>
-            </div>
-          </div>
-          <div>
-            <p style={smallCaps}>Social</p>
-            <div className="mt-4 flex flex-col gap-2.5">
-              <a
-                href="https://x.com/vrnouns"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm hover:text-black transition-colors"
-                style={{ color: MUTED }}
-              >
-                X / Twitter
-              </a>
-              <a
-                href="https://t.me/richkidsofun"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm hover:text-black transition-colors"
-                style={{ color: MUTED }}
-              >
-                Telegram
-              </a>
-              <a
-                href="https://farcaster.xyz/miniapps/pIFtRBsgnWAF/flooorfun"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm hover:text-black transition-colors"
-                style={{ color: MUTED }}
-              >
-                Farcaster
-              </a>
-              <a
-                href="https://base.app/app/flooor.fun"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm hover:text-black transition-colors"
-                style={{ color: MUTED }}
-              >
-                Base App
-              </a>
-            </div>
-          </div>
-        </div>
-        <div
-          className="relative py-6 px-5 sm:px-20 text-center overflow-hidden"
-          style={{ borderTop: `1px solid ${HAIRLINE}` }}
-        >
-          <Image
-            src="/left-adorn.png"
-            alt=""
-            aria-hidden="true"
-            width={64}
-            height={64}
-            className="hidden sm:block absolute left-2 md:left-8 bottom-0 w-16 h-auto pointer-events-none select-none"
-          />
-          <p
-            style={{
-              ...SERIF,
-              fontStyle: "italic",
-              fontSize: "15px",
-              color: GOLD,
-              letterSpacing: "0.08em",
-            }}
-          >
-            MMXXVI
-          </p>
-          <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.98 · Contract v1.0 ·
-            Beta · Crafted with Claude Fable 5
-          </p>
-          <Image
-            src="/right-adorn.png"
-            alt=""
-            aria-hidden="true"
-            width={64}
-            height={64}
-            className="hidden sm:block absolute right-2 md:right-8 bottom-0 w-16 h-auto pointer-events-none select-none"
-          />
-        </div>
-      </footer>
+      <Footer contractAddr={CONTRACT_ADDR} />
     </div>
   );
 }

@@ -3,6 +3,8 @@
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { toast } from "sonner";
 import Link from "next/link";
+import Footer from "@/app/components/Footer";
+import WorkCard from "@/app/components/WorkCard";
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useConfig, useAccount, useSwitchChain } from "wagmi";
@@ -340,10 +342,12 @@ export default function BasedOnchainDinosPage() {
   const [nftSignedStatus, setNftSignedStatus] = useState<{ [key: string]: boolean }>({});
   const [nftClaimedStatus, setNftClaimedStatus] = useState<{ [key: string]: boolean }>({});
   const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
-  const [pendingSellTokenId, setPendingSellTokenId] = useState<bigint | null>(null);
   const [pendingSendTokenId, setPendingSendTokenId] = useState<bigint | null>(null);
   const [sendAddressInput, setSendAddressInput] = useState("");
   const [sendAddressError, setSendAddressError] = useState(false);
+  const [expandedCards, setExpandedCards] = useState<{ [key: string]: boolean }>({});
+  const [armedSell, setArmedSell] = useState<{ [key: string]: boolean }>({});
+  const armedSellTimers = useRef<{ [key: string]: ReturnType<typeof setTimeout> }>({});
   const [ethPrice, setEthPrice] = useState<number | null>(null);
   const [yieldPerSigner, setYieldPerSigner] = useState<string>("0");
   const [chainMinBid, setChainMinBid] = useState<string>("0");
@@ -1280,7 +1284,9 @@ export default function BasedOnchainDinosPage() {
     [config, ensureBase, address, nftApprovalStatus, checkApprovalStatus, currentBid, getCurrentBid, getActiveBidder, getDailyVault, getUserNFTs, chainMinBid, fmtEth, toUsd],
   );
 
-  const requestSellNFT = useCallback(
+  // Sell button uses a two-tap "arm/confirm" gesture — first tap arms it
+  // (auto-disarms after 5s), second tap while armed triggers the sale.
+  const armSell = useCallback(
     (tokenId: bigint) => {
       if (!address) {
         toast.warning("Please connect your wallet first");
@@ -1290,16 +1296,42 @@ export default function BasedOnchainDinosPage() {
         toast.error(`Current bid (${currentBid} ETH) is below minimum selling price of ${fmtEth(chainMinBid)} ETH.`);
         return;
       }
-      setPendingSellTokenId(tokenId);
+      const tokenIdStr = tokenId.toString();
+      setArmedSell((prev) => ({ ...prev, [tokenIdStr]: true }));
+      clearTimeout(armedSellTimers.current[tokenIdStr]);
+      armedSellTimers.current[tokenIdStr] = setTimeout(() => {
+        setArmedSell((prev) => ({ ...prev, [tokenIdStr]: false }));
+      }, 5000);
     },
     [address, currentBid, chainMinBid, fmtEth],
   );
 
-  const confirmSellNFT = useCallback(() => {
-    const tokenId = pendingSellTokenId;
-    setPendingSellTokenId(null);
-    if (tokenId !== null) handleSellNFT(tokenId);
-  }, [pendingSellTokenId, handleSellNFT]);
+  const confirmSellNFT = useCallback(
+    (tokenId: bigint) => {
+      const tokenIdStr = tokenId.toString();
+      clearTimeout(armedSellTimers.current[tokenIdStr]);
+      setArmedSell((prev) => ({ ...prev, [tokenIdStr]: false }));
+      handleSellNFT(tokenId);
+    },
+    [handleSellNFT],
+  );
+
+  const handleSellButtonClick = useCallback(
+    (tokenId: bigint) => {
+      const tokenIdStr = tokenId.toString();
+      if (armedSell[tokenIdStr]) {
+        confirmSellNFT(tokenId);
+      } else {
+        armSell(tokenId);
+      }
+    },
+    [armedSell, armSell, confirmSellNFT],
+  );
+
+  const toggleCardExpanded = useCallback((tokenId: bigint) => {
+    const tokenIdStr = tokenId.toString();
+    setExpandedCards((prev) => ({ ...prev, [tokenIdStr]: !prev[tokenIdStr] }));
+  }, []);
 
   const handleSendNFT = useCallback(
     async (tokenId: bigint, to: Address) => {
@@ -1747,9 +1779,35 @@ export default function BasedOnchainDinosPage() {
                   </button>
                 </div>
                 <p className="mt-3 text-xs" style={{ color: FAINT }}>
-                  {hasBid
-                    ? `Minimum outbid Ξ ${minOutbidAmount.toFixed(6)} — if someone outbids you, your ETH is returned automatically.`
-                    : `Minimum bid Ξ ${minOutbidAmount.toFixed(6)} — if someone outbids you, your ETH is returned automatically. Every sale feeds the vault.`}
+                  {hasBid ? (
+                    <>
+                      Minimum outbid Ξ{" "}
+                      <button
+                        type="button"
+                        onClick={() => setBidInput(minOutbidAmount.toFixed(6))}
+                        className="underline decoration-dotted underline-offset-2 hover:brightness-110 transition-[filter]"
+                        style={{ color: GOLD, fontWeight: 600 }}
+                      >
+                        {minOutbidAmount.toFixed(6)}
+                      </button>{" "}
+                      — if someone outbids you, your ETH is returned
+                      automatically.
+                    </>
+                  ) : (
+                    <>
+                      Minimum bid Ξ{" "}
+                      <button
+                        type="button"
+                        onClick={() => setBidInput(minOutbidAmount.toFixed(6))}
+                        className="underline decoration-dotted underline-offset-2 hover:brightness-110 transition-[filter]"
+                        style={{ color: GOLD, fontWeight: 600 }}
+                      >
+                        {minOutbidAmount.toFixed(6)}
+                      </button>{" "}
+                      — if someone outbids you, your ETH is returned
+                      automatically. Every sale feeds the vault.
+                    </>
+                  )}
                 </p>
 
                 {/* Signers, vault, yield, epoch */}
@@ -1812,241 +1870,85 @@ export default function BasedOnchainDinosPage() {
         </div>
 
         {IS_DEPLOYED && (
-          <div className="mt-20 w-full" style={{ maxWidth: "900px" }}>
-            <p style={smallCaps}>Your Dinos</p>
-            {!address ? (
-                <p style={{ ...SANS, fontSize: "14px", color: MUTED, marginTop: "16px" }}>
-                  Connect your wallet to see your tokens.
-                </p>
-              ) : userNFTs.length === 0 ? (
-                <p style={{ ...SANS, fontSize: "14px", color: MUTED, marginTop: "16px" }}>
-                  No Based Onchain Dinos found in this wallet.
-                </p>
-              ) : (
-                <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
-                  {userNFTs.map((tokenId) => {
-                    const idStr = tokenId.toString();
-                    const signed = nftSignedStatus[idStr] === true;
-                    const claimed = nftClaimedStatus[idStr] === true;
-                    const busy = nftBusy[idStr] === true;
-                    const image = nftImages[idStr];
-                    const signClaimLabel = isSignPhase
-                      ? signed ? "Signed" : "Sign In"
-                      : signed && !claimed ? "Claim" : claimed ? "Claimed" : "Wait for Sign";
-                    const signClaimDisabled =
-                      busy || (isSignPhase ? signed : !signed || claimed);
-                    const isClaimReady = !isSignPhase && signed && !claimed;
-                    return (
-                      <div
-                        key={idStr}
-                        className="flex flex-col p-2.5"
-                        style={{
-                          border: `1px solid ${HAIRLINE}`,
-                          borderRadius: 16,
-                          backgroundColor: "#fff",
-                        }}
-                      >
-                        <button
-                          onClick={() => requestSellNFT(tokenId)}
-                          disabled={!hasBid}
-                          title={hasBid ? `Sell #${idStr} at current bid` : "No active bid yet"}
-                          className="group relative w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-black"
-                          style={{ cursor: hasBid ? "pointer" : "default" }}
-                        >
-                          <HoloFrame
-                            className="w-full"
-                            overlay={
-                              <div
-                                style={{
-                                  position: "absolute",
-                                  left: 8,
-                                  right: 8,
-                                  top: 8,
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  alignItems: "center",
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    ...smallCaps,
-                                    color: "#fff",
-                                    fontSize: 8,
-                                    padding: "3px 7px",
-                                    backgroundColor: "rgba(5,12,28,0.42)",
-                                    backdropFilter: "blur(6px)",
-                                    border: "1px solid rgba(255,255,255,0.22)",
-                                  }}
-                                >
-                                  Base
-                                </span>
-                                <span
-                                  style={{
-                                    ...smallCaps,
-                                    color: "#fff",
-                                    fontSize: 8,
-                                    padding: "3px 7px",
-                                    backgroundColor: "rgba(5,12,28,0.42)",
-                                    backdropFilter: "blur(6px)",
-                                    border: "1px solid rgba(255,255,255,0.22)",
-                                  }}
-                                >
-                                  #{idStr}
-                                </span>
-                              </div>
-                            }
-                          >
-                            <div
-                              style={{
-                                aspectRatio: "1 / 1",
-                                backgroundColor: PLINTH,
-                                backgroundImage: image ? `url(${image})` : undefined,
-                                backgroundSize: "cover",
-                                backgroundPosition: "center",
-                              }}
-                            />
-                          </HoloFrame>
-                          {hasBid && (
-                            <div
-                              className="absolute inset-x-0 bottom-0 py-2 text-center opacity-0 group-hover:opacity-100 transition-opacity"
-                              style={{ backgroundColor: "rgba(26,26,26,0.85)", borderRadius: "0 0 10px 10px" }}
-                            >
-                              <span style={{ ...smallCaps, color: "#fff", fontSize: 9 }}>
-                                Sell at Current Bid
-                              </span>
-                            </div>
-                          )}
-                        </button>
-
-                        <button
-                          onClick={() => handleSignOrClaim(tokenId)}
-                          disabled={signClaimDisabled}
-                          className="mt-2.5 w-full transition-opacity enabled:hover:opacity-85"
-                          style={{
-                            ...SANS,
-                            fontSize: "11px",
-                            fontWeight: 500,
-                            letterSpacing: "0.05em",
-                            textTransform: "uppercase",
-                            padding: "9px",
-                            borderRadius: 9,
-                            backgroundColor: signClaimDisabled ? IVORY : isClaimReady ? GREEN : INK,
-                            color: signClaimDisabled ? MUTED : "#fff",
-                            border: signClaimDisabled ? `1px solid ${HAIRLINE}` : "none",
-                            cursor: signClaimDisabled ? "not-allowed" : "pointer",
-                          }}
-                        >
-                          {busy ? "..." : signClaimLabel}
-                        </button>
-
-                        <div className="mt-2 grid grid-cols-2 gap-2">
-                          <button
-                            onClick={() => requestSellNFT(tokenId)}
-                            disabled={busy || !hasBid}
-                            title={hasBid ? `Sell #${idStr} at current bid` : "No active bid yet"}
-                            className="flex items-center justify-center gap-1.5 transition-opacity enabled:hover:opacity-70"
-                            style={{
-                              padding: "8px",
-                              borderRadius: 9,
-                              backgroundColor: "transparent",
-                              color: !hasBid ? MUTED : INK,
-                              border: `1px solid ${HAIRLINE}`,
-                              cursor: !hasBid ? "not-allowed" : "pointer",
-                            }}
-                          >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M20.59 13.41L13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
-                              <line x1="7" y1="7" x2="7.01" y2="7" />
-                            </svg>
-                            <span style={{ ...smallCaps, fontSize: 10 }}>Sell</span>
-                          </button>
-                          <button
-                            onClick={() => requestSendNFT(tokenId)}
-                            disabled={busy}
-                            title={`Send #${idStr} to another address`}
-                            className="flex items-center justify-center gap-1.5 transition-opacity enabled:hover:opacity-70"
-                            style={{
-                              padding: "8px",
-                              borderRadius: 9,
-                              backgroundColor: "transparent",
-                              color: busy ? MUTED : INK,
-                              border: `1px solid ${HAIRLINE}`,
-                              cursor: busy ? "not-allowed" : "pointer",
-                            }}
-                          >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                              <line x1="22" y1="2" x2="11" y2="13" />
-                              <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                            </svg>
-                            <span style={{ ...smallCaps, fontSize: 10 }}>Send</span>
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+          <div className="mt-20 w-full" style={{ maxWidth: "1100px" }}>
+            <div className="flex items-baseline justify-between gap-4">
+              <p style={smallCaps}>Your Collection</p>
+              <button
+                onClick={fetchAllData}
+                className="text-xs hover:text-black transition-colors shrink-0"
+                style={{ ...smallCaps, color: MUTED }}
+              >
+                Refresh Data
+              </button>
             </div>
+            <h2
+              className="mt-3"
+              style={{ ...SERIF, fontWeight: 500, fontSize: "clamp(26px, 3vw, 36px)" }}
+            >
+              Works in your wallet
+            </h2>
+            <p className="mt-2 text-sm" style={{ color: MUTED }}>
+              Sign daily from each card below, or tap More to send or sell.
+            </p>
+
+            {!address ? (
+              <div className="mt-8 py-14 text-center" style={{ border: `1px solid ${HAIRLINE}` }}>
+                <p style={{ ...SERIF, fontStyle: "italic", color: MUTED }} className="text-lg">
+                  Connect your wallet to view your collection.
+                </p>
+              </div>
+            ) : userNFTs.length === 0 ? (
+              <div className="mt-8 py-14 text-center" style={{ border: `1px solid ${HAIRLINE}` }}>
+                <p style={{ ...SERIF, fontStyle: "italic", color: MUTED }} className="text-lg">
+                  No works in your collection — acquire today&apos;s lot above.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-8 works-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {userNFTs.map((tokenId) => {
+                  const idStr = tokenId.toString();
+                  const signed = nftSignedStatus[idStr] === true;
+                  const claimed = nftClaimedStatus[idStr] === true;
+                  const busy = nftBusy[idStr] === true;
+                  const image = nftImages[idStr];
+                  const approved = nftApprovalStatus[idStr] === true;
+                  const isExpanded = expandedCards[idStr] === true;
+                  const isArmed = armedSell[idStr] === true;
+                  const signClaimLabel = isSignPhase
+                    ? signed ? "Signed" : "Sign In"
+                    : signed && !claimed ? "Claim" : claimed ? "Claimed" : "Wait for Sign";
+                  const signClaimDisabled =
+                    busy || (isSignPhase ? signed : !signed || claimed);
+                  const isClaimReady = !isSignPhase && signed && !claimed;
+                  return (
+                    <WorkCard
+                      key={idStr}
+                      tokenIdStr={idStr}
+                      itemName="Based Onchain Dino"
+                      image={image}
+                      approved={approved}
+                      primaryLabel={busy ? "..." : signClaimLabel}
+                      primaryDisabled={signClaimDisabled}
+                      primaryTone={isClaimReady ? "ready" : "default"}
+                      onPrimaryClick={() => handleSignOrClaim(tokenId)}
+                      isExpanded={isExpanded}
+                      onToggleExpand={() => toggleCardExpanded(tokenId)}
+                      busy={busy}
+                      onSend={() => requestSendNFT(tokenId)}
+                      hasBid={!!hasBid}
+                      isArmed={isArmed}
+                      currentBidDisplay={fmtEth(currentBid)}
+                      onSellClick={() => handleSellButtonClick(tokenId)}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </div>
         )}
 
       </main>
 
-      {/* Sell confirmation modal */}
-      {pendingSellTokenId !== null && (
-        <div
-          className="fixed inset-0 z-[200] flex items-center justify-center px-4"
-          style={{ backgroundColor: "rgba(26,26,26,0.5)" }}
-        >
-          <div className="w-full" style={{ maxWidth: "360px", backgroundColor: IVORY, border: `1px solid ${HAIRLINE}` }}>
-            <div className="px-6 py-6">
-              <p style={{ ...SERIF, fontSize: "20px", marginBottom: "12px" }}>
-                Sell #{pendingSellTokenId.toString()}?
-              </p>
-              <p style={{ ...SANS, fontSize: "13px", color: MUTED, lineHeight: 1.6 }}>
-                This will transfer the token to the bidder at the current bid for {currentBid} ETH.
-              </p>
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={() => setPendingSellTokenId(null)}
-                  style={{
-                    ...SANS,
-                    fontSize: "12px",
-                    fontWeight: 500,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    padding: "10px 16px",
-                    backgroundColor: "transparent",
-                    color: INK,
-                    border: `1px solid ${HAIRLINE}`,
-                    cursor: "pointer",
-                    flex: 1,
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmSellNFT}
-                  style={{
-                    ...SANS,
-                    fontSize: "12px",
-                    fontWeight: 500,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    padding: "10px 16px",
-                    backgroundColor: INK,
-                    color: IVORY,
-                    border: "none",
-                    cursor: "pointer",
-                    flex: 1,
-                  }}
-                >
-                  Confirm Sell
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Send confirmation modal */}
       {pendingSendTokenId !== null && (
@@ -2220,40 +2122,7 @@ export default function BasedOnchainDinosPage() {
         </div>
       )}
 
-      {/* Footer */}
-      <footer style={{ borderTop: `1px solid ${HAIRLINE}`, padding: "40px 0", marginTop: "80px" }}>
-        <div className="max-w-6xl mx-auto px-5 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex flex-col gap-2">
-            <span style={{ ...SANS, fontSize: "12px", color: MUTED }}>© 2024 Flooor. Built on Base.</span>
-            <a
-              href={`https://basescan.org/address/${CONTRACT_ADDR}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ ...SANS, fontSize: "11px", color: MUTED, fontFamily: "monospace" }}
-            >
-              {CONTRACT_ADDR}
-            </a>
-          </div>
-          <div className="flex items-center gap-6">
-            <a
-              href="https://x.com/vrnouns"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ ...SANS, fontSize: "12px", color: MUTED }}
-            >
-              X / Twitter
-            </a>
-            <a
-              href="https://farcaster.xyz/miniapps/pIFtRBsgnWAF/flooorfun"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ ...SANS, fontSize: "12px", color: MUTED }}
-            >
-              Farcaster
-            </a>
-          </div>
-        </div>
-      </footer>
+      <Footer contractAddr={CONTRACT_ADDR} />
     </div>
   );
 }
