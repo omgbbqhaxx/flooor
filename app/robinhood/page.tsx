@@ -460,6 +460,22 @@ export default function RobinhoodPage() {
     }
   }, [connectedChain, switchChainHook]);
 
+  // Cüzdan bağlıyken (örn. önceki oturumdan Base'de kalmış) bu sayfaya
+  // gelince eylem beklemeden hemen Robinhood Chain'e geçmeyi öner — diğer
+  // sayfalarda Base'in "varsayılan doğru ağ" olması gibi burada da
+  // Robinhood Chain varsayılan/zorunlu ağ olsun.
+  useEffect(() => {
+    if (address && connectedChain && connectedChain.id !== robinhoodChain.id) {
+      try {
+        switchChainHook({ chainId: robinhoodChain.id });
+      } catch {
+        // kullanıcı reddedebilir veya cüzdan desteklemeyebilir — sorun değil,
+        // yazma işlemleri sırasında ensureBase() tekrar deneyecek
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address, connectedChain?.id]);
+
   const getPhaseInfo = useCallback(async () => {
     if (!IS_DEPLOYED) return;
     try {

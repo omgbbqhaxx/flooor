@@ -4,6 +4,7 @@ import { base } from "wagmi/chains";
 import { defineChain } from "viem";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { WagmiProvider, http, fallback, createConfig } from "wagmi";
 import { reconnect } from "wagmi/actions";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -90,6 +91,12 @@ const config = createConfig({
 const queryClient = new QueryClient();
 
 export function Providers({ children }: { children: ReactNode }) {
+  // /robinhood Robinhood Chain'e bağlı — o rotada RainbowKit'in cüzdana
+  // önereceği/zorlayacağı ağ Base değil Robinhood Chain olmalı, diğer tüm
+  // sayfalarda olduğu gibi "direkt doğru ağa bağlan" davranışı için.
+  const pathname = usePathname();
+  const initialChain = pathname?.startsWith("/robinhood") ? robinhoodChain : base;
+
   // Farcaster/Base mini-app splash ekranını kapat. Render sırasında değil,
   // içerik gerçekten BOYANDIKTAN sonra çağırıyoruz — erken çağrılırsa host
   // splash'i kaldırır ama native WebView'lar CSS/font yüklenene kadar
@@ -167,7 +174,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <WagmiProvider config={config} reconnectOnMount={false}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
-          initialChain={base}
+          initialChain={initialChain}
           appInfo={{
             appName: "flooor.fun",
             learnMoreUrl: "https://flooor.fun",
