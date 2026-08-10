@@ -96,7 +96,7 @@ import NFT_ABI from "@/app/abi/nft.json";
 
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
-const MINIMUM_BID_FOR_SELL = 0.015;
+const MINIMUM_BID_FOR_SELL = 0.026;
 
 // --- Bildirim sesi: hibrit (HTMLAudio + Web Audio) ---
 // Birincil yol <audio> elementi: iOS'ta "medya" sayıldığı için telefonun
@@ -2013,31 +2013,8 @@ export default function BetaPage() {
               {" · "}Epoch {phaseInfo ? phaseInfo.eid.toString() : "—"}
               {isLoading ? " · syncing" : ""}
             </p>
-            <h1
-              className="mt-4"
-              style={{
-                ...SERIF,
-                fontWeight: 500,
-                fontSize: "clamp(36px, 4.6vw, 58px)",
-                lineHeight: 1.08,
-                letterSpacing: "-0.01em",
-              }}
-            >
-              Royalties to the community.
-            </h1>
-            <p
-              className="mt-3 text-base leading-relaxed"
-              style={{ ...SANS, color: MUTED, maxWidth: "48ch" }}
-            >
-              Bid on the flooor, or sell your VRNoun instantly — no listings, no
-              waiting. Royalties flow back to the community.
-            </p>
-
             {/* Current bid */}
-            <div
-              className="mt-10 pt-8"
-              style={{ borderTop: `1px solid ${HAIRLINE}` }}
-            >
+            <div className="mt-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
                 <div>
                   <p style={smallCaps}>Current Bid</p>
@@ -2254,18 +2231,10 @@ export default function BetaPage() {
               className="mt-10 pt-8"
               style={{ borderTop: `1px solid ${HAIRLINE}` }}
             >
-              <p style={smallCaps}>Daily Sign</p>
-              <p
-                className="mt-3 text-base leading-relaxed"
-                style={{ color: MUTED, maxWidth: "48ch" }}
-              >
-                Hold a Flooor? Sign in today to claim your share of the daily
-                vault. No lockup, no transfer.
-              </p>
               <button
                 onClick={handleSign}
                 disabled={isSignButtonDisabled()}
-                className="mt-5 w-full sm:w-auto px-12 py-4 transition-opacity enabled:hover:opacity-85"
+                className="w-full px-12 py-4 transition-opacity enabled:hover:opacity-85"
                 style={{
                   ...smallCaps,
                   color: isSignButtonDisabled() ? FAINT : "#fff",
@@ -2282,6 +2251,10 @@ export default function BetaPage() {
               >
                 {getSignButtonText()}
               </button>
+              <p className="mt-3 text-xs" style={{ color: FAINT }}>
+                Hold a VRNouns NFT? Sign in today to claim your share of the
+                daily vault. No lockup, no transfer.
+              </p>
             </div>
           </div>
         </div>
@@ -3192,7 +3165,7 @@ export default function BetaPage() {
             MMXXVI
           </p>
           <p className="mt-2 text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Front-end v3.0.86 · Contract v1.0 ·
+            © flooor.fun · CC0 Licensed · Front-end v3.0.92 · Contract v1.0 ·
             Beta · Crafted with Claude Fable 5
           </p>
         </div>

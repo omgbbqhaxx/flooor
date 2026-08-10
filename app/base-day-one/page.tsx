@@ -1643,28 +1643,9 @@ export default function BaseDayOnePage() {
                 ? "Coming Soon"
                 : `${isSignPhase ? "Live on Base — Sign Phase" : "Live on Base — Claim Phase"} · Epoch ${phaseInfo ? phaseInfo.eid.toString() : "—"}`}
             </p>
-            <h1
-              className="mt-4"
-              style={{
-                ...SERIF,
-                fontWeight: 500,
-                fontSize: "clamp(36px, 4.6vw, 58px)",
-                lineHeight: 1.08,
-                letterSpacing: "-0.01em",
-              }}
-            >
-              Base Day One
-            </h1>
-            <p
-              className="mt-3 text-base leading-relaxed"
-              style={{ ...SANS, color: MUTED, maxWidth: "48ch" }}
-            >
-              A new collection on Flooor. Every sale feeds the vault — distributed to holders daily.
-            </p>
-
             {!IS_DEPLOYED ? (
               <div
-                className="mt-10 px-8 py-6"
+                className="mt-6 px-8 py-6"
                 style={{ backgroundColor: PLINTH, border: `1px solid ${HAIRLINE}` }}
               >
                 <p style={{ ...smallCaps, marginBottom: "8px" }}>Royalties to the community</p>
@@ -1673,7 +1654,7 @@ export default function BaseDayOnePage() {
                 </p>
               </div>
             ) : (
-              <div className="mt-10 pt-8" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
+              <div className="mt-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
                   <div>
                     <p style={smallCaps}>Current Bid</p>

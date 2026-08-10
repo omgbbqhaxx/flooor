@@ -106,6 +106,11 @@ export function Providers({ children }: { children: ReactNode }) {
       } catch {
         // font durumu okunamadı — yine de devam et
       }
+      // fonts.ready resolve olması, tarayıcının o fontu bir frame'e fiilen
+      // BOYADIĞI anlamına gelmez — aradaki gecikme cihaza/ağa göre değişir
+      // ve bazı açılışlarda host splash'i kapatırken içerik hâlâ boyanmamış
+      // olabilir. Bir frame daha bekleyip garantiye alıyoruz.
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       callReady();
     })();
     const fallbackTimer = setTimeout(callReady, 3000);
