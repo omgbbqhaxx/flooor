@@ -98,7 +98,7 @@ import NFT_ABI from "@/app/abi/nft.json";
 
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
-const MINIMUM_BID_FOR_SELL = 0.026;
+const MINIMUM_BID_FOR_SELL = 0.023;
 
 // --- Bildirim sesi: hibrit (HTMLAudio + Web Audio) ---
 // Birincil yol <audio> elementi: iOS'ta "medya" sayıldığı için telefonun
