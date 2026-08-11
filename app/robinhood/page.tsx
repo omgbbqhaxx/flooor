@@ -324,7 +324,7 @@ export default function RobinhoodPage() {
     document.title = "Ronks · Flooor";
   }, []);
   const { address, chain: connectedChain } = useAccount();
-  const { switchChain: switchChainHook } = useSwitchChain();
+  const { switchChainAsync } = useSwitchChain();
 
   const [bidInput, setBidInput] = useState("");
   const [bidError, setBidError] = useState(false);
@@ -452,29 +452,14 @@ export default function RobinhoodPage() {
   const ensureBase = useCallback(async () => {
     if (connectedChain?.id !== robinhoodChain.id) {
       try {
-        switchChainHook({ chainId: robinhoodChain.id });
+        await switchChainAsync({ chainId: robinhoodChain.id });
       } catch (error) {
         console.error("Failed to switch network:", error);
+        toast.error("Couldn't switch to Robinhood Chain — please switch manually in your wallet.");
         throw new Error("Please switch to Robinhood Chain to continue");
       }
     }
-  }, [connectedChain, switchChainHook]);
-
-  // Cüzdan bağlıyken (örn. önceki oturumdan Base'de kalmış) bu sayfaya
-  // gelince eylem beklemeden hemen Robinhood Chain'e geçmeyi öner — diğer
-  // sayfalarda Base'in "varsayılan doğru ağ" olması gibi burada da
-  // Robinhood Chain varsayılan/zorunlu ağ olsun.
-  useEffect(() => {
-    if (address && connectedChain && connectedChain.id !== robinhoodChain.id) {
-      try {
-        switchChainHook({ chainId: robinhoodChain.id });
-      } catch {
-        // kullanıcı reddedebilir veya cüzdan desteklemeyebilir — sorun değil,
-        // yazma işlemleri sırasında ensureBase() tekrar deneyecek
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [address, connectedChain?.id]);
+  }, [connectedChain, switchChainAsync]);
 
   const getPhaseInfo = useCallback(async () => {
     if (!IS_DEPLOYED) return;
@@ -1070,6 +1055,9 @@ export default function RobinhoodPage() {
     return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   }, []);
 
+  const isWrongNetwork =
+    !!address && !!connectedChain && connectedChain.id !== robinhoodChain.id;
+
   const isSignPhase = phaseInfo?.currentPhase.toLowerCase().includes("sign") ?? false;
 
   const handleBidInputChange = useCallback(
@@ -1130,7 +1118,7 @@ export default function RobinhoodPage() {
       fireConfetti();
       setSharePrompt({
         type: "bid",
-        text: `Just placed a bid of Ξ${fmtEth(bidInput)} on Ronks at flooor.fun 🔨\n\nIf someone outbids me, my ETH comes right back — no risk, no lockup.\n\nRoyalties to the community.`,
+        text: `Just placed a bid of Ξ${fmtEth(bidInput)} on Ronks at flooor.fun/robinhood 🔨\n\nIf someone outbids me, my ETH comes right back — no risk, no lockup.\n\nRoyalties to the community.`,
       });
       setTimeout(() => {
         getCurrentBid();
@@ -1178,14 +1166,14 @@ export default function RobinhoodPage() {
           setNftSignedStatus((prev) => ({ ...prev, [idStr]: true }));
           setSharePrompt({
             type: "sign",
-            text: `Just signed my Ronks NFT on flooor.fun 🖊️\n\n${dailySigners + 1} signers sharing today's vault of Ξ${fmtEth(dailyVault)}.\n\nSign daily, earn daily. Royalties to the community.`,
+            text: `Just signed my Ronks NFT on flooor.fun/robinhood 🖊️\n\n${dailySigners + 1} signers sharing today's vault of Ξ${fmtEth(dailyVault)}.\n\nSign daily, earn daily. Royalties to the community.`,
           });
         } else {
           setNftClaimedStatus((prev) => ({ ...prev, [idStr]: true }));
           const claimedUsd = toUsd(yieldPerSigner);
           setSharePrompt({
             type: "claim",
-            text: `Claimed Ξ${fmtEth(yieldPerSigner)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun 💰\n\nMy Robinhood NFT earns yield every single day — no lockup, no transfer.`,
+            text: `Claimed Ξ${fmtEth(yieldPerSigner)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun/robinhood 💰\n\nMy Robinhood NFT earns yield every single day — no lockup, no transfer.`,
           });
         }
         setTimeout(() => {
@@ -1294,7 +1282,7 @@ export default function RobinhoodPage() {
         const soldUsd = toUsd(currentBid);
         setSharePrompt({
           type: "sell",
-          text: `Just sold my Ronks NFT for Ξ${fmtEth(currentBid)}${soldUsd ? ` (${soldUsd})` : ""} on flooor.fun 🤝\n\nInstant liquidity, any time. Every sale feeds the vault — distributed to holders daily.`,
+          text: `Just sold my Ronks NFT for Ξ${fmtEth(currentBid)}${soldUsd ? ` (${soldUsd})` : ""} on flooor.fun/robinhood 🤝\n\nInstant liquidity, any time. Every sale feeds the vault — distributed to holders daily.`,
         });
         setTimeout(() => {
           getCurrentBid();
@@ -1588,6 +1576,78 @@ export default function RobinhoodPage() {
           </div>
         </div>
       </header>
+
+      {/* Network Gate — full-screen block until on Robinhood Chain */}
+      {isWrongNetwork && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center px-6"
+          style={{
+            backgroundColor: "rgba(0,0,0,0.72)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+          }}
+        >
+          <div
+            className="w-full max-w-sm p-8 sm:p-10 text-center"
+            style={{
+              backgroundColor: PLINTH,
+              border: `1px solid ${HAIRLINE}`,
+              boxShadow: "0 24px 64px -16px rgba(0,0,0,0.6)",
+            }}
+          >
+            <div
+              className="mx-auto mb-6 flex items-center justify-center"
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: "50%",
+                backgroundColor: "rgba(205,255,0,0.12)",
+                border: `1px solid ${GOLD}`,
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path
+                  d="M10 2L2 17h16L10 2z"
+                  stroke={GOLD}
+                  strokeWidth="1.5"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M10 8v4M10 14.5v.5"
+                  stroke={GOLD}
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </div>
+            <p style={{ ...smallCaps, color: GOLD }}>Wrong Network</p>
+            <h3
+              className="mt-3"
+              style={{ ...SERIF, fontWeight: 500, fontSize: "22px" }}
+            >
+              Switch to Robinhood Chain
+            </h3>
+            <p
+              className="mt-3 text-sm leading-relaxed"
+              style={{ color: MUTED }}
+            >
+              Ronks runs on Robinhood Chain. Please switch your wallet to
+              continue.
+            </p>
+            <button
+              onClick={() => {
+                ensureBase().catch(() => {
+                  // hata zaten toast ile gösterildi
+                });
+              }}
+              className="mt-7 w-full py-4 transition-opacity hover:opacity-85"
+              style={{ ...smallCaps, color: IVORY, backgroundColor: GOLD, fontWeight: 700 }}
+            >
+              Switch to Robinhood Chain
+            </button>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-6xl mx-auto px-5 sm:px-8">
         {/* Lot hero */}

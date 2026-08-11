@@ -441,7 +441,7 @@ export default function BetaPage() {
     }
   }, []);
   const { address, chain: connectedChain } = useAccount();
-  const { switchChain: switchChainHook } = useSwitchChain();
+  const { switchChainAsync } = useSwitchChain();
   const [ethPrice, setEthPrice] = useState<number | null>(null);
 
   const fetchEthPrice = useCallback(async () => {
@@ -483,13 +483,14 @@ export default function BetaPage() {
   const ensureBase = useCallback(async () => {
     if (connectedChain?.id !== base.id) {
       try {
-        switchChainHook({ chainId: base.id });
+        await switchChainAsync({ chainId: base.id });
       } catch (error) {
         console.error("Failed to switch network:", error);
+        toast.error("Couldn't switch to Base — please switch manually in your wallet.");
         throw new Error("Please switch to Base network to continue");
       }
     }
-  }, [connectedChain, switchChainHook]);
+  }, [connectedChain, switchChainAsync]);
 
   const checkApprovalStatus = useCallback(async () => {
     if (!address) return;
@@ -1907,7 +1908,11 @@ export default function BetaPage() {
               to continue.
             </p>
             <button
-              onClick={() => ensureBase()}
+              onClick={() => {
+                ensureBase().catch(() => {
+                  // hata zaten toast ile gösterildi
+                });
+              }}
               className="mt-7 w-full py-4 transition-opacity hover:opacity-85"
               style={{ ...smallCaps, color: "#fff", backgroundColor: INK }}
             >

@@ -325,7 +325,7 @@ export default function WarpletsPage() {
     document.title = "Warplets · Flooor";
   }, []);
   const { address, chain: connectedChain } = useAccount();
-  const { switchChain: switchChainHook } = useSwitchChain();
+  const { switchChainAsync } = useSwitchChain();
 
   const [bidInput, setBidInput] = useState("");
   const [bidError, setBidError] = useState(false);
@@ -453,13 +453,14 @@ export default function WarpletsPage() {
   const ensureBase = useCallback(async () => {
     if (connectedChain?.id !== base.id) {
       try {
-        switchChainHook({ chainId: base.id });
+        await switchChainAsync({ chainId: base.id });
       } catch (error) {
         console.error("Failed to switch network:", error);
+        toast.error("Couldn't switch to Base — please switch manually in your wallet.");
         throw new Error("Please switch to Base network to continue");
       }
     }
-  }, [connectedChain, switchChainHook]);
+  }, [connectedChain, switchChainAsync]);
 
   const getPhaseInfo = useCallback(async () => {
     if (!IS_DEPLOYED) return;
