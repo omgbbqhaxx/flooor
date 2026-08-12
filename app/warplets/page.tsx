@@ -88,6 +88,19 @@ const isUserRejectedError = (error: unknown): boolean => {
   );
 };
 
+// "1234567" -> "1.2M", "42000" -> "42K" — market cap rozetinde kısa gösterim
+const formatCompactUsd = (n: number): string => {
+  if (n >= 1_000_000) {
+    const v = n / 1_000_000;
+    return `${Number.isInteger(v) ? v.toFixed(0) : v.toFixed(1)}M`;
+  }
+  if (n >= 1_000) {
+    const v = n / 1_000;
+    return `${Number.isInteger(v) ? v.toFixed(0) : v.toFixed(1)}K`;
+  }
+  return n.toFixed(0);
+};
+
 // --- Bildirim sesi: Web Audio API ---
 // Birincil yol <audio> elementi: iOS'ta "medya" sayıldığı için telefonun
 // sessiz anahtarından ETKİLENMEZ (Web Audio sessiz modda tamamen susar).
@@ -337,6 +350,7 @@ export default function WarpletsPage() {
   const [activeBidder, setActiveBidder] = useState<string>("");
   const [activeBidderName, setActiveBidderName] = useState<string>("");
   const [userNFTs, setUserNFTs] = useState<bigint[]>([]);
+  const [collectionSupply, setCollectionSupply] = useState<number | null>(null);
   const [nftImages, setNftImages] = useState<{ [key: string]: string }>({});
   const [nftApprovalStatus, setNftApprovalStatus] = useState<{ [key: string]: boolean }>({});
   const [nftSignedStatus, setNftSignedStatus] = useState<{ [key: string]: boolean }>({});
@@ -631,6 +645,23 @@ export default function WarpletsPage() {
     }
   }, [config]);
 
+  const getCollectionSupply = useCallback(async () => {
+    if (!config) return;
+    try {
+      const supply = (await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: COLLECTION_ADDR,
+          abi: NFT_ABI,
+          functionName: "totalSupply",
+          args: [],
+        })) as bigint;
+      })) as bigint;
+      setCollectionSupply(Number(supply));
+    } catch (error) {
+      console.error("Error getting collection supply:", error);
+    }
+  }, [config]);
+
   const getUserNFTs = useCallback(async () => {
     if (!address || !config) {
       setUserNFTs((prev) => (prev.length === 0 ? prev : []));
@@ -869,6 +900,11 @@ export default function WarpletsPage() {
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Toplam arz zincirde neredeyse hiç değişmez — bir kez çekmek yeterli
+  useEffect(() => {
+    getCollectionSupply();
+  }, [getCollectionSupply]);
 
   useEffect(() => {
     const countdownInterval = setInterval(() => {
@@ -1415,6 +1451,16 @@ export default function WarpletsPage() {
       ? (annualYieldEth / minOutbidAmount) * 100
       : 0;
 
+  // Market cap = koleksiyondaki toplam adet × taban fiyat (min bid)
+  const marketCapEth =
+    collectionSupply !== null ? collectionSupply * (parseFloat(chainMinBid) || 0) : null;
+  const marketCapUsd =
+    marketCapEth !== null && ethPrice ? marketCapEth * ethPrice : null;
+  const marketCapDisplay =
+    marketCapUsd !== null ? `$${formatCompactUsd(marketCapUsd)}` : "—";
+  const marketCapEthDisplay =
+    marketCapEth !== null ? `Ξ${fmtEth(marketCapEth.toString())}` : "—";
+
   return (
     <div
       className={`${playfair.variable} ${inter.variable}`}
@@ -1597,7 +1643,9 @@ export default function WarpletsPage() {
                       Warplets
                     </span>
                   </span>
-                  <span style={{ ...smallCaps, fontSize: 9 }}>Base</span>
+                  <span style={{ ...smallCaps, fontSize: 9 }}>
+                    {collectionSupply !== null ? `${collectionSupply.toLocaleString()} Editions` : "—"}
+                  </span>
                 </div>
 
                 {/* Art plate */}
@@ -1630,20 +1678,7 @@ export default function WarpletsPage() {
                             border: "1px solid rgba(255,255,255,0.22)",
                           }}
                         >
-                          Base
-                        </span>
-                        <span
-                          style={{
-                            ...smallCaps,
-                            color: "#fff",
-                            fontSize: 9,
-                            padding: "4px 9px",
-                            backgroundColor: "rgba(5,12,28,0.42)",
-                            backdropFilter: "blur(6px)",
-                            border: "1px solid rgba(255,255,255,0.22)",
-                          }}
-                        >
-                          Farcaster
+                          Market Cap {marketCapDisplay} · {marketCapEthDisplay}
                         </span>
                       </div>
                     }

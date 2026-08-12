@@ -89,6 +89,19 @@ const isUserRejectedError = (error: unknown): boolean => {
   );
 };
 
+// "1234567" -> "1.2M", "42000" -> "42K" — market cap rozetinde kısa gösterim
+const formatCompactUsd = (n: number): string => {
+  if (n >= 1_000_000) {
+    const v = n / 1_000_000;
+    return `${Number.isInteger(v) ? v.toFixed(0) : v.toFixed(1)}M`;
+  }
+  if (n >= 1_000) {
+    const v = n / 1_000;
+    return `${Number.isInteger(v) ? v.toFixed(0) : v.toFixed(1)}K`;
+  }
+  return n.toFixed(0);
+};
+
 // --- Bildirim sesi: Web Audio API ---
 // Birincil yol <audio> elementi: iOS'ta "medya" sayıldığı için telefonun
 // sessiz anahtarından ETKİLENMEZ (Web Audio sessiz modda tamamen susar).
@@ -337,6 +350,7 @@ export default function BasedOnchainDinosPage() {
   const [activeBidder, setActiveBidder] = useState<string>("");
   const [activeBidderName, setActiveBidderName] = useState<string>("");
   const [userNFTs, setUserNFTs] = useState<bigint[]>([]);
+  const [collectionSupply, setCollectionSupply] = useState<number | null>(null);
   const [nftImages, setNftImages] = useState<{ [key: string]: string }>({});
   const [nftApprovalStatus, setNftApprovalStatus] = useState<{ [key: string]: boolean }>({});
   const [nftSignedStatus, setNftSignedStatus] = useState<{ [key: string]: boolean }>({});
@@ -636,6 +650,23 @@ export default function BasedOnchainDinosPage() {
   // enumeration yaklaşımı burada çalışmıyor. Sahiplik Alchemy'nin transfer
   // indeksinden (alchemy_getAssetTransfers) tespit ediliyor — bkz.
   // scanOwnedTokenIds.ts.
+  const getCollectionSupply = useCallback(async () => {
+    if (!config) return;
+    try {
+      const supply = (await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: COLLECTION_ADDR,
+          abi: NFT_ABI,
+          functionName: "totalSupply",
+          args: [],
+        })) as bigint;
+      })) as bigint;
+      setCollectionSupply(Number(supply));
+    } catch (error) {
+      console.error("Error getting collection supply:", error);
+    }
+  }, [config]);
+
   const getUserNFTs = useCallback(async () => {
     if (!address || !config) {
       setUserNFTs((prev) => (prev.length === 0 ? prev : []));
@@ -861,6 +892,11 @@ export default function BasedOnchainDinosPage() {
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Toplam arz zincirde neredeyse hiç değişmez — bir kez çekmek yeterli
+  useEffect(() => {
+    getCollectionSupply();
+  }, [getCollectionSupply]);
 
   useEffect(() => {
     const countdownInterval = setInterval(() => {
@@ -1409,6 +1445,16 @@ export default function BasedOnchainDinosPage() {
       ? (annualYieldEth / minOutbidAmount) * 100
       : 0;
 
+  // Market cap = koleksiyondaki toplam adet × taban fiyat (min bid)
+  const marketCapEth =
+    collectionSupply !== null ? collectionSupply * (parseFloat(chainMinBid) || 0) : null;
+  const marketCapUsd =
+    marketCapEth !== null && ethPrice ? marketCapEth * ethPrice : null;
+  const marketCapDisplay =
+    marketCapUsd !== null ? `$${formatCompactUsd(marketCapUsd)}` : "—";
+  const marketCapEthDisplay =
+    marketCapEth !== null ? `Ξ${fmtEth(marketCapEth.toString())}` : "—";
+
   return (
     <div
       className={`${playfair.variable} ${inter.variable}`}
@@ -1569,115 +1615,91 @@ export default function BasedOnchainDinosPage() {
           {/* Artwork */}
           <div className="lg:sticky lg:top-28">
             <div className="flex items-center justify-center py-4">
-              {/* Trading-card shell — gold foil border + cardstock body, matching /based-onchain-dinos */}
-              <div
+              {/* Lot plate — matches the "Your Collection" card design below */}
+              <article
                 className="w-full max-w-[420px] fade-in-soft"
-                style={{
-                  padding: 9,
-                  borderRadius: 24,
-                  backgroundImage:
-                    "linear-gradient(155deg, #f6e2a0 0%, #c9a13d 22%, #fff6d9 42%, #a9782a 62%, #f6e2a0 80%, #dcb44e 100%)",
-                  boxShadow:
-                    "0 24px 48px rgba(17,24,39,0.22), 0 2px 6px rgba(0,0,0,0.12)",
-                }}
+                style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "#fff" }}
               >
+                {/* Lot line */}
                 <div
-                  style={{
-                    borderRadius: 18,
-                    backgroundColor: "#fdfaf1",
-                    padding: 12,
-                    border: "1px solid rgba(0,0,0,0.06)",
-                  }}
+                  className="flex items-center justify-between px-3.5 py-2.5"
+                  style={{ borderBottom: `1px solid ${HAIRLINE}` }}
                 >
-                  {/* Name + rarity row */}
-                  <div className="flex items-center justify-between gap-2 px-1">
-                    <span style={{ ...SERIF, fontWeight: 600, fontSize: 17, color: INK }}>
+                  <span className="flex items-center gap-1.5">
+                    <svg width="15" height="15" viewBox="0 0 22 22" aria-hidden="true">
+                      <path
+                        fill={GOLD}
+                        d="M11 0l2.2 1.6 2.6-.7 1.4 2.3 2.6.7.1 2.7 2.1 1.6-1.2 2.4 1.2 2.4-2.1 1.6-.1 2.7-2.6.7-1.4 2.3-2.6-.7L11 22l-2.2-1.6-2.6.7-1.4-2.3-2.6-.7-.1-2.7L0 13.8l1.2-2.4L0 9l2.1-1.6.1-2.7 2.6-.7L6.2.9 8.8 1.6 11 0z"
+                      />
+                      <path fill="#fff" d="M9.6 14.9L6.3 11.6l1.1-1.1 2.2 2.2 5-5 1.1 1.1z" />
+                    </svg>
+                    <span style={{ ...SERIF, fontWeight: 500, fontSize: 19, color: INK }}>
                       Based Onchain Dinos
                     </span>
-                    <span
-                      style={{
-                        ...smallCaps,
-                        fontSize: 9,
-                        color: GOLD,
-                        border: `1px solid ${GOLD}`,
-                        padding: "3px 8px",
-                        borderRadius: 999,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      flooor.fun ✦
-                    </span>
-                  </div>
+                  </span>
+                  <span style={{ ...smallCaps, fontSize: 9 }}>
+                    {collectionSupply !== null ? `${collectionSupply.toLocaleString()} Editions` : "—"}
+                  </span>
+                </div>
 
-                  {/* Art window */}
-                  <div className="mt-2">
-                    <HoloFrame
-                      className="w-full"
-                      overlay={
-                        <div
+                {/* Art plate */}
+                <div
+                  className="p-4"
+                  style={{ backgroundColor: IVORY, borderBottom: `1px solid ${HAIRLINE}` }}
+                >
+                  <HoloFrame
+                    className="w-full"
+                    overlay={
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: 10,
+                          right: 10,
+                          bottom: 10,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <span
                           style={{
-                            position: "absolute",
-                            left: 10,
-                            right: 10,
-                            bottom: 10,
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
+                            ...smallCaps,
+                            color: "#fff",
+                            fontSize: 9,
+                            padding: "4px 9px",
+                            backgroundColor: "rgba(5,12,28,0.42)",
+                            backdropFilter: "blur(6px)",
+                            border: "1px solid rgba(255,255,255,0.22)",
                           }}
                         >
-                          <span
-                            style={{
-                              ...smallCaps,
-                              color: "#fff",
-                              fontSize: 9,
-                              padding: "4px 9px",
-                              backgroundColor: "rgba(5,12,28,0.42)",
-                              backdropFilter: "blur(6px)",
-                              border: "1px solid rgba(255,255,255,0.22)",
-                            }}
-                          >
-                            Base
-                          </span>
-                          <span
-                            style={{
-                              ...smallCaps,
-                              color: "#fff",
-                              fontSize: 9,
-                              padding: "4px 9px",
-                              backgroundColor: "rgba(5,12,28,0.42)",
-                              backdropFilter: "blur(6px)",
-                              border: "1px solid rgba(255,255,255,0.22)",
-                            }}
-                          >
-                            Onchain
-                          </span>
-                        </div>
-                      }
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={DINOS_IMG}
-                        alt="Based Onchain Dinos"
-                        className="w-full h-auto"
-                      />
-                    </HoloFrame>
-                  </div>
-
-                  {/* Meta strip */}
-                  <div className="mt-3 flex items-center justify-between px-1">
-                    <span style={{ ...smallCaps, fontSize: 9 }}>No. 001 · Base</span>
-                    <a
-                      href="https://opensea.io/assets/base/0xD4c5292b9689238f0A51C8505B1d1D6714Ce95a0"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ ...smallCaps, fontSize: 9 }}
-                      className="hover:text-black transition-colors"
-                    >
-                      View Collection
-                    </a>
-                  </div>
+                          Market Cap {marketCapDisplay} · {marketCapEthDisplay}
+                        </span>
+                      </div>
+                    }
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={DINOS_IMG}
+                      alt="Based Onchain Dinos"
+                      className="w-full h-auto"
+                    />
+                  </HoloFrame>
                 </div>
-              </div>
+
+                {/* Meta strip */}
+                <div className="px-3.5 py-3 flex items-center justify-between">
+                  <span style={{ ...smallCaps, fontSize: 9 }}>No. 001 · Base</span>
+                  <a
+                    href="https://opensea.io/assets/base/0xD4c5292b9689238f0A51C8505B1d1D6714Ce95a0"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ ...smallCaps, fontSize: 9 }}
+                    className="hover:text-black transition-colors"
+                  >
+                    View Collection
+                  </a>
+                </div>
+              </article>
             </div>
           </div>
 
