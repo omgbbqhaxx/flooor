@@ -1126,7 +1126,13 @@ export default function WarpletsPage() {
       const value = parseEther((bidInput || "0") as `${string}`);
       const balance = await getBalance(config, { address });
       if (balance.value < value) {
-        toast.error("Insufficient balance to place this bid.");
+        toast.error("Insufficient balance to place this bid.", {
+          action: {
+            label: "Check wallet",
+            onClick: () =>
+              window.open(`https://basescan.org/address/${address}`, "_blank"),
+          },
+        });
         return;
       }
       await writeContract(config, {
