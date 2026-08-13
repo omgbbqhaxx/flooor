@@ -38,9 +38,9 @@ import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://flooor.fun"),
-  title: "Flooor FUN",
+  title: "flooor.fun — 5% royalty accumulates in the daily vault — sign all morning, claim all night",
   description:
-    "Royalties for the community. Sign with your NFT to participate in daily royalty distribution. NFT marketplace, Base blockchain, VRNouns, daily rewards, DeFi, Web3, cryptocurrency, blockchain rewards, NFT staking, community governance.",
+    "Royalties for the community. Sign with your NFT without staking to participate in daily royalty distribution. NFT marketplace, Base blockchain, VRNouns, daily rewards, DeFi, Web3, cryptocurrency, blockchain rewards, community governance.",
   openGraph: {
     title: "Flooor — The Daily Auction House for Premium NFTs",
     description: "Sign & claim daily Ethereum yield. Royalties to the community.",

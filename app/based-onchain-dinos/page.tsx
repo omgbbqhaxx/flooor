@@ -335,7 +335,7 @@ export default function BasedOnchainDinosPage() {
   const config = useConfig();
 
   useEffect(() => {
-    document.title = "Based Onchain Dinos · Flooor";
+    document.title = "Based Onchain Dinos · flooor.fun — 5% royalty accumulates in the daily vault — sign all morning, claim all night";
   }, []);
   const { address, chain: connectedChain } = useAccount();
   const { switchChainAsync } = useSwitchChain();

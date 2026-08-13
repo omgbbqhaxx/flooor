@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Ronks · Flooor",
+  title: "Ronks · flooor.fun — 5% royalty accumulates in the daily vault — sign all morning, claim all night",
   description:
     "Ronks on Robinhood Chain — sign daily, claim daily yield, no lockup. Royalties to the community.",
   alternates: {

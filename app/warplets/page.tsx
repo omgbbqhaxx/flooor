@@ -335,7 +335,7 @@ export default function WarpletsPage() {
   const config = useConfig();
 
   useEffect(() => {
-    document.title = "Warplets · Flooor";
+    document.title = "Warplets · flooor.fun — 5% royalty accumulates in the daily vault — sign all morning, claim all night";
   }, []);
   const { address, chain: connectedChain } = useAccount();
   const { switchChainAsync } = useSwitchChain();

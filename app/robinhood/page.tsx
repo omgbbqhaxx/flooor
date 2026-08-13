@@ -321,7 +321,7 @@ export default function RobinhoodPage() {
   const config = useConfig();
 
   useEffect(() => {
-    document.title = "Ronks · Flooor";
+    document.title = "Ronks · flooor.fun — 5% royalty accumulates in the daily vault — sign all morning, claim all night";
   }, []);
   const { address, chain: connectedChain } = useAccount();
   const { switchChainAsync } = useSwitchChain();

@@ -336,7 +336,7 @@ export default function OkComputersPage() {
   const config = useConfig();
 
   useEffect(() => {
-    document.title = "OK Computers · Flooor";
+    document.title = "OK Computers · flooor.fun — 5% royalty accumulates in the daily vault — sign all morning, claim all night";
   }, []);
   const { address, chain: connectedChain } = useAccount();
   const { switchChainAsync } = useSwitchChain();

@@ -116,7 +116,7 @@ export default function Page() {
   const config = useConfig();
 
   useEffect(() => {
-    document.title = "Genesis · Flooor";
+    document.title = "Genesis · flooor.fun — 5% royalty accumulates in the daily vault — sign all morning, claim all night";
   }, []);
   const chainId = useChainId();
   const { address } = useAccount();
@@ -1761,8 +1761,8 @@ export default function Page() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 justify-items-center">
                 <div className="bg-[#63A0F9] rounded-lg w-48 h-48 flex items-center justify-center px-2">
                   <span className="text-xl font-bold font-oldschool text-center">
-                    Light stake (sign) with your nft. <br></br> %5 of all
-                    royalties are shared with the stakers.<br></br>
+                    Sign with your NFT without staking. <br></br> 5% of all
+                    royalties are shared with signers.<br></br>
                   </span>
                 </div>
 
@@ -1774,7 +1774,7 @@ export default function Page() {
                 <div className="bg-[#FE500C] rounded-lg w-48 h-48 flex items-center justify-center px-2">
                   <span className="text-xl font-bold font-oldschool text-center">
                     An NFT platform built on game theory<br></br> , designed so
-                    the whole group wins together.
+                    all NFT holders win together.
                   </span>
                 </div>
               </div>

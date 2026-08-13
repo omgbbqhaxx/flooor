@@ -399,7 +399,7 @@ export default function BetaPage() {
   const config = useConfig();
 
   useEffect(() => {
-    document.title = "VRNouns · Flooor";
+    document.title = "VRNouns · flooor.fun — 5% royalty accumulates in the daily vault — sign all morning, claim all night";
   }, []);
 
   // Kaydedilmiş ses tercihini yükle — varsayılan kapalı, kullanıcı açtıysa hatırla
@@ -1728,13 +1728,6 @@ export default function BetaPage() {
             Flooor
           </Link>
           <nav className="hidden md:flex items-center gap-10">
-            <Link
-              href="/warplets"
-              style={smallCaps}
-              className="hover:text-black transition-colors"
-            >
-              Warplets
-            </Link>
             <a
               href="https://vrnouns.gitbook.io/flooor/documentation/documentation-en"
               target="_blank"
@@ -2619,7 +2612,7 @@ export default function BetaPage() {
                 className="mt-3 text-base leading-relaxed"
                 style={{ color: MUTED }}
               >
-                Light stake by signing with your NFT. Five percent of all
+                Sign with your NFT without staking. Five percent of all
                 royalties are shared with signers, every day.
               </p>
             </div>
@@ -2667,17 +2660,43 @@ export default function BetaPage() {
                 className="mt-3 text-base leading-relaxed"
                 style={{ color: MUTED }}
               >
-                Built on game theory and designed with a single intention: the
-                whole group wins together.
+                Built on game theory and designed with a single intention: all
+                NFT holders win together.
               </p>
             </div>
           </div>
         </div>
       </main>
 
-      {/* Manifesto */}
-      <div className="mt-24 py-20 sm:py-28" style={{ backgroundColor: IVORY }}>
-        <div className="max-w-4xl mx-auto px-5 sm:px-8 text-center">
+      {/* Torn-paper edge: white page -> ivory band */}
+      <div
+        aria-hidden="true"
+        className="mt-24"
+        style={{
+          position: "relative",
+          height: 48,
+          lineHeight: 0,
+          overflow: "hidden",
+          backgroundColor: IVORY,
+        }}
+      >
+        <svg
+          viewBox="0 0 1600 48"
+          preserveAspectRatio="none"
+          style={{ width: "100%", height: "100%", display: "block", transform: "scaleY(-1)" }}
+        >
+          <path
+            d="M0,48 L0,25.6 Q0,25.6 13,27.9 Q26,30.2 39,31.7 Q52,33.2 65,30.2 Q78,27.2 91,30.0 Q104,32.8 117,31.9 Q130,31 143,31.1 Q156,31.2 169,32.3 Q182,33.3 195,32.5 Q208,31.7 221,30.4 Q234,29.2 247,26.8 Q260,24.3 273,26.3 Q286,28.2 299,22.4 Q312,16.5 325,17.1 Q338,17.7 351,16.4 Q364,15 377,16.6 Q390,18.3 403,16.8 Q416,15.3 429,18.5 Q442,21.7 455,22.6 Q468,23.5 481,22.7 Q494,21.9 507,23.4 Q520,24.9 533,23.2 Q546,21.5 559,22.6 Q572,23.6 585,26.5 Q598,29.3 611,27.3 Q624,25.3 637,27.6 Q650,29.9 663,29.5 Q676,29.1 689,28.5 Q702,27.9 715,25.0 Q728,22.2 741,23.9 Q754,25.7 767,25.9 Q780,26.2 793,28.2 Q806,30.2 819,29.4 Q832,28.5 845,30.0 Q858,31.5 871,30.9 Q884,30.3 897,32.4 Q910,34.4 923,35.7 Q936,37 949,37.0 Q962,37.1 975,34.5 Q988,32 1001,30.4 Q1014,28.7 1027,29.9 Q1040,31 1053,30.6 Q1066,30.2 1079,29.4 Q1092,28.6 1105,27.6 Q1118,26.5 1131,28.4 Q1144,30.4 1157,30.9 Q1170,31.5 1183,30.7 Q1196,29.9 1209,29.6 Q1222,29.4 1235,27.0 Q1248,24.6 1261,24.6 Q1274,24.5 1287,26.6 Q1300,28.6 1313,27.0 Q1326,25.3 1339,25.8 Q1352,26.3 1365,27.6 Q1378,28.8 1391,28.9 Q1404,29 1417,26.4 Q1430,23.7 1443,27.9 Q1456,32 1469,29.9 Q1482,27.7 1495,29.4 Q1508,31.1 1521,28.4 Q1534,25.6 1547,27.6 Q1560,29.7 1573,32.0 L1600,34.2 L1600,48 Z"
+            fill="#FFFFFF"
+          />
+        </svg>
+      </div>
+
+      <div
+        className="py-20 sm:py-28"
+        style={{ backgroundColor: IVORY }}
+      >
+        <div className="max-w-4xl mx-auto px-5 sm:px-8 text-center relative">
           <div
             className="mx-auto mb-7"
             style={{ width: 56, height: 1, backgroundColor: GOLD }}
@@ -2693,11 +2712,33 @@ export default function BetaPage() {
               lineHeight: 1.2,
             }}
           >
-            The whole group wins together.
+            All NFT holders win together.
           </p>
         </div>
       </div>
 
+      {/* Torn-paper edge: ivory band -> white page/footer */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "relative",
+          height: 48,
+          lineHeight: 0,
+          overflow: "hidden",
+          backgroundColor: "#FFFFFF",
+        }}
+      >
+        <svg
+          viewBox="0 0 1600 48"
+          preserveAspectRatio="none"
+          style={{ width: "100%", height: "100%", display: "block", transform: "scaleY(-1)" }}
+        >
+          <path
+            d="M0,48 L0,23.6 Q0,23.6 13,21.8 Q26,20 39,18.1 Q52,16.1 65,17.4 Q78,18.6 91,20.9 Q104,23.2 117,21.3 Q130,19.3 143,20.0 Q156,20.6 169,24.1 Q182,27.6 195,28.5 Q208,29.4 221,28.3 Q234,27.1 247,28.4 Q260,29.6 273,30.8 Q286,31.9 299,31.2 Q312,30.5 325,29.6 Q338,28.8 351,27.6 Q364,26.3 377,24.4 Q390,22.4 403,23.0 Q416,23.6 429,24.4 Q442,25.1 455,27.7 Q468,30.3 481,32.0 Q494,33.8 507,30.6 Q520,27.5 533,27.1 Q546,26.8 559,24.5 Q572,22.2 585,24.9 Q598,27.7 611,28.9 Q624,30 637,29.1 Q650,28.2 663,28.4 Q676,28.6 689,25.9 Q702,23.2 715,25.3 Q728,27.4 741,25.6 Q754,23.9 767,25.1 Q780,26.3 793,26.8 Q806,27.3 819,25.5 Q832,23.6 845,24.7 Q858,25.8 871,24.1 Q884,22.4 897,24.0 Q910,25.7 923,27.5 Q936,29.4 949,28.8 Q962,28.1 975,25.9 Q988,23.6 1001,22.6 Q1014,21.6 1027,23.0 Q1040,24.4 1053,25.4 Q1066,26.3 1079,25.1 Q1092,23.9 1105,24.8 Q1118,25.7 1131,23.6 Q1144,21.6 1157,24.1 Q1170,26.7 1183,24.1 Q1196,21.5 1209,20.3 Q1222,19.1 1235,20.0 Q1248,20.8 1261,18.9 Q1274,17 1287,17.9 Q1300,18.9 1313,20.4 Q1326,22 1339,21.6 Q1352,21.1 1365,20.8 Q1378,20.4 1391,18.9 Q1404,17.3 1417,17.3 Q1430,17.3 1443,16.2 Q1456,15.1 1469,17.2 Q1482,19.3 1495,22.0 Q1508,24.6 1521,26.4 Q1534,28.1 1547,25.4 Q1560,22.7 1573,21.1 L1600,19.6 L1600,48 Z"
+            fill={IVORY}
+          />
+        </svg>
+      </div>
 
       {/* Send confirmation modal */}
       {pendingSendTokenId !== null && (
