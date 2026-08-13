@@ -1109,9 +1109,14 @@ export default function OkComputersPage() {
       toast.error("Please switch to Base network first.");
       return;
     }
-    const bidAmount = parseFloat(bidInput || "0");
+    const trimmedInput = (bidInput || "").trim();
     const minRequired = parseFloat(chainNextMinBid) || 0;
-    if (bidAmount < minRequired) {
+    let effectiveBidInput = trimmedInput;
+    if (!trimmedInput) {
+      // No amount typed — auto-fill with the minimum required bid.
+      effectiveBidInput = minRequired.toFixed(6);
+      setBidInput(effectiveBidInput);
+    } else if (parseFloat(trimmedInput) < minRequired) {
       setBidInput("");
       setBidError(true);
       return;
@@ -1119,7 +1124,7 @@ export default function OkComputersPage() {
     setIsBidding(true);
     try {
       await ensureBase();
-      const value = parseEther((bidInput || "0") as `${string}`);
+      const value = parseEther(effectiveBidInput as `${string}`);
       const balance = await getBalance(config, { address });
       if (balance.value < value) {
         toast.error("Insufficient balance to place this bid.", {
@@ -1148,11 +1153,13 @@ export default function OkComputersPage() {
       fireConfetti();
       setSharePrompt({
         type: "bid",
-        text: `Just placed a bid of Ξ${fmtEth(bidInput)} on an OK Computer at flooor.fun 🔨\n\nIf someone outbids me, my ETH comes right back — no risk, no lockup.\n\nRoyalties to the community.`,
+        text: `Just placed a bid of Ξ${fmtEth(effectiveBidInput)} on an OK Computer at flooor.fun 🔨\n\nIf someone outbids me, my ETH comes right back — no risk, no lockup.\n\nRoyalties to the community.`,
       });
+      setBidInput("");
       setTimeout(() => {
         getCurrentBid();
         getActiveBidder();
+        getChainMinBid();
       }, 2000);
     } catch (error) {
       if (isUserRejectedError(error)) {
@@ -1167,7 +1174,7 @@ export default function OkComputersPage() {
     } finally {
       setIsBidding(false);
     }
-  }, [config, ensureBase, bidInput, address, connectedChain, getCurrentBid, getActiveBidder, chainNextMinBid, fmtEth, isBidding]);
+  }, [config, ensureBase, bidInput, address, connectedChain, getCurrentBid, getActiveBidder, getChainMinBid, chainNextMinBid, fmtEth, isBidding]);
 
   const handleSignOrClaim = useCallback(
     async (tokenId: bigint) => {
