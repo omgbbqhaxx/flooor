@@ -34,7 +34,7 @@ export default function Footer({
         <div className="col-span-2 md:col-span-1">
           <p style={{ ...SERIF, fontWeight: 500, fontSize: "22px" }}>Flooor</p>
           <p className="mt-3 text-sm leading-relaxed" style={{ color: MUTED }}>
-            A daily auction house for onchain art. Base · CC0.
+            5% royalty accumulates in the daily vault and splits evenly among everyone who signs during the 16-hour sign phase — claim your share during the 8-hour claim phase.
           </p>
         </div>
         <div>
@@ -176,7 +176,7 @@ export default function Footer({
           MMXXVI
         </p>
         <p className="mt-2 text-xs" style={{ color: FAINT }}>
-          © flooor.fun · CC0 Licensed · Front-end v3.0.122 · Contract v1.0 ·
+          © flooor.fun · CC0 Licensed · Front-end v3.0.126 · Contract v1.0 ·
           Beta · Crafted with Claude Fable 5
         </p>
         <Image

@@ -116,7 +116,7 @@ export default function Page() {
   const config = useConfig();
 
   useEffect(() => {
-    document.title = "Genesis · flooor.fun — 5% royalty accumulates in the daily vault — sign all morning, claim all night";
+    document.title = "Genesis · flooor.fun — 5% royalty accumulates in the daily vault — 16-hour sign phase, 8-hour claim phase";
   }, []);
   const chainId = useChainId();
   const { address } = useAccount();

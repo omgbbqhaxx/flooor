@@ -399,7 +399,7 @@ export default function BetaPage() {
   const config = useConfig();
 
   useEffect(() => {
-    document.title = "VRNouns · flooor.fun — 5% royalty accumulates in the daily vault — sign all morning, claim all night";
+    document.title = "VRNouns · flooor.fun — 5% royalty accumulates in the daily vault — 16-hour sign phase, 8-hour claim phase";
   }, []);
 
   // Kaydedilmiş ses tercihini yükle — varsayılan kapalı, kullanıcı açtıysa hatırla

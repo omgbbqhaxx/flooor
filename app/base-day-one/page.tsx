@@ -336,7 +336,7 @@ export default function BaseDayOnePage() {
   const config = useConfig();
 
   useEffect(() => {
-    document.title = "Base Day One · flooor.fun — 5% royalty accumulates in the daily vault — sign all morning, claim all night";
+    document.title = "Base Day One · flooor.fun — 5% royalty accumulates in the daily vault — 16-hour sign phase, 8-hour claim phase";
   }, []);
   const { address, chain: connectedChain } = useAccount();
   const { switchChainAsync } = useSwitchChain();
