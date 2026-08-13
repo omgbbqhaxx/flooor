@@ -386,6 +386,7 @@ export default function BetaPage() {
   const [sendAddressInput, setSendAddressInput] = useState("");
   const [sendAddressError, setSendAddressError] = useState(false);
   const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
+  const [isBidding, setIsBidding] = useState<boolean>(false);
   const [sharePrompt, setSharePrompt] = useState<{
     type: "sign" | "claim" | "bid" | "sell";
     text: string;
@@ -1247,6 +1248,7 @@ export default function BetaPage() {
   );
 
   const handleBid = useCallback(async () => {
+    if (isBidding) return;
     if (!address) {
       toast.warning("Please connect your wallet first");
       return;
@@ -1269,6 +1271,7 @@ export default function BetaPage() {
       setBidError(true);
       return;
     }
+    setIsBidding(true);
     try {
       await ensureBase();
       const value = parseEther((bidInput || "0") as `${string}`);
@@ -1279,6 +1282,10 @@ export default function BetaPage() {
             label: "Check wallet",
             onClick: () =>
               window.open(`https://basescan.org/address/${address}`, "_blank"),
+          },
+          actionButtonStyle: {
+            background: "#ec4899",
+            color: "#fff",
           },
         });
         return;
@@ -1313,6 +1320,8 @@ export default function BetaPage() {
         duration: 5000,
         action: { label: "Retry", onClick: () => handleBid() },
       });
+    } finally {
+      setIsBidding(false);
     }
   }, [
     config,
@@ -1325,6 +1334,7 @@ export default function BetaPage() {
     getCurrentBid,
     getActiveBidder,
     fmtEth,
+    isBidding,
   ]);
 
   const handleSellNFT = useCallback(
@@ -1333,6 +1343,9 @@ export default function BetaPage() {
         toast.warning("Please connect your wallet first");
         return;
       }
+      const tokenIdStr = tokenId.toString();
+      if (nftBusy[tokenIdStr]) return;
+      setNftBusy((prev) => ({ ...prev, [tokenIdStr]: true }));
       try {
         await ensureBase();
         const currentBidNumber = parseFloat(currentBid);
@@ -1346,7 +1359,6 @@ export default function BetaPage() {
           toast.error("You must hold only 1 NFT to sell.");
           return;
         }
-        const tokenIdStr = tokenId.toString();
         const isThisNFTApproved = nftApprovalStatus[tokenIdStr] === true;
         if (!isThisNFTApproved) {
           setNftLoadingStatus((prev) => ({ ...prev, [tokenIdStr]: true }));
@@ -1422,6 +1434,8 @@ export default function BetaPage() {
           duration: 5000,
           action: { label: "Retry", onClick: () => handleSellNFT(tokenId) },
         });
+      } finally {
+        setNftBusy((prev) => ({ ...prev, [tokenIdStr]: false }));
       }
     },
     [
@@ -1438,6 +1452,7 @@ export default function BetaPage() {
       getUserNFTs,
       fmtEth,
       toUsd,
+      nftBusy,
     ],
   );
 
@@ -2163,14 +2178,17 @@ export default function BetaPage() {
                 />
                 <button
                   onClick={handleBid}
-                  className="px-5 sm:px-10 whitespace-nowrap transition-opacity hover:opacity-80"
+                  disabled={isBidding}
+                  className="px-5 sm:px-10 whitespace-nowrap transition-opacity hover:opacity-80 disabled:hover:opacity-100"
                   style={{
                     ...smallCaps,
                     color: "#fff",
                     backgroundColor: INK,
+                    opacity: isBidding ? 0.6 : 1,
+                    cursor: isBidding ? "not-allowed" : "pointer",
                   }}
                 >
-                  Place Bid
+                  {isBidding ? "Placing…" : "Place Bid"}
                 </button>
               </div>
               <p className="mt-3 text-xs" style={{ color: FAINT }}>

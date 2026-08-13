@@ -356,6 +356,7 @@ export default function WarpletsPage() {
   const [nftSignedStatus, setNftSignedStatus] = useState<{ [key: string]: boolean }>({});
   const [nftClaimedStatus, setNftClaimedStatus] = useState<{ [key: string]: boolean }>({});
   const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
+  const [isBidding, setIsBidding] = useState<boolean>(false);
   const [pendingSendTokenId, setPendingSendTokenId] = useState<bigint | null>(null);
   const [sendAddressInput, setSendAddressInput] = useState("");
   const [sendAddressError, setSendAddressError] = useState(false);
@@ -1102,6 +1103,7 @@ export default function WarpletsPage() {
   );
 
   const handleBid = useCallback(async () => {
+    if (isBidding) return;
     if (!IS_DEPLOYED) {
       toast.info("Warplets contract is not live yet — stay tuned.");
       return;
@@ -1121,6 +1123,7 @@ export default function WarpletsPage() {
       setBidError(true);
       return;
     }
+    setIsBidding(true);
     try {
       await ensureBase();
       const value = parseEther((bidInput || "0") as `${string}`);
@@ -1131,6 +1134,10 @@ export default function WarpletsPage() {
             label: "Check wallet",
             onClick: () =>
               window.open(`https://basescan.org/address/${address}`, "_blank"),
+          },
+          actionButtonStyle: {
+            background: "#ec4899",
+            color: "#fff",
           },
         });
         return;
@@ -1164,8 +1171,10 @@ export default function WarpletsPage() {
         duration: 5000,
         action: { label: "Retry", onClick: () => handleBid() },
       });
+    } finally {
+      setIsBidding(false);
     }
-  }, [config, ensureBase, bidInput, address, connectedChain, getCurrentBid, getActiveBidder, chainNextMinBid, fmtEth]);
+  }, [config, ensureBase, bidInput, address, connectedChain, getCurrentBid, getActiveBidder, chainNextMinBid, fmtEth, isBidding]);
 
   const handleSignOrClaim = useCallback(
     async (tokenId: bigint) => {
@@ -1807,10 +1816,17 @@ export default function WarpletsPage() {
                   />
                   <button
                     onClick={handleBid}
-                    className="px-5 sm:px-10 whitespace-nowrap transition-opacity hover:opacity-80"
-                    style={{ ...smallCaps, color: "#fff", backgroundColor: INK }}
+                    disabled={isBidding}
+                    className="px-5 sm:px-10 whitespace-nowrap transition-opacity hover:opacity-80 disabled:hover:opacity-100"
+                    style={{
+                      ...smallCaps,
+                      color: "#fff",
+                      backgroundColor: INK,
+                      opacity: isBidding ? 0.6 : 1,
+                      cursor: isBidding ? "not-allowed" : "pointer",
+                    }}
                   >
-                    Place Bid
+                    {isBidding ? "Placing…" : "Place Bid"}
                   </button>
                 </div>
                 <p className="mt-3 text-xs" style={{ color: FAINT }}>
