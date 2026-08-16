@@ -111,7 +111,7 @@ import NFT_ABI from "@/app/abi/nft.json";
 
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
-const MINIMUM_BID_FOR_SELL = 0.023;
+const MINIMUM_BID_FOR_SELL = 0.016;
 
 // --- Bildirim sesi: hibrit (HTMLAudio + Web Audio) ---
 // Birincil yol <audio> elementi: iOS'ta "medya" sayıldığı için telefonun
@@ -324,6 +324,7 @@ const IVORY = "#F7F5F1";
 const PLINTH = "#F1EEE8";
 const GREEN = "#1E7B4F";
 const GOLD = "#A4863D";
+const RED = "#9A2D2D";
 
 const SERIF = { fontFamily: "var(--font-serif)" } as const;
 const SANS = { fontFamily: "var(--font-sans)" } as const;
@@ -1707,6 +1708,27 @@ export default function BetaPage() {
   const isClaimReady =
     !!phaseInfo && !isSignPhase && userHasSigned && !userHasClaimed;
 
+  // Live Market banner — durum etiketi ve rengi
+  const isPhaseUrgent = remainingTimeDisplay > 0 && remainingTimeDisplay < 3600;
+  const marketStatusLabel = isSignPhase
+    ? userHasSigned
+      ? "Signed"
+      : "Ready for Sign"
+    : userHasClaimed
+      ? "Claimed"
+      : "Ready for Claim";
+  const marketStatusColor = isSignPhase
+    ? userHasSigned
+      ? GREEN
+      : isPhaseUrgent
+        ? RED
+        : GOLD
+    : userHasClaimed
+      ? GREEN
+      : isPhaseUrgent
+        ? RED
+        : GOLD;
+
   const hasBid =
     activeBidder &&
     activeBidder !== "0x0000000000000000000000000000000000000000" &&
@@ -2067,11 +2089,13 @@ export default function BetaPage() {
 
           {/* Lot details */}
           <div>
-            <p style={{ ...smallCaps, color: GOLD }}>
-              <span className="live-dot mr-2" aria-hidden />
-              {isSignPhase
-                ? "Live Market — Sign Phase"
-                : "Live Market — Claim Phase"}
+            <p style={{ ...smallCaps, color: marketStatusColor }}>
+              <span
+                className="live-dot mr-2"
+                style={{ background: marketStatusColor }}
+                aria-hidden
+              />
+              {marketStatusLabel}
               {" · "}Epoch {phaseInfo ? phaseInfo.eid.toString() : "—"}
               {isLoading ? " · syncing" : ""}
             </p>
