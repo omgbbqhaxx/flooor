@@ -176,7 +176,7 @@ export default function Footer({
           MMXXVI
         </p>
         <p className="mt-2 text-xs" style={{ color: FAINT }}>
-          © flooor.fun · CC0 Licensed · Front-end v3.0.138 · Contract v1.0 ·
+          © flooor.fun · CC0 Licensed · Front-end v3.0.142 · Contract v1.0 ·
           Beta · Crafted with Claude Fable 5
         </p>
         <Image

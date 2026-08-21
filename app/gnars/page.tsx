@@ -713,7 +713,7 @@ export default function GnarsPage() {
 
   const resolveUri = (uri: string): string => {
     if (uri.startsWith("ipfs://")) {
-      return `https://ipfs.io/ipfs/${uri.replace("ipfs://", "")}`;
+      return `https://ipfs.filebase.io/ipfs/${uri.replace("ipfs://", "")}`;
     }
     return uri;
   };

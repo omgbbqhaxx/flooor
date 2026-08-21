@@ -77,7 +77,7 @@ const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
 // MINIMUM PRICE CONFIGURATION (in ETH)
 // Change this value to adjust the minimum bid and sell price
 // ============================================================================
-const MINIMUM_BID_FOR_SELL = 0.006;
+const MINIMUM_BID_FOR_SELL = 0.019;
 
 export default function Page() {
   //const calls = []; // to be populated with buyFloor call later

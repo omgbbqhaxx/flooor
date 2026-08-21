@@ -312,7 +312,7 @@ const GOLD = "#A4863D";
 const FAINT = "#A8A39B";
 
 const BASEDAYONE_IMG =
-  "https://ipfs.io/ipfs/bafybeidkxtd2qck3omiccqhi2iebklr5yfsm33vivmgyfarlh62l462zka";
+  "/basedayone.gif";
 
 const SERIF = { fontFamily: "var(--font-serif)" } as const;
 const SANS = { fontFamily: "var(--font-sans)" } as const;
@@ -713,7 +713,7 @@ export default function BaseDayOnePage() {
 
   const resolveUri = (uri: string): string => {
     if (uri.startsWith("ipfs://")) {
-      return `https://ipfs.io/ipfs/${uri.replace("ipfs://", "")}`;
+      return `https://ipfs.filebase.io/ipfs/${uri.replace("ipfs://", "")}`;
     }
     return uri;
   };
