@@ -68,16 +68,12 @@ const retryWithBackoff = async (
 
 import MARKET_ABI from "@/app/abi/market.json";
 import NFT_ABI from "@/app/abi/nft.json";
+import { MINIMUM_BID_FOR_SELL } from "@/app/lib/minBid";
 
 // Addresses
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
 
-// ============================================================================
-// MINIMUM PRICE CONFIGURATION (in ETH)
-// Change this value to adjust the minimum bid and sell price
-// ============================================================================
-const MINIMUM_BID_FOR_SELL = 0.019;
 
 export default function Page() {
   //const calls = []; // to be populated with buyFloor call later

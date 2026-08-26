@@ -108,10 +108,10 @@ const formatCompactUsd = (n: number): string => {
 
 import MARKET_ABI from "@/app/abi/market.json";
 import NFT_ABI from "@/app/abi/nft.json";
+import { MINIMUM_BID_FOR_SELL } from "@/app/lib/minBid";
 
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
-const MINIMUM_BID_FOR_SELL = 0.019;
 
 // --- Bildirim sesi: hibrit (HTMLAudio + Web Audio) ---
 // Birincil yol <audio> elementi: iOS'ta "medya" sayıldığı için telefonun
@@ -1748,6 +1748,15 @@ export default function BetaPage() {
   const marketCapEthDisplay =
     marketCapEth !== null ? `Ξ${fmtEth(marketCapEth.toString())}` : "—";
 
+  // TVS (Total Value Signed) = bu epoch'ta imzalayan sayısı × taban fiyat (min bid)
+  const tvsEth = dailySigners * MINIMUM_BID_FOR_SELL;
+  const tvsUsd = ethPrice ? tvsEth * ethPrice : null;
+  const tvsUsdDisplay =
+    tvsUsd !== null && tvsUsd > 0
+      ? `$${Math.round(tvsUsd).toLocaleString("en-US")}`
+      : "—";
+  const tvsEthDisplay = tvsEth > 0 ? `Ξ ${fmtEth(tvsEth.toString())}` : null;
+
   return (
     <div
       className={`${playfair.variable} ${inter.variable} min-h-screen relative z-10`}
@@ -2258,13 +2267,20 @@ export default function BetaPage() {
               </p>
             </div>
 
-            {/* Details — signers, vault, yield, epoch */}
+            {/* Details — signers, TVS, vault, yield */}
             <div className="mt-10">
               {[
                 {
                   label: "Signers",
                   value: `${dailySigners}`,
-                  sub: "this epoch",
+                  sub: null,
+                  green: false,
+                  rainbow: false,
+                },
+                {
+                  label: "TVS — Total Value Signed",
+                  value: tvsUsdDisplay,
+                  sub: tvsEthDisplay,
                   green: false,
                   rainbow: false,
                 },
@@ -2296,13 +2312,6 @@ export default function BetaPage() {
                   green: false,
                   rainbow: true,
                 },
-                {
-                  label: "Epoch",
-                  value: phaseInfo ? phaseInfo.eid.toString() : "—",
-                  sub: "24-hour cycle",
-                  green: false,
-                  rainbow: false,
-                },
               ].map((row) => (
                 <div
                   key={row.label}
@@ -2333,16 +2342,6 @@ export default function BetaPage() {
                   </span>
                 </div>
               ))}
-              <div className="pt-3.5 text-right">
-                <button
-                  onClick={fetchAllData}
-                  disabled={isLoading}
-                  className="text-xs hover:text-black transition-colors disabled:opacity-50"
-                  style={{ ...smallCaps, color: MUTED }}
-                >
-                  {isLoading ? "Refreshing…" : "Refresh Data"}
-                </button>
-              </div>
             </div>
 
             {/* Daily sign */}

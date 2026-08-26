@@ -1444,6 +1444,15 @@ export default function RobinhoodPage() {
       ? (annualYieldEth / minOutbidAmount) * 100
       : 0;
 
+  // TVS (Total Value Signed) = bu epoch'ta imzalayan sayısı × taban fiyat (min bid)
+  const tvsEth = dailySigners * (parseFloat(chainMinBid) || 0);
+  const tvsUsd = ethPrice ? tvsEth * ethPrice : null;
+  const tvsUsdDisplay =
+    tvsUsd !== null && tvsUsd > 0
+      ? `$${Math.round(tvsUsd).toLocaleString("en-US")}`
+      : "—";
+  const tvsEthDisplay = tvsEth > 0 ? `Ξ ${fmtEth(tvsEth.toString())}` : null;
+
   return (
     <div
       className={`${playfair.variable} ${inter.variable}`}
@@ -1910,10 +1919,11 @@ export default function RobinhoodPage() {
                   )}
                 </p>
 
-                {/* Signers, vault, yield, epoch */}
+                {/* Signers, TVS, vault, yield */}
                 <div className="mt-10">
                   {[
-                    { label: "Signers", value: `${dailySigners}`, sub: "this epoch", green: false, rainbow: false },
+                    { label: "Signers", value: `${dailySigners}`, sub: null, green: false, rainbow: false },
+                    { label: "TVS — Total Value Signed", value: tvsUsdDisplay, sub: tvsEthDisplay, green: false, rainbow: false },
                     { label: "Vault", value: `Ξ ${fmtEth(dailyVault)}`, sub: toUsd(dailyVault), green: false, rainbow: false },
                     { label: "Yield per Signer", value: `Ξ ${fmtEth(yieldPerSigner)}`, sub: toUsd(yieldPerSigner), green: true, rainbow: false },
                     {
@@ -1930,7 +1940,6 @@ export default function RobinhoodPage() {
                       green: false,
                       rainbow: true,
                     },
-                    { label: "Epoch", value: phaseInfo ? phaseInfo.eid.toString() : "—", sub: "24-hour cycle", green: false, rainbow: false },
                   ].map((row) => (
                     <div
                       key={row.label}
@@ -1954,15 +1963,8 @@ export default function RobinhoodPage() {
                       </span>
                     </div>
                   ))}
-                  <div className="pt-3.5 text-right">
-                    <button
-                      onClick={fetchAllData}
-                      className="text-xs hover:opacity-70 transition-colors"
-                      style={{ ...smallCaps, color: MUTED }}
-                    >
-                      Refresh Data
-                    </button>
-                  </div>
+                  {/* Son satırın (Projected APR) altını kapatan çizgi */}
+                  <div style={{ borderTop: `1px solid ${HAIRLINE}` }} />
                 </div>
               </div>
             )}
