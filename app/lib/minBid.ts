@@ -5,4 +5,4 @@
 // her zaman aynı olmalı. Genesis geride kalırsa daha ucuz bir arka kapı
 // açılıyor. Fiyatı değiştirmek için yalnızca aşağıdaki değeri düzenle.
 // ============================================================================
-export const MINIMUM_BID_FOR_SELL = 0.03;
+export const MINIMUM_BID_FOR_SELL = 0.038;

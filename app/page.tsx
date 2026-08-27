@@ -1359,7 +1359,7 @@ export default function BetaPage() {
         const currentBidNumber = parseFloat(currentBid);
         if (currentBidNumber < MINIMUM_BID_FOR_SELL) {
           toast.error(
-            `Current bid (${currentBid} ETH) is below minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH.`,
+            `Below the minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH — there is no valid bid to sell into.`,
           );
           return;
         }
@@ -1475,7 +1475,7 @@ export default function BetaPage() {
       }
       if (parseFloat(currentBid) < MINIMUM_BID_FOR_SELL) {
         toast.error(
-          `Current bid (${currentBid} ETH) is below minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH.`,
+          `Below the minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH — there is no valid bid to sell into.`,
         );
         return;
       }
@@ -1755,14 +1755,27 @@ export default function BetaPage() {
         ? RED
         : GOLD;
 
-  const hasBid =
-    activeBidder &&
+  // Zincirdeki gercek teklif — %5 outbid kurali her zaman bunun uzerinden isler
+  const chainBidNum = parseFloat(currentBid) || 0;
+  const chainHasBid =
+    !!activeBidder &&
     activeBidder !== "0x0000000000000000000000000000000000000000" &&
-    parseFloat(currentBid) > 0;
+    chainBidNum > 0;
 
-  const minOutbidAmount = hasBid
-    ? Math.max(parseFloat(currentBid) * 1.05, MINIMUM_BID_FOR_SELL)
-    : MINIMUM_BID_FOR_SELL;
+  // Taban fiyatin altindaki teklifler sitede hic gosterilmez — tutar da,
+  // teklif veren de gizli. Zincirdeki deger yine de hesaba katiliyor.
+  const hasBid = chainHasBid && chainBidNum >= MINIMUM_BID_FOR_SELL;
+  const displayBid = hasBid ? currentBid : "0";
+
+  const minOutbidAmount = Math.max(
+    chainHasBid ? chainBidNum * 1.05 : 0,
+    MINIMUM_BID_FOR_SELL,
+  );
+  // Gizli bir teklif esigi yukari itmediyse sade "0.038" goster
+  const minBidLabel =
+    minOutbidAmount === MINIMUM_BID_FOR_SELL
+      ? `${MINIMUM_BID_FOR_SELL}`
+      : minOutbidAmount.toFixed(6);
 
   // Market cap = koleksiyondaki toplam adet × taban fiyat (min bid)
   const marketCapEth =
@@ -2148,12 +2161,12 @@ export default function BetaPage() {
                       lineHeight: 1.1,
                     }}
                   >
-                    Ξ {fmtEth(currentBid)}
+                    Ξ {fmtEth(displayBid)}
                   </p>
                   <p className="mt-1.5 text-sm" style={{ color: MUTED }}>
                     {hasBid ? (
                       <>
-                        {toUsd(currentBid) ? `${toUsd(currentBid)} · ` : ""}
+                        {toUsd(displayBid) ? `${toUsd(displayBid)} · ` : ""}
                         <a
                           href={`https://basescan.org/address/${activeBidder}`}
                           target="_blank"
@@ -2205,7 +2218,7 @@ export default function BetaPage() {
                       ...SANS,
                     }}
                   >
-                    Current bid is Ξ {fmtEth(currentBid)} — you must bid at
+                    Current bid is Ξ {fmtEth(displayBid)} — you must bid at
                     least <strong>Ξ {minOutbidAmount.toFixed(6)}</strong> to
                     outbid (5% above current).
                   </span>
@@ -2229,7 +2242,7 @@ export default function BetaPage() {
                       ? `Minimum Ξ ${minOutbidAmount.toFixed(6)}`
                       : hasBid
                         ? `Ξ ${minOutbidAmount.toFixed(6)} or more`
-                        : `Ξ ${MINIMUM_BID_FOR_SELL} or more`
+                        : `Ξ ${minBidLabel} or more`
                   }
                   className="flex-1 px-4 py-3.5 focus:outline-none min-w-0 text-lg tabular-nums"
                   style={{
@@ -2279,12 +2292,12 @@ export default function BetaPage() {
                     <button
                       type="button"
                       onClick={() =>
-                        setBidInput(`${MINIMUM_BID_FOR_SELL}`)
+                        setBidInput(minBidLabel)
                       }
                       className="underline decoration-dotted underline-offset-2 hover:brightness-110 transition-[filter]"
                       style={{ color: GOLD, fontWeight: 600 }}
                     >
-                      {MINIMUM_BID_FOR_SELL}
+                      {minBidLabel}
                     </button>{" "}
                     — if someone outbids you, your ETH is returned
                     automatically. Every sale feeds the vault.
@@ -2483,7 +2496,7 @@ export default function BetaPage() {
                     onSend={() => requestSendNFT(tokenId)}
                     hasBid={!!hasBid}
                     isArmed={isArmed}
-                    currentBidDisplay={fmtEth(currentBid)}
+                    currentBidDisplay={fmtEth(displayBid)}
                     onSellClick={() => handleSellButtonClick(tokenId)}
                   />
                 );

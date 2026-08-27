@@ -870,7 +870,7 @@ export default function Page() {
         const currentBidNumber = parseFloat(currentBid);
         if (currentBidNumber < MINIMUM_BID_FOR_SELL) {
           toast.error(
-            `You cannot sell below this price. The current bid (${currentBid} ETH) is below the minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH.`,
+            `Below the minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH — there is no valid bid to sell into.`,
           );
           return;
         }
@@ -1038,7 +1038,7 @@ export default function Page() {
       }
       if (parseFloat(currentBid) < MINIMUM_BID_FOR_SELL) {
         toast.error(
-          `You cannot sell below this price. The current bid (${currentBid} ETH) is below the minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH.`,
+          `Below the minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH — there is no valid bid to sell into.`,
         );
         return;
       }
@@ -1174,6 +1174,14 @@ export default function Page() {
     checkUserSignedStatus,
     getPhaseInfo,
   ]);
+
+  // Taban fiyatin altindaki teklifler sitede hic gosterilmez — tutar da,
+  // teklif veren de gizli. Zincirdeki deger degismiyor, yalnizca gorunum.
+  const bidVisible =
+    !!activeBidder &&
+    activeBidder !== "0x0000000000000000000000000000000000000000" &&
+    (parseFloat(currentBid) || 0) >= MINIMUM_BID_FOR_SELL;
+  const displayBid = bidVisible ? currentBid : "0";
 
   return (
     <div className="text-white min-h-screen">
@@ -1530,9 +1538,10 @@ export default function Page() {
                           fill="currentColor"
                         />
                       </svg>
-                      {currentBid}
+                      {displayBid}
                     </div>
-                    {activeBidder &&
+                    {bidVisible &&
+                      activeBidder &&
                       activeBidder !==
                         "0x0000000000000000000000000000000000000000" && (
                         <div className="flex items-center justify-center text-xs text-gray-500 font-oldschool">
@@ -1896,7 +1905,7 @@ export default function Page() {
               </h3>
               <p className="text-sm text-gray-600 leading-relaxed mb-6 font-oldschool">
                 Are you sure you want to sell Noun #
-                {pendingSellTokenId.toString()} for {currentBid} ETH? This
+                {pendingSellTokenId.toString()} for {displayBid} ETH? This
                 action cannot be undone.
               </p>
               <div className="flex gap-3">

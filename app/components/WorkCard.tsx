@@ -1,5 +1,8 @@
+import { useState } from "react";
 import Image from "next/image";
+import { toast } from "sonner";
 import { HoloFrame } from "@/app/components/HoloFrame";
+import { buildNftDownload, downloadBlob } from "@/app/lib/nftImage";
 
 const INK = "#1A1A1A";
 const MUTED = "#75716A";
@@ -61,6 +64,30 @@ export default function WorkCard({
   currentBidDisplay,
   onSellClick,
 }: WorkCardProps) {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    if (!image || downloading) return;
+    setDownloading(true);
+    try {
+      const { blob, ext } = await buildNftDownload(image);
+      downloadBlob(
+        blob,
+        `${itemName.toLowerCase().replace(/\s+/g, "-")}-${tokenIdStr}.${ext}`,
+      );
+    } catch {
+      // Dis gorsel CORS/aginda takilirsa kullanici sekmede kendi kaydedebilsin
+      if (!image.startsWith("data:")) {
+        window.open(image, "_blank", "noopener");
+        toast.info("Opened the artwork in a new tab — save it from there.");
+      } else {
+        toast.error("Could not prepare the image. Please try again.");
+      }
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const primaryColor = primaryDisabled
     ? primaryTone === "waiting"
       ? INK
@@ -103,7 +130,62 @@ export default function WorkCard({
             #{tokenIdStr}
           </span>
         </span>
-        <span style={{ ...smallCaps, fontSize: 9 }}>Base</span>
+        <span className="flex items-center gap-2">
+          <button
+            onClick={handleDownload}
+            disabled={!image || downloading}
+            aria-label={`Download ${itemName} #${tokenIdStr} as PNG`}
+            title={image ? "Download as PNG" : "Artwork not loaded yet"}
+            className="-my-2 -mr-1 flex items-center justify-center transition-colors enabled:hover:text-black disabled:opacity-40"
+            style={{
+              width: 34,
+              height: 34,
+              color: MUTED,
+              cursor: !image || downloading ? "not-allowed" : "pointer",
+            }}
+          >
+            {downloading ? (
+              <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="9"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeDasharray="14 42"
+                >
+                  <animateTransform
+                    attributeName="transform"
+                    type="rotate"
+                    from="0 12 12"
+                    to="360 12 12"
+                    dur="0.8s"
+                    repeatCount="indefinite"
+                  />
+                </circle>
+              </svg>
+            ) : (
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M12 3v12" />
+                <path d="M7 11l5 5 5-5" />
+                <path d="M4 20h16" />
+              </svg>
+            )}
+          </button>
+          <span style={{ ...smallCaps, fontSize: 9 }}>Base</span>
+        </span>
       </div>
 
       {/* Art plate */}
