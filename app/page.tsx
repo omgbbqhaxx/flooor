@@ -844,8 +844,10 @@ export default function BetaPage() {
           args: [address],
         })) as bigint;
       })) as bigint;
+      const expected = Number(balance);
       const nfts: bigint[] = [];
-      for (let i = 0; i < Number(balance); i++) {
+      let complete = true;
+      for (let i = 0; i < expected; i++) {
         try {
           const tokenId = (await retryWithBackoff(async () => {
             return (await readContract(config, {
@@ -857,8 +859,17 @@ export default function BetaPage() {
           })) as bigint;
           nfts.push(tokenId);
         } catch {
+          complete = false;
           break;
         }
+      }
+      // Tek bir index okuması patlarsa elimizde eksik/boş liste kalıyor.
+      // Bunu yazmak grid'i haksız yere boşaltır — mevcut listeyi koruyoruz.
+      if (!complete) {
+        console.error(
+          `Partial NFT read (${nfts.length}/${expected}) — keeping previous list`,
+        );
+        return;
       }
       // Liste değişmediyse referansı koru — downstream effect zincirini tetiklemez
       setUserNFTs((prev) =>
@@ -1006,11 +1017,19 @@ export default function BetaPage() {
     checkApprovalStatus,
   ]);
 
+  // Interval'i bir kez kurup fetchAllData'yi dogrudan yakalarsak, closure mount
+  // anindaki surumu tutar — o surumde address henuz undefined oldugu icin her
+  // tick "cuzdan yok" sanip Your Collection listesini bosaltiyordu. Ref ile
+  // daima guncel surumu cagiriyoruz; interval yine tek sefer kuruluyor.
+  const fetchAllDataRef = useRef(fetchAllData);
   useEffect(() => {
-    fetchAllData();
-    const interval = setInterval(fetchAllData, 2 * 60 * 1000);
+    fetchAllDataRef.current = fetchAllData;
+  }, [fetchAllData]);
+
+  useEffect(() => {
+    fetchAllDataRef.current();
+    const interval = setInterval(() => fetchAllDataRef.current(), 2 * 60 * 1000);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

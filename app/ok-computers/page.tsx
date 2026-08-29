@@ -889,11 +889,19 @@ export default function OkComputersPage() {
     }
   }, [getPhaseInfo, getDailySigners, getDailyVault, getCurrentBid, getActiveBidder, getUserNFTs, getChainMinBid]);
 
+  // Interval'i bir kez kurup fetchAllData'yi dogrudan yakalarsak, closure mount
+  // anindaki surumu tutar — o surumde address henuz undefined oldugu icin her
+  // tick "cuzdan yok" sanip Your Collection listesini bosaltiyordu. Ref ile
+  // daima guncel surumu cagiriyoruz; interval yine tek sefer kuruluyor.
+  const fetchAllDataRef = useRef(fetchAllData);
   useEffect(() => {
-    fetchAllData();
-    const interval = setInterval(fetchAllData, 2 * 60 * 1000);
+    fetchAllDataRef.current = fetchAllData;
+  }, [fetchAllData]);
+
+  useEffect(() => {
+    fetchAllDataRef.current();
+    const interval = setInterval(() => fetchAllDataRef.current(), 2 * 60 * 1000);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Toplam arz zincirde neredeyse hiç değişmez — bir kez çekmek yeterli
