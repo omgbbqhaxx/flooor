@@ -30,5 +30,15 @@ export const describeSignRevert = (error: unknown): string | null => {
   if (msg.includes("no participants") || msg.includes("zero share")) {
     return "There is nothing to claim for this epoch yet.";
   }
+  // onlyNFTOwnerWrite modifier'i — cuzdan/sahiplik kaynakli iki revert
+  if (msg.includes("not owner of tokenid")) {
+    return "This NFT is not held by the wallet that is signing. Make sure the wallet shown in the app is the one your wallet app is actually using.";
+  }
+  if (msg.includes("must hold exactly 1 nft")) {
+    return "Signing requires exactly one NFT from this collection in the wallet. Move the extras to another wallet to sign.";
+  }
+  if (msg.includes("reentrancy")) {
+    return "Another transaction is still being processed — wait for it to finish, then try again.";
+  }
   return null;
 };

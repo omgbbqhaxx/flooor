@@ -4,6 +4,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { toast } from "sonner";
 import Link from "next/link";
 import Footer from "@/app/components/Footer";
+import { guardSignOrClaim } from "@/app/lib/signGuard";
 import WorkCard from "@/app/components/WorkCard";
 
 import { useState, useCallback, useEffect, useRef } from "react";
@@ -1190,11 +1191,26 @@ export default function OkComputersPage() {
       setNftBusy((prev) => ({ ...prev, [idStr]: true }));
       try {
         await ensureBase();
+        // Cuzdani ancak simulasyon temiz gecerse aciyoruz; guard fail-closed —
+        // dogrulanamazsa da durur, eskiden sessizce cuzdanda patliyordu.
+        const guard = await guardSignOrClaim({
+          config,
+          contract: CONTRACT_ADDR,
+          abi: OKCOMPUTERS_ABI,
+          tokenId,
+          account: address,
+        });
+        if (!guard.ok) {
+          toast.warning(guard.message, { duration: 6000 });
+          return;
+        }
         await writeContract(config, {
           address: CONTRACT_ADDR,
           abi: OKCOMPUTERS_ABI,
           functionName: "signOrClaim",
           args: [tokenId],
+          // Simulasyon bu hesapla dogrulandi — gonderim de ayni hesaptan olmali
+          account: address,
           dataSuffix: DATA_SUFFIX,
         });
         toast.success(isSignPhase ? `Token #${idStr} signed!` : `Token #${idStr} claimed!`);

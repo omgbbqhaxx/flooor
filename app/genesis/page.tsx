@@ -69,7 +69,7 @@ const retryWithBackoff = async (
 import MARKET_ABI from "@/app/abi/market.json";
 import NFT_ABI from "@/app/abi/nft.json";
 import { MINIMUM_BID_FOR_SELL } from "@/app/lib/minBid";
-import { describeSignRevert } from "@/app/lib/signRevert";
+import { guardSignOrClaim } from "@/app/lib/signGuard";
 
 // Addresses
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
@@ -1088,24 +1088,17 @@ export default function Page() {
         phaseInfo?.currentPhase.toLowerCase() === "signing" ||
         phaseInfo?.currentPhase.toLowerCase() === "sign_phase";
 
-      // NFT epoch ortasinda el degistirdiyse token kilidi hala dolu ama
-      // mySignedToken yeni adres icin 0 doner — UI bunu bilemez. Once simule
-      // edip revert'i cuzdana tasimadan uyariya ceviriyoruz. Simulasyon RPC
-      // sebebiyle patlarsa (reason tanimsiz) akisi bloklamiyoruz.
-      try {
-        await simulateContract(config, {
-          address: CONTRACT_ADDR,
-          abi: MARKET_ABI,
-          functionName: "signOrClaim",
-          args: [tokenId],
-          account: address,
-        });
-      } catch (simError) {
-        const reason = describeSignRevert(simError);
-        if (reason) {
-          toast.warning(reason, { duration: 6000 });
-          return;
-        }
+      // Cuzdani ancak simulasyon temiz gecerse aciyoruz; guard fail-closed.
+      const guard = await guardSignOrClaim({
+        config,
+        contract: CONTRACT_ADDR,
+        abi: MARKET_ABI,
+        tokenId,
+        account: address,
+      });
+      if (!guard.ok) {
+        toast.warning(guard.message, { duration: 6000 });
+        return;
       }
 
       await writeContract(config, {
@@ -1113,6 +1106,8 @@ export default function Page() {
         abi: MARKET_ABI,
         functionName: "signOrClaim",
         args: [tokenId],
+        // Simulasyon bu hesapla dogrulandi — gonderim de ayni hesaptan olmali
+        account: address,
         dataSuffix: DATA_SUFFIX,
       });
 
@@ -1129,12 +1124,6 @@ export default function Page() {
         getPhaseInfo();
       }, 2000);
     } catch (error) {
-      // Simulasyon atlanmis olabilir (RPC) — revert yine de anlasilir olsun
-      const revertReason = describeSignRevert(error);
-      if (revertReason) {
-        toast.warning(revertReason, { duration: 6000 });
-        return;
-      }
       if (error instanceof Error && error.message.includes("network")) {
         toast.error(
           "Transaction cancelled: Wrong network. Please switch to Base.",

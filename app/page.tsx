@@ -109,7 +109,7 @@ const formatCompactUsd = (n: number): string => {
 import MARKET_ABI from "@/app/abi/market.json";
 import NFT_ABI from "@/app/abi/nft.json";
 import { MINIMUM_BID_FOR_SELL } from "@/app/lib/minBid";
-import { describeSignRevert } from "@/app/lib/signRevert";
+import { guardSignOrClaim } from "@/app/lib/signGuard";
 
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
@@ -1607,30 +1607,27 @@ export default function BetaPage() {
         phaseInfo?.currentPhase.toLowerCase().includes("sign") ||
         phaseInfo?.currentPhase.toLowerCase() === "signing" ||
         phaseInfo?.currentPhase.toLowerCase() === "sign_phase";
-      // NFT epoch ortasinda el degistirdiyse token kilidi hala dolu ama
-      // mySignedToken yeni adres icin 0 doner — UI bunu bilemez. Once simule
-      // edip revert'i cuzdana tasimadan uyariya ceviriyoruz. Simulasyon RPC
-      // sebebiyle patlarsa (reason tanimsiz) akisi bloklamiyoruz.
-      try {
-        await simulateContract(config, {
-          address: CONTRACT_ADDR,
-          abi: MARKET_ABI,
-          functionName: "signOrClaim",
-          args: [tokenId],
-          account: address,
-        });
-      } catch (simError) {
-        const reason = describeSignRevert(simError);
-        if (reason) {
-          toast.warning(reason, { duration: 6000 });
-          return;
-        }
+      // Cuzdani ancak simulasyon temiz gecerse aciyoruz. Dogrulanamazsa da
+      // aciyoruz sanilmasin: guard fail-closed — belirsizlikte durur.
+      const guard = await guardSignOrClaim({
+        config,
+        contract: CONTRACT_ADDR,
+        abi: MARKET_ABI,
+        tokenId,
+        account: address,
+      });
+      if (!guard.ok) {
+        toast.warning(guard.message, { duration: 6000 });
+        return;
       }
       await writeContract(config, {
         address: CONTRACT_ADDR,
         abi: MARKET_ABI,
         functionName: "signOrClaim",
         args: [tokenId],
+        // Simulasyon bu hesapla dogrulandi — gonderim de ayni hesaptan olmali.
+        // Pinlenmezse cuzdan baska bir hesaptan imzalayip "Not owner" alabiliyor.
+        account: address,
         dataSuffix: DATA_SUFFIX,
       });
       playChime();
@@ -1658,12 +1655,6 @@ export default function BetaPage() {
     } catch (error) {
       if (isUserRejectedError(error)) {
         toast.info("Transaction cancelled.");
-        return;
-      }
-      // Simulasyon atlanmis olabilir (RPC) — revert yine de anlasilir olsun
-      const reason = describeSignRevert(error);
-      if (reason) {
-        toast.warning(reason, { duration: 6000 });
         return;
       }
       const errorMessage =
@@ -1771,7 +1762,7 @@ export default function BetaPage() {
     chainHasBid ? chainBidNum * 1.05 : 0,
     MINIMUM_BID_FOR_SELL,
   );
-  // Gizli bir teklif esigi yukari itmediyse sade "0.038" goster
+  // Gizli bir teklif esigi yukari itmediyse sade taban fiyati goster
   const minBidLabel =
     minOutbidAmount === MINIMUM_BID_FOR_SELL
       ? `${MINIMUM_BID_FOR_SELL}`

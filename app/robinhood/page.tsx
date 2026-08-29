@@ -28,6 +28,7 @@ import confetti from "canvas-confetti";
 import ROBINHOOD_ABI from "@/app/abi/ronks.json";
 import NFT_ABI from "@/app/abi/nft.json";
 import { scanOwnedTokenIds } from "@/app/lib/scanOwnedTokenIds";
+import { guardSignOrClaim } from "@/app/lib/signGuard";
 import { HoloFrame } from "@/app/components/HoloFrame";
 
 const playfair = Playfair_Display({
@@ -1163,12 +1164,27 @@ export default function RobinhoodPage() {
       setNftBusy((prev) => ({ ...prev, [idStr]: true }));
       try {
         await ensureBase();
+        // Cuzdani ancak simulasyon temiz gecerse aciyoruz; guard fail-closed
+        const guard = await guardSignOrClaim({
+          config,
+          contract: CONTRACT_ADDR,
+          abi: ROBINHOOD_ABI,
+          tokenId,
+          account: address,
+          chainId: robinhoodChain.id,
+        });
+        if (!guard.ok) {
+          toast.warning(guard.message, { duration: 6000 });
+          return;
+        }
         await writeContract(config, {
           chainId: robinhoodChain.id,
           address: CONTRACT_ADDR,
           abi: ROBINHOOD_ABI,
           functionName: "signOrClaim",
           args: [tokenId],
+          // Simulasyon bu hesapla dogrulandi — gonderim de ayni hesaptan olmali
+          account: address,
           dataSuffix: DATA_SUFFIX,
         });
         toast.success(isSignPhase ? `Token #${idStr} signed!` : `Token #${idStr} claimed!`);
