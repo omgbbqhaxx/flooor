@@ -114,6 +114,9 @@ import { guardSignOrClaim } from "@/app/lib/signGuard";
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
 
+// Market cap hesabında kullanılan koleksiyon toplam arzı (mint edilmiş adet değil)
+const COLLECTION_TOTAL_SUPPLY = 5000;
+
 // --- Bildirim sesi: hibrit (HTMLAudio + Web Audio) ---
 // Birincil yol <audio> elementi: iOS'ta "medya" sayıldığı için telefonun
 // sessiz anahtarından ETKİLENMEZ (Web Audio sessiz modda tamamen susar).
@@ -1787,15 +1790,12 @@ export default function BetaPage() {
       ? `${MINIMUM_BID_FOR_SELL}`
       : minOutbidAmount.toFixed(6);
 
-  // Market cap = koleksiyondaki toplam adet × taban fiyat (min bid)
-  const marketCapEth =
-    collectionSupply !== null ? collectionSupply * MINIMUM_BID_FOR_SELL : null;
-  const marketCapUsd =
-    marketCapEth !== null && ethPrice ? marketCapEth * ethPrice : null;
+  // Market cap = koleksiyonun toplam arzı × taban fiyat (min bid)
+  const marketCapEth = COLLECTION_TOTAL_SUPPLY * MINIMUM_BID_FOR_SELL;
+  const marketCapUsd = ethPrice ? marketCapEth * ethPrice : null;
   const marketCapDisplay =
     marketCapUsd !== null ? `$${formatCompactUsd(marketCapUsd)}` : "—";
-  const marketCapEthDisplay =
-    marketCapEth !== null ? `Ξ${fmtEth(marketCapEth.toString())}` : "—";
+  const marketCapEthDisplay = `Ξ${fmtEth(marketCapEth.toString())}`;
 
   // TVS (Total Value Signed) = bu epoch'ta imzalayan sayısı × taban fiyat (min bid)
   const tvsEth = dailySigners * MINIMUM_BID_FOR_SELL;
