@@ -1697,6 +1697,24 @@ export default function WarpletsPage() {
                     <span style={{ ...SERIF, fontWeight: 500, fontSize: 19, color: INK }}>
                       Warplets
                     </span>
+                    <span
+                      title="5% of every sale goes to the community vault"
+                      style={{
+                        ...SANS,
+                        fontSize: 9,
+                        fontWeight: 600,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        whiteSpace: "nowrap",
+                        color: GOLD,
+                        padding: "3px 8px",
+                        borderRadius: 999,
+                        backgroundColor: "rgba(164,134,61,0.10)",
+                        border: `1px solid rgba(164,134,61,0.30)`,
+                      }}
+                    >
+                      5% Community Fee
+                    </span>
                   </span>
                   <span style={{ ...smallCaps, fontSize: 9 }}>
                     {collectionSupply !== null ? `${collectionSupply.toLocaleString()} Editions` : "—"}

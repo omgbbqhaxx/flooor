@@ -68,6 +68,15 @@ export default function Footer({
               Snapshot DAO
             </a>
             <a
+              href="https://omgbbqhaxx.github.io/flooorstrawmap/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-black transition-colors"
+              style={linkStyle}
+            >
+              Strawmap
+            </a>
+            <a
               href="https://defillama.com/protocol/flooor.fun"
               target="_blank"
               rel="noopener noreferrer"
@@ -98,15 +107,6 @@ export default function Footer({
               style={linkStyle}
             >
               Flooor
-            </a>
-            <a
-              href="https://opensea.io/collection/vrnouns"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-black transition-colors"
-              style={linkStyle}
-            >
-              OpenSea
             </a>
           </div>
         </div>
@@ -176,7 +176,7 @@ export default function Footer({
           MMXXVI
         </p>
         <p className="mt-2 text-xs" style={{ color: FAINT }}>
-          © flooor.fun · CC0 Licensed · Front-end v3.0.164 · Contract v1.0 ·
+          © flooor.fun · CC0 Licensed · Front-end v3.0.166 · Contract v1.0 ·
           Beta · Crafted with Claude Fable 5
         </p>
         <Image

@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
 import { HoloFrame } from "@/app/components/HoloFrame";
-import { buildNftDownload, downloadBlob } from "@/app/lib/nftImage";
+import { buildNftDownload, saveNftImage } from "@/app/lib/nftImage";
 
 const INK = "#1A1A1A";
 const MUTED = "#75716A";
@@ -65,17 +65,42 @@ export default function WorkCard({
   onSellClick,
 }: WorkCardProps) {
   const [downloading, setDownloading] = useState(false);
+  // Gorsel hazirligi (fetch / rasterize) uzun surerse iOS kullanici etkilesimini
+  // yitiriyor ve paylas sayfasi acilmiyor; parmak degdigi anda hazirlamaya basliyoruz.
+  const preparedRef = useRef<{
+    src: string;
+    task: Promise<{ blob: Blob; ext: string }>;
+  } | null>(null);
+
+  const prepare = () => {
+    if (!image) return null;
+    if (preparedRef.current?.src !== image) {
+      const task = buildNftDownload(image);
+      // Tiklamadan once reddedilirse "unhandled rejection" olmasin
+      task.catch(() => {});
+      preparedRef.current = { src: image, task };
+    }
+    return preparedRef.current.task;
+  };
 
   const handleDownload = async () => {
     if (!image || downloading) return;
     setDownloading(true);
     try {
-      const { blob, ext } = await buildNftDownload(image);
-      downloadBlob(
+      const task = prepare();
+      if (!task) return;
+      const { blob, ext } = await task;
+      const result = await saveNftImage(
         blob,
         `${itemName.toLowerCase().replace(/\s+/g, "-")}-${tokenIdStr}.${ext}`,
       );
+      if (result === "opened") {
+        toast.info("Opened the artwork — press and hold it to save.");
+      } else if (result === "failed") {
+        toast.error("Your browser blocked the save. Try again from Safari or Chrome.");
+      }
     } catch {
+      preparedRef.current = null;
       // Dis gorsel CORS/aginda takilirsa kullanici sekmede kendi kaydedebilsin
       if (!image.startsWith("data:")) {
         window.open(image, "_blank", "noopener");
@@ -133,9 +158,10 @@ export default function WorkCard({
         <span className="flex items-center gap-2">
           <button
             onClick={handleDownload}
+            onPointerDown={prepare}
             disabled={!image || downloading}
-            aria-label={`Download ${itemName} #${tokenIdStr} as PNG`}
-            title={image ? "Download as PNG" : "Artwork not loaded yet"}
+            aria-label={`Save ${itemName} #${tokenIdStr} as an image`}
+            title={image ? "Save image" : "Artwork not loaded yet"}
             className="-my-2 -mr-1 flex items-center justify-center transition-colors enabled:hover:text-black disabled:opacity-40"
             style={{
               width: 34,
