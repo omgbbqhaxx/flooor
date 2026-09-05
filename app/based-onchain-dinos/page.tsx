@@ -1264,12 +1264,12 @@ export default function BasedOnchainDinosPage() {
       if (!sharePrompt) return;
       // Mention biçimleri platforma göre farklı: Farcaster'da @farcaster
       // hesabı + /flooor kanalı (ayrı token'lar), X'te flooor/Base
-      // handle'larına ek olarak Based Onchain Dinos'un kendi hesapları da
-      // etiketleniyor
+      // handle'larına ek olarak Based Onchain Dinos'un koleksiyon hesabı
+      // etiketleniyor (kurucunun kişisel hesabı kendi isteğiyle çıkarıldı)
       const mentions =
         platform === "farcaster"
           ? "@farcaster /flooor"
-          : "@vrnouns @base @baseapp @OnChainDinos @apex_ether";
+          : "@vrnouns @base @baseapp @OnChainDinos";
       const text = `${sharePrompt.text}\n\n${mentions}`;
       const url = "https://flooor.fun/based-onchain-dinos";
       setSharePrompt(null);
