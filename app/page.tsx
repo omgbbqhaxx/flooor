@@ -28,6 +28,7 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import Image from "next/image";
 import Link from "next/link";
 import Footer from "@/app/components/Footer";
+import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
 import WorkCard from "@/app/components/WorkCard";
 import { Playfair_Display, Inter } from "next/font/google";
 import confetti from "canvas-confetti";
@@ -2126,6 +2127,14 @@ export default function BetaPage() {
                   </HoloFrame>
                 </div>
 
+                {/* Community fee band */}
+                <div
+                  className="px-3.5 py-2.5 flex items-center justify-center"
+                  style={{ borderBottom: `1px solid ${HAIRLINE}` }}
+                >
+                  <CommunityFeeBadge amount={`Ξ ${fmtEth(dailyVault)}`} amountUsd={toUsd(dailyVault)} />
+                </div>
+
                 {/* Meta strip */}
                 <div className="px-3.5 py-3 flex items-center justify-between">
                   <span style={{ ...smallCaps, fontSize: 9 }}>
@@ -2334,7 +2343,7 @@ export default function BetaPage() {
                   rainbow: false,
                 },
                 {
-                  label: "Vault",
+                  label: "Daily Vault",
                   value: `Ξ ${fmtEth(dailyVault)}`,
                   sub: toUsd(dailyVault),
                   green: false,

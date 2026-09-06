@@ -4,6 +4,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { toast } from "sonner";
 import Link from "next/link";
 import Footer from "@/app/components/Footer";
+import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
 import WorkCard from "@/app/components/WorkCard";
 
@@ -1741,6 +1742,14 @@ export default function OkComputersPage() {
                   </HoloFrame>
                 </div>
 
+                {/* Community fee band */}
+                <div
+                  className="px-3.5 py-2.5 flex items-center justify-center"
+                  style={{ borderBottom: `1px solid ${HAIRLINE}` }}
+                >
+                  <CommunityFeeBadge amount={`Ξ ${fmtEth(dailyVault)}`} amountUsd={toUsd(dailyVault)} />
+                </div>
+
                 {/* Meta strip */}
                 <div className="px-3.5 py-3 flex items-center justify-between">
                   <span style={{ ...smallCaps, fontSize: 9 }}>No. 001 · Base</span>
@@ -1900,7 +1909,7 @@ export default function OkComputersPage() {
                   {[
                     { label: "Signers", value: `${dailySigners}`, sub: null, green: false, rainbow: false },
                     { label: "TVS — Total Value Signed", value: tvsUsdDisplay, sub: tvsEthDisplay, green: false, rainbow: false },
-                    { label: "Vault", value: `Ξ ${fmtEth(dailyVault)}`, sub: toUsd(dailyVault), green: false, rainbow: false },
+                    { label: "Daily Vault", value: `Ξ ${fmtEth(dailyVault)}`, sub: toUsd(dailyVault), green: false, rainbow: false },
                     { label: "Yield per Signer", value: `Ξ ${fmtEth(yieldPerSigner)}`, sub: toUsd(yieldPerSigner), green: true, rainbow: false },
                     {
                       label: "Projected APR",

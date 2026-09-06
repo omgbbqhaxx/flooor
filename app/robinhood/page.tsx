@@ -30,6 +30,7 @@ import NFT_ABI from "@/app/abi/nft.json";
 import { scanOwnedTokenIds } from "@/app/lib/scanOwnedTokenIds";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
 import { HoloFrame } from "@/app/components/HoloFrame";
+import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -1787,6 +1788,10 @@ export default function RobinhoodPage() {
                     </HoloFrame>
                   </div>
 
+                  <div className="mt-3 flex items-center justify-center">
+                    <CommunityFeeBadge tone="dark" amount={`Ξ ${fmtEth(dailyVault)}`} amountUsd={toUsd(dailyVault)} />
+                  </div>
+
                   {/* Meta strip */}
                   <div className="mt-3 flex items-center justify-between px-1">
                     <span style={{ ...smallCaps, fontSize: 9 }}>Ronks · Robinhood Chain</span>
@@ -1948,7 +1953,7 @@ export default function RobinhoodPage() {
                   {[
                     { label: "Signers", value: `${dailySigners}`, sub: null, green: false, rainbow: false },
                     { label: "TVS — Total Value Signed", value: tvsUsdDisplay, sub: tvsEthDisplay, green: false, rainbow: false },
-                    { label: "Vault", value: `Ξ ${fmtEth(dailyVault)}`, sub: toUsd(dailyVault), green: false, rainbow: false },
+                    { label: "Daily Vault", value: `Ξ ${fmtEth(dailyVault)}`, sub: toUsd(dailyVault), green: false, rainbow: false },
                     { label: "Yield per Signer", value: `Ξ ${fmtEth(yieldPerSigner)}`, sub: toUsd(yieldPerSigner), green: true, rainbow: false },
                     {
                       label: "Projected APR",

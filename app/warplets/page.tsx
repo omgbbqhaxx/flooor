@@ -4,6 +4,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { toast } from "sonner";
 import Link from "next/link";
 import Footer from "@/app/components/Footer";
+import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
 import WorkCard from "@/app/components/WorkCard";
 
@@ -1697,24 +1698,6 @@ export default function WarpletsPage() {
                     <span style={{ ...SERIF, fontWeight: 500, fontSize: 19, color: INK }}>
                       Warplets
                     </span>
-                    <span
-                      title="5% of every sale goes to the community vault"
-                      style={{
-                        ...SANS,
-                        fontSize: 9,
-                        fontWeight: 600,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        whiteSpace: "nowrap",
-                        color: GOLD,
-                        padding: "3px 8px",
-                        borderRadius: 999,
-                        backgroundColor: "rgba(164,134,61,0.10)",
-                        border: `1px solid rgba(164,134,61,0.30)`,
-                      }}
-                    >
-                      5% Community Fee
-                    </span>
                   </span>
                   <span style={{ ...smallCaps, fontSize: 9 }}>
                     {collectionSupply !== null ? `${collectionSupply.toLocaleString()} Editions` : "—"}
@@ -1763,6 +1746,14 @@ export default function WarpletsPage() {
                       className="w-full h-auto"
                     />
                   </HoloFrame>
+                </div>
+
+                {/* Community fee band */}
+                <div
+                  className="px-3.5 py-2.5 flex items-center justify-center"
+                  style={{ borderBottom: `1px solid ${HAIRLINE}` }}
+                >
+                  <CommunityFeeBadge amount={`Ξ ${fmtEth(dailyVault)}`} amountUsd={toUsd(dailyVault)} />
                 </div>
 
                 {/* Meta strip */}
@@ -1924,7 +1915,7 @@ export default function WarpletsPage() {
                   {[
                     { label: "Signers", value: `${dailySigners}`, sub: null, green: false, rainbow: false },
                     { label: "TVS — Total Value Signed", value: tvsUsdDisplay, sub: tvsEthDisplay, green: false, rainbow: false },
-                    { label: "Vault", value: `Ξ ${fmtEth(dailyVault)}`, sub: toUsd(dailyVault), green: false, rainbow: false },
+                    { label: "Daily Vault", value: `Ξ ${fmtEth(dailyVault)}`, sub: toUsd(dailyVault), green: false, rainbow: false },
                     { label: "Yield per Signer", value: `Ξ ${fmtEth(yieldPerSigner)}`, sub: toUsd(yieldPerSigner), green: true, rainbow: false },
                     {
                       label: "Projected APR",
