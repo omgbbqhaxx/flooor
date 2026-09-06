@@ -111,6 +111,7 @@ import MARKET_ABI from "@/app/abi/market.json";
 import NFT_ABI from "@/app/abi/nft.json";
 import { MINIMUM_BID_FOR_SELL } from "@/app/lib/minBid";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
+import { awaitTx } from "@/app/lib/awaitTx";
 
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
@@ -814,7 +815,21 @@ export default function BetaPage() {
             account: address,
           });
           claimedStatus = false;
-        } catch {
+        } catch (error) {
+          // Geçici RPC/ağ hatası "claimed" değildir — mevcut durumu koru,
+          // yoksa kullanıcı claim edebilecekken buton "Next sign" gösteriyor.
+          const msg = (
+            error instanceof Error ? error.message : String(error)
+          ).toLowerCase();
+          const transient =
+            msg.includes("http request failed") ||
+            msg.includes("failed to fetch") ||
+            msg.includes("429") ||
+            msg.includes("too many requests") ||
+            msg.includes("timeout") ||
+            msg.includes("timed out") ||
+            msg.includes("load failed");
+          if (transient) return;
           claimedStatus = true;
         }
       }
@@ -1314,13 +1329,13 @@ export default function BetaPage() {
               window.open(`https://basescan.org/address/${address}`, "_blank"),
           },
           actionButtonStyle: {
-            background: "#ec4899",
+            background: "#1A1A1A",
             color: "#fff",
           },
         });
         return;
       }
-      await writeContract(config, {
+      const txHash = await writeContract(config, {
         address: CONTRACT_ADDR,
         abi: MARKET_ABI,
         functionName: "placeBid",
@@ -1328,6 +1343,8 @@ export default function BetaPage() {
         value,
         dataSuffix: DATA_SUFFIX,
       });
+      // Hash ≠ onay: iptal/revert'te başarı akışı (share, konfeti) çalışmasın
+      if (!(await awaitTx(config, txHash, base.id))) return;
       toast.success("Bid placed successfully!");
       playChime();
       fireConfetti();
@@ -1433,13 +1450,15 @@ export default function BetaPage() {
             setNftLoadingStatus((prev) => ({ ...prev, [tokenIdStr]: false }));
           }
         }
-        await writeContract(config, {
+        const txHash = await writeContract(config, {
           address: CONTRACT_ADDR,
           abi: MARKET_ABI,
           functionName: "sellToHighest",
           args: [tokenId],
           dataSuffix: DATA_SUFFIX,
         });
+        // Hash ≠ onay: iptal/revert'te başarı akışı (share, konfeti) çalışmasın
+        if (!(await awaitTx(config, txHash, base.id))) return;
         toast.success(`Noun #${tokenIdStr} sold successfully!`);
         fireConfetti();
         const soldUsd = toUsd(currentBid);
@@ -1643,7 +1662,7 @@ export default function BetaPage() {
         toast.warning(guard.message, { duration: 6000 });
         return;
       }
-      await writeContract(config, {
+      const txHash = await writeContract(config, {
         address: CONTRACT_ADDR,
         abi: MARKET_ABI,
         functionName: "signOrClaim",
@@ -1653,6 +1672,8 @@ export default function BetaPage() {
         account: address,
         dataSuffix: DATA_SUFFIX,
       });
+      // Hash ≠ onay: iptal/revert'te başarı akışı (share, konfeti) çalışmasın
+      if (!(await awaitTx(config, txHash, base.id))) return;
       playChime();
       fireConfetti();
       if (isSignPhase) {

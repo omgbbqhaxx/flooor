@@ -38,12 +38,12 @@ import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://flooor.fun"),
-  title: "flooor.fun — 5% royalty accumulates in the daily vault — 16-hour sign phase, 8-hour claim phase",
+  title: "flooor.fun — Royalties to the community",
   description:
     "Royalties for the community. Sign with your NFT without staking to participate in daily royalty distribution. NFT marketplace, Base blockchain, VRNouns, daily rewards, DeFi, Web3, cryptocurrency, blockchain rewards, community governance.",
   openGraph: {
-    title: "Flooor — The Daily Auction House for Premium NFTs",
-    description: "Sign & claim daily Ethereum yield. Royalties to the community.",
+    title: "Flooor — Royalties to the community.",
+    description: "A live market on Base — bid on the floor, sell instantly, and share 5% of every sale as a holder who signs daily.",
     url: "https://flooor.fun",
     siteName: "Flooor",
     images: [
@@ -51,7 +51,7 @@ export const metadata: Metadata = {
         url: "https://flooor.fun/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Flooor — The Daily Auction House for Premium NFTs",
+        alt: "Flooor — Royalties to the community.",
       },
     ],
     locale: "en_US",
@@ -59,8 +59,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Flooor — The Daily Auction House for Premium NFTs",
-    description: "Sign & claim daily Ethereum yield. Royalties to the community.",
+    title: "Flooor — Royalties to the community.",
+    description: "A live market on Base — bid on the floor, sell instantly, and share 5% of every sale as a holder who signs daily.",
     images: ["https://flooor.fun/og-image.png"],
   },
   icons: {

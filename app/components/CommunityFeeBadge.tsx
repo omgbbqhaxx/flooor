@@ -1,7 +1,7 @@
 // 5% royalty rozeti — OpenSea'deki fee pill'ine benzer, tüm koleksiyon
 // sayfalarında aynı görünsün diye tek yerden geliyor. Uyarı gibi durmaması
 // için altın değil silver tonda. `amount` verilirse rozetin yanında o günkü
-// vault bakiyesi ikinci bir pill olarak gösteriliyor.
+// vault bakiyesi dış pill'in içinde ikinci bir pill olarak gösteriliyor.
 const SANS = { fontFamily: "var(--font-sans)" } as const;
 
 const TONES = {
@@ -44,34 +44,43 @@ export default function CommunityFeeBadge({
   amountUsd?: string | null;
 }) {
   const t = TONES[tone];
+  // İç içe küme: dış hap kuralı söyler, içindeki hap o günkü vault bakiyesi —
+  // bakiyenin vault'un "içinde" olduğu görsel olarak da okunsun.
   return (
-    <span className="flex items-center gap-1.5">
-      <span
-        title="5% of every sale goes to the daily vault, shared by everyone who signs that day"
-        style={{
-          ...pill,
-          color: t.color,
-          backgroundColor: t.backgroundColor,
-          border: t.border,
-        }}
-      >
-        5% Community Fee → Daily Vault
-      </span>
+    <span
+      title="5% of every sale goes to the daily vault, shared by everyone who signs that day"
+      className="inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1"
+      style={{
+        ...pill,
+        // Dar ekranda iç hap alt satıra insin, kart taşmasın
+        whiteSpace: "normal",
+        color: t.color,
+        backgroundColor: t.backgroundColor,
+        border: t.border,
+        padding: amount ? "3px 3px 3px 12px" : pill.padding,
+      }}
+    >
+      <span>{amount ? "5% Community Fee →" : "5% Community Fee → Daily Vault"}</span>
       {amount && (
         <span
           title="Sitting in today's vault right now"
           style={{
             ...pill,
             letterSpacing: "0.08em",
-            fontWeight: 600,
-            color: t.amountColor,
+            padding: "3px 10px",
+            color: t.color,
             backgroundColor: t.amountBackground,
             border: t.border,
           }}
         >
-          {amount}
+          Daily Vault
+          <span style={{ color: t.amountColor, fontWeight: 600, marginLeft: 6 }}>
+            · {amount}
+          </span>
           {amountUsd && (
-            <span style={{ color: t.usdColor, marginLeft: 6 }}>{amountUsd}</span>
+            <span style={{ color: t.usdColor, fontWeight: 600, marginLeft: 6 }}>
+              · {amountUsd}
+            </span>
           )}
         </span>
       )}

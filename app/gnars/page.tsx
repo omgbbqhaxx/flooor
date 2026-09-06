@@ -6,6 +6,7 @@ import Link from "next/link";
 import Footer from "@/app/components/Footer";
 import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
+import { awaitTx } from "@/app/lib/awaitTx";
 import WorkCard from "@/app/components/WorkCard";
 
 import { useState, useCallback, useEffect, useRef } from "react";
@@ -333,6 +334,31 @@ type PhaseInfo = {
   elapsed: bigint;
   remaining: bigint;
 };
+
+// Token URI'den görsel çıkarımı — saf yardımcılar, bileşen dışında
+const resolveUri = (uri: string): string => {
+  if (uri.startsWith("ipfs://")) {
+    return `https://ipfs.filebase.io/ipfs/${uri.replace("ipfs://", "")}`;
+  }
+  return uri;
+};
+
+const decodeTokenImage = (tokenURI: string): string | null => {
+  try {
+    if (tokenURI.startsWith("data:application/json;base64,")) {
+      const jsonData = JSON.parse(atob(tokenURI.split(",")[1]));
+      if (jsonData.image_data) {
+        return `data:image/svg+xml;base64,${btoa(jsonData.image_data)}`;
+      }
+      if (jsonData.image) return resolveUri(jsonData.image);
+      return null;
+    }
+    return resolveUri(tokenURI);
+  } catch {
+    return null;
+  }
+};
+
 
 export default function GnarsPage() {
   const config = useConfig();
@@ -697,28 +723,6 @@ export default function GnarsPage() {
     }
   }, [address, config]);
 
-  const decodeTokenImage = (tokenURI: string): string | null => {
-    try {
-      if (tokenURI.startsWith("data:application/json;base64,")) {
-        const jsonData = JSON.parse(atob(tokenURI.split(",")[1]));
-        if (jsonData.image_data) {
-          return `data:image/svg+xml;base64,${btoa(jsonData.image_data)}`;
-        }
-        if (jsonData.image) return resolveUri(jsonData.image);
-        return null;
-      }
-      return resolveUri(tokenURI);
-    } catch {
-      return null;
-    }
-  };
-
-  const resolveUri = (uri: string): string => {
-    if (uri.startsWith("ipfs://")) {
-      return `https://ipfs.filebase.io/ipfs/${uri.replace("ipfs://", "")}`;
-    }
-    return uri;
-  };
 
   const getNFTImages = useCallback(async () => {
     if (!userNFTs.length || !config) {
@@ -1144,13 +1148,13 @@ export default function GnarsPage() {
               window.open(`https://basescan.org/address/${address}`, "_blank"),
           },
           actionButtonStyle: {
-            background: "#ec4899",
+            background: "#1A1A1A",
             color: "#fff",
           },
         });
         return;
       }
-      await writeContract(config, {
+      const txHash = await writeContract(config, {
         address: CONTRACT_ADDR,
         abi: GNARS_ABI,
         functionName: "placeBid",
@@ -1158,6 +1162,8 @@ export default function GnarsPage() {
         value,
         dataSuffix: DATA_SUFFIX,
       });
+      // Hash ≠ onay: iptal/revert'te başarı akışı (share, konfeti) çalışmasın
+      if (!(await awaitTx(config, txHash, base.id))) return;
       toast.success("Bid placed successfully!");
       playChime();
       fireConfetti();
@@ -1213,7 +1219,7 @@ export default function GnarsPage() {
           toast.warning(guard.message, { duration: 6000 });
           return;
         }
-        await writeContract(config, {
+        const txHash = await writeContract(config, {
           address: CONTRACT_ADDR,
           abi: GNARS_ABI,
           functionName: "signOrClaim",
@@ -1222,6 +1228,8 @@ export default function GnarsPage() {
           account: address,
           dataSuffix: DATA_SUFFIX,
         });
+        // Hash ≠ onay: iptal/revert'te başarı akışı (share, konfeti) çalışmasın
+        if (!(await awaitTx(config, txHash, base.id))) return;
         toast.success(isSignPhase ? `Token #${idStr} signed!` : `Token #${idStr} claimed!`);
         playChime();
         fireConfetti();
@@ -1331,13 +1339,15 @@ export default function GnarsPage() {
           await new Promise((resolve) => setTimeout(resolve, 5000));
           await checkApprovalStatus();
         }
-        await writeContract(config, {
+        const txHash = await writeContract(config, {
           address: CONTRACT_ADDR,
           abi: GNARS_ABI,
           functionName: "sellToHighest",
           args: [tokenId],
           dataSuffix: DATA_SUFFIX,
         });
+        // Hash ≠ onay: iptal/revert'te başarı akışı (share, konfeti) çalışmasın
+        if (!(await awaitTx(config, txHash, base.id))) return;
         toast.success(`Token #${idStr} sold successfully!`);
         fireConfetti();
         const soldUsd = toUsd(currentBid);
