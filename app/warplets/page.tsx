@@ -1683,13 +1683,13 @@ export default function WarpletsPage() {
 
       <main className="max-w-6xl mx-auto px-5 sm:px-8">
         {/* Lot hero */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 pt-12 lg:pt-16 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.12fr_1fr] gap-12 lg:gap-16 pt-12 lg:pt-16 items-start">
           {/* Artwork */}
           <div className="lg:sticky lg:top-28">
-            <div className="flex items-center justify-center py-4">
+            <div className="flex items-center justify-center">
               {/* Lot plate — matches the "Your Collection" card design below */}
               <article
-                className="w-full max-w-[420px] fade-in-soft"
+                className="w-full max-w-[560px] fade-in-soft"
                 style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "#fff" }}
               >
                 {/* Lot line */}
@@ -1767,8 +1767,20 @@ export default function WarpletsPage() {
                 </div>
 
                 {/* Meta strip */}
-                <div className="px-3.5 py-3 flex items-center justify-between">
+                <div className="px-3.5 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
                   <span style={{ ...smallCaps, fontSize: 9 }}>No. 001 · Base</span>
+                  {/* Market durumu — sağ sütundan buraya taşındı, iki sütun aynı boyda kalsın */}
+                  <span
+                    className="order-last w-full text-center sm:order-none sm:w-auto"
+                    style={{ ...smallCaps, fontSize: 9, color: GOLD }}
+                  >
+                    {IS_DEPLOYED && (
+                      <span className="live-dot mr-1.5" style={{ width: 5, height: 5 }} aria-hidden />
+                    )}
+                    {!IS_DEPLOYED
+                      ? "Coming Soon"
+                      : `${isSignPhase ? "Sign Phase" : "Claim Phase"} · Epoch ${phaseInfo ? phaseInfo.eid.toString() : "—"}`}
+                  </span>
                   <a
                     href="https://opensea.io/assets/base/0x699727F9E01A822EFdcf7333073f0461e5914b4E"
                     target="_blank"
@@ -1785,15 +1797,9 @@ export default function WarpletsPage() {
 
           {/* Lot details */}
           <div>
-            <p style={{ ...smallCaps, color: GOLD }}>
-              {IS_DEPLOYED && <span className="live-dot mr-2" aria-hidden />}
-              {!IS_DEPLOYED
-                ? "Coming Soon"
-                : `${isSignPhase ? "Live on Base — Sign Phase" : "Live on Base — Claim Phase"} · Epoch ${phaseInfo ? phaseInfo.eid.toString() : "—"}`}
-            </p>
             {!IS_DEPLOYED ? (
               <div
-                className="mt-6 px-8 py-6"
+                className="px-8 py-6"
                 style={{ backgroundColor: PLINTH, border: `1px solid ${HAIRLINE}` }}
               >
                 <p style={{ ...smallCaps, marginBottom: "8px" }}>Royalties to the community</p>
@@ -1802,7 +1808,7 @@ export default function WarpletsPage() {
                 </p>
               </div>
             ) : (
-              <div className="mt-6">
+              <div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
                   <div>
                     <p style={smallCaps}>Current Bid</p>
