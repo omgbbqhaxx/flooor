@@ -133,6 +133,7 @@ async function scanViaBruteForceRange({
   chunkSize,
   retryWithBackoff,
   chainId,
+  fallbackMaxTokenId,
 }: {
   config: Config;
   collectionAddress: `0x${string}`;
@@ -141,16 +142,29 @@ async function scanViaBruteForceRange({
   chunkSize: number;
   retryWithBackoff: RetryFn;
   chainId?: number;
+  fallbackMaxTokenId?: number;
 }): Promise<bigint[]> {
-  const totalSupply = (await retryWithBackoff(async () => {
-    return (await readContract(config, {
-      address: collectionAddress,
-      abi: abi as never,
-      functionName: "totalSupply",
-      ...(chainId ? { chainId } : {}),
+  // ERC404 aynaları (örn. QUOTRONS) totalSupply sunmaz. Okuma başarısız olursa
+  // çağıranın verdiği üst sınıra düş; o da yoksa hata yukarı taşınır.
+  let supply: number;
+  try {
+    const totalSupply = (await retryWithBackoff(async () => {
+      return (await readContract(config, {
+        address: collectionAddress,
+        abi: abi as never,
+        functionName: "totalSupply",
+        ...(chainId ? { chainId } : {}),
+      })) as bigint;
     })) as bigint;
-  })) as bigint;
-  const supply = Number(totalSupply);
+    supply = Number(totalSupply);
+  } catch (error) {
+    if (fallbackMaxTokenId === undefined) throw error;
+    console.error(
+      "scanViaBruteForceRange: totalSupply unavailable, using fallbackMaxTokenId",
+      error,
+    );
+    supply = fallbackMaxTokenId;
+  }
 
   const candidateIds: bigint[] = [];
   for (let i = 1; i <= supply; i++) candidateIds.push(BigInt(i));
@@ -200,6 +214,7 @@ export async function scanOwnedTokenIds({
   chunkSize = 250,
   retryWithBackoff,
   chainId,
+  fallbackMaxTokenId,
 }: {
   config: Config;
   collectionAddress: `0x${string}`;
@@ -208,6 +223,8 @@ export async function scanOwnedTokenIds({
   chunkSize?: number;
   retryWithBackoff: RetryFn;
   chainId?: number;
+  /** totalSupply sunmayan koleksiyonlarda taranacak en yüksek tokenId. */
+  fallbackMaxTokenId?: number;
 }): Promise<bigint[]> {
   try {
     const candidateIds = await scanViaAlchemyTransfers({
@@ -238,6 +255,7 @@ export async function scanOwnedTokenIds({
       chunkSize,
       retryWithBackoff,
       chainId,
+      fallbackMaxTokenId,
     });
   }
 }
