@@ -37,5 +37,5 @@ Robinhood adresi docs.robinhood.com/chain/contracts'tan ve canlı Ronks kontrat�
 ## Yapma
 
 - Şablona ek özellik, fee değişikliği veya "iyileştirme" ekleme. Kullanıcı istemedikçe birebir kopya.
-- Adres için checksum düzeltmesi yapma, verildiği gibi yaz.
+- Adresi checksum'suz bırakma. Solidity adres sabitlerinde EIP-55 zorunludur, küçük harfli adres derleme hatası verir; script adresi otomatik checksum'lı forma çevirir (repo'daki viem ile), çıktıdaki adresi kullan.
 - ABI/frontend üretme.

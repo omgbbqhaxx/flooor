@@ -28,7 +28,7 @@
         modifier onlyOwner(){ require(msg.sender==owner,"owner"); _; }
         uint256 public  constant rBLOCKS   = 1440 minutes;
         uint256 public constant sDURATION  = 960 minutes;
-        address public constant collectionId = 0x08dc7cb3f4ccc8eea782e2924d151e2130f22b28;
+        address public constant collectionId = 0x08DC7Cb3f4CcC8Eea782e2924d151e2130F22b28;
         IERC721Like private constant nft = IERC721Like(collectionId);
         uint256 public minbidAM  = 10**8;
         uint256 public activebidAM;

@@ -38,6 +38,15 @@ esac
 if ! [[ "$ADDR" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
   echo "error: '$ADDR' is not a 40-hex address" >&2; exit 1
 fi
+# Solidity adres sabitlerinde EIP-55 checksum zorunlu (küçük harfli adres derleme hatası verir).
+# Repo'daki viem ile checksum'lı forma çevir.
+REPO="$(cd "$(dirname "$0")/../../.." && pwd)"
+CHECKSUMMED="$(cd "$REPO" && node -e 'const {getAddress}=require("viem");process.stdout.write(getAddress(process.argv[1]))' "$ADDR" 2>/dev/null || true)"
+if [[ ! "$CHECKSUMMED" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+  echo "error: EIP-55 checksum hesaplanamadı (repo kökünde 'node' ve 'viem' gerekli)" >&2; exit 1
+fi
+[[ "$CHECKSUMMED" != "$ADDR" ]] && echo "note: adres EIP-55 checksum'lı forma çevrildi: $ADDR -> $CHECKSUMMED" >&2
+ADDR="$CHECKSUMMED"
 if ! [[ "$NAME" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
   echo "error: '$NAME' is not a valid Solidity identifier" >&2; exit 1
 fi
