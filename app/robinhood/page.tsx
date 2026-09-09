@@ -27,7 +27,7 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import { Playfair_Display, Inter } from "next/font/google";
 import confetti from "canvas-confetti";
 
-import ROBINHOOD_ABI from "@/app/abi/ronks.json";
+import ROBINHOOD_ABI from "@/app/abi/rhmachines.json";
 import NFT_ABI from "@/app/abi/nft.json";
 import { scanOwnedTokenIds } from "@/app/lib/scanOwnedTokenIds";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
@@ -241,8 +241,8 @@ const flushPendingChime = () => {
   }
 };
 
-const CONTRACT_ADDR = "0xe43963dc6b4cdc6f860119e70332bb317f4f2cbc" as const;
-const COLLECTION_ADDR = "0x9b368Ea7e4E614C56cB29C2dC12049201Dc4db15" as const;
+const CONTRACT_ADDR = "0xa14b6A3980C178D8f446F6a33Bad83a9aAa2D09D" as const;
+const COLLECTION_ADDR = "0x8C71D170fBd94BCba93bB08FC2CFD0e8620cD9cE" as const;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const IS_DEPLOYED = CONTRACT_ADDR.toLowerCase() !== ZERO_ADDRESS;
 
@@ -333,7 +333,7 @@ export default function RobinhoodPage() {
   const config = useConfig();
 
   useEffect(() => {
-    document.title = "Ronks · flooor.fun — 5% royalty accumulates in the daily vault — 16-hour sign phase, 8-hour claim phase";
+    document.title = "RH Machines · flooor.fun — 5% royalty accumulates in the daily vault — 16-hour sign phase, 8-hour claim phase";
   }, []);
   const { address, chain: connectedChain } = useAccount();
   const { switchChainAsync } = useSwitchChain();
@@ -1078,7 +1078,7 @@ export default function RobinhoodPage() {
   const handleBid = useCallback(async () => {
     if (isBidding) return;
     if (!IS_DEPLOYED) {
-      toast.info("Ronks contract is not live yet — stay tuned.");
+      toast.info("RH Machines contract is not live yet — stay tuned.");
       return;
     }
     if (!address) {
@@ -1126,7 +1126,7 @@ export default function RobinhoodPage() {
       fireConfetti();
       setSharePrompt({
         type: "bid",
-        text: `Just placed a bid of Ξ${fmtEth(effectiveBidInput)} on Ronks at flooor.fun/robinhood 🔨\n\nIf someone outbids me, my ETH comes right back — no risk, no lockup.\n\nRoyalties to the community.`,
+        text: `Just placed a bid of Ξ${fmtEth(effectiveBidInput)} on RH Machines at flooor.fun/robinhood 🔨\n\nIf someone outbids me, my ETH comes right back — no risk, no lockup.\n\nRoyalties to the community.`,
       });
       setBidInput("");
       setTimeout(() => {
@@ -1152,7 +1152,7 @@ export default function RobinhoodPage() {
   const handleSignOrClaim = useCallback(
     async (tokenId: bigint) => {
       if (!IS_DEPLOYED) {
-        toast.info("Ronks contract is not live yet — stay tuned.");
+        toast.info("RH Machines contract is not live yet — stay tuned.");
         return;
       }
       if (!address) {
@@ -1195,7 +1195,7 @@ export default function RobinhoodPage() {
           setNftSignedStatus((prev) => ({ ...prev, [idStr]: true }));
           setSharePrompt({
             type: "sign",
-            text: `Just signed my Ronks NFT on flooor.fun/robinhood 🖊️\n\n${dailySigners + 1} signers sharing today's vault of Ξ${fmtEth(dailyVault)}.\n\nSign daily, earn daily. Royalties to the community.`,
+            text: `Just signed my RH Machines NFT on flooor.fun/robinhood 🖊️\n\n${dailySigners + 1} signers sharing today's vault of Ξ${fmtEth(dailyVault)}.\n\nSign daily, earn daily. Royalties to the community.`,
           });
         } else {
           setNftClaimedStatus((prev) => ({ ...prev, [idStr]: true }));
@@ -1231,12 +1231,12 @@ export default function RobinhoodPage() {
     async (platform: "x" | "farcaster") => {
       if (!sharePrompt) return;
       // Mention biçimleri platforma göre farklı: Farcaster'da @farcaster
-      // hesabı + /flooor kanalı (ayrı token'lar), X'te flooor + Ronks'un
-      // kendi hesabı etiketleniyor (Base değil — Ronks Robinhood Chain'de)
+      // hesabı + /flooor kanalı (ayrı token'lar), X'te flooor + RH Machines'un
+      // kendi hesabı etiketleniyor (Base değil — RH Machines Robinhood Chain'de)
       const mentions =
         platform === "farcaster"
           ? "@farcaster /flooor"
-          : "@vrnouns @Ronksart";
+          : "@vrnouns";
       const text = `${sharePrompt.text}\n\n${mentions}`;
       const url = "https://flooor.fun/robinhood";
       setSharePrompt(null);
@@ -1267,7 +1267,7 @@ export default function RobinhoodPage() {
   const handleSellNFT = useCallback(
     async (tokenId: bigint) => {
       if (!IS_DEPLOYED) {
-        toast.info("Ronks contract is not live yet — stay tuned.");
+        toast.info("RH Machines contract is not live yet — stay tuned.");
         return;
       }
       if (!address) {
@@ -1313,7 +1313,7 @@ export default function RobinhoodPage() {
         const soldUsd = toUsd(currentBid);
         setSharePrompt({
           type: "sell",
-          text: `Just sold my Ronks NFT for Ξ${fmtEth(currentBid)}${soldUsd ? ` (${soldUsd})` : ""} on flooor.fun/robinhood 🤝\n\nInstant liquidity, any time. Every sale feeds the vault — distributed to holders daily.`,
+          text: `Just sold my RH Machines NFT for Ξ${fmtEth(currentBid)}${soldUsd ? ` (${soldUsd})` : ""} on flooor.fun/robinhood 🤝\n\nInstant liquidity, any time. Every sale feeds the vault — distributed to holders daily.`,
         });
         setTimeout(() => {
           getCurrentBid();
@@ -1534,7 +1534,7 @@ export default function RobinhoodPage() {
               className="mt-3 text-sm leading-relaxed"
               style={{ color: MUTED }}
             >
-              Ronks runs on Robinhood Chain. Please switch your wallet to
+              RH Machines runs on Robinhood Chain. Please switch your wallet to
               continue.
             </p>
             <button
@@ -1581,7 +1581,7 @@ export default function RobinhoodPage() {
                   {/* Name + rarity row */}
                   <div className="flex items-center justify-between gap-2 px-1">
                     <span style={{ ...SERIF, fontWeight: 600, fontSize: 17, color: INK }}>
-                      Ronks
+                      RH Machines
                     </span>
                     <span
                       style={{
@@ -1636,10 +1636,9 @@ export default function RobinhoodPage() {
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src="/ronks.svg"
-                          alt="Ronks"
+                          src="/rhmachines.webp"
+                          alt="RH Machines"
                           className="w-full h-full"
-                          style={{ imageRendering: "pixelated" }}
                         />
                       </div>
                     </HoloFrame>
@@ -1651,7 +1650,7 @@ export default function RobinhoodPage() {
 
                   {/* Meta strip */}
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-1">
-                    <span style={{ ...smallCaps, fontSize: 9 }}>Ronks · Robinhood Chain</span>
+                    <span style={{ ...smallCaps, fontSize: 9 }}>RH Machines · Robinhood Chain</span>
                     <span
                       className="order-last w-full text-center sm:order-none sm:w-auto"
                       style={{ ...smallCaps, fontSize: 9, color: GOLD }}
@@ -1664,7 +1663,7 @@ export default function RobinhoodPage() {
                         : `${isSignPhase ? "Sign Phase" : "Claim Phase"} · Epoch ${phaseInfo ? phaseInfo.eid.toString() : "—"}`}
                     </span>
                     <a
-                      href="https://opensea.io/collection/ronksart"
+                      href="https://opensea.io/collection/0x8c71d170fbd94bcba93bb08fc2cfd0e8620cd9ce"
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{ ...smallCaps, fontSize: 9 }}
@@ -1687,7 +1686,7 @@ export default function RobinhoodPage() {
               >
                 <p style={{ ...smallCaps, marginBottom: "8px" }}>Royalties to the community</p>
                 <p style={{ ...SANS, fontSize: "14px", color: MUTED, lineHeight: 1.6 }}>
-                  The Ronks contract is being finalized and isn&apos;t live yet. Connect your wallet to be ready when it ships.
+                  The RH Machines contract is being finalized and isn&apos;t live yet. Connect your wallet to be ready when it ships.
                 </p>
               </div>
             ) : (
@@ -1917,7 +1916,7 @@ export default function RobinhoodPage() {
                     <WorkCard
                       key={idStr}
                       tokenIdStr={idStr}
-                      itemName="Ronks"
+                      itemName="RH Machines"
                       image={image}
                       approved={approved}
                       primaryLabel={busy ? "..." : signClaimLabel}
@@ -2172,10 +2171,10 @@ export default function RobinhoodPage() {
                 className="text-sm hover:opacity-70 transition-colors"
                 style={{ color: MUTED }}
               >
-                Ronks Market
+                RH Machines Market
               </a>
               <a
-                href="https://opensea.io/collection/ronksart"
+                href="https://opensea.io/collection/0x8c71d170fbd94bcba93bb08fc2cfd0e8620cd9ce"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm hover:opacity-70 transition-colors"

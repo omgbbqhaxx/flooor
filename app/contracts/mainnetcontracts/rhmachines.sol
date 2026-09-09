@@ -1,6 +1,6 @@
     // SPDX-License-Identifier: MIT
     pragma solidity ^0.8.34;
-    // 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73 ROBINHOOD CHAIN (chainId 4663) WETH — constructor arg (_weth)
+    // 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73 ROBINHOOD CHAIN (chainId 4663) WETH — constructor arg (_weth); deployed at 0xa14b6A3980C178D8f446F6a33Bad83a9aAa2D09D
 
     interface IERC721Like {
         function safeTransferFrom(address from, address to, uint256 tokenId) external;
@@ -21,7 +21,7 @@
         function transfer(address to, uint256 amount) external returns (bool);
     }
 
-    contract flooordotfunrhmaxhines {
+    contract flooordotfunrhmachines {
         address payable private owner;
         bool private locked;
         address public immutable WETH;
