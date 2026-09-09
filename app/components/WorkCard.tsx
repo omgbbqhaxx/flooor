@@ -3,15 +3,8 @@ import Image from "next/image";
 import { toast } from "sonner";
 import { HoloFrame } from "@/app/components/HoloFrame";
 import { buildNftDownload, saveNftImage } from "@/app/lib/nftImage";
+import { AMBER, FAINT, GOLD, GREEN, HAIRLINE, INK, IVORY, MUTED } from "@/app/lib/theme";
 
-const INK = "#1A1A1A";
-const MUTED = "#75716A";
-const FAINT = "#A8A39B";
-const HAIRLINE = "#E6E2DA";
-const IVORY = "#EAE2D2";
-const GREEN = "#1E7B4F";
-const AMBER = "#A9731E";
-const GOLD = "#A4863D";
 
 const SERIF = { fontFamily: "var(--font-serif)" } as const;
 const SANS = { fontFamily: "var(--font-sans)" } as const;

@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 :root {
+  /* Keep in sync with PAPER in app/lib/theme.ts */
   --background: #F2ECE0;
   --foreground: #1a1a1a;
 }

@@ -35,6 +35,7 @@ const oldschoolGrotesk = localFont({
   preload: true,
 });
 import { Providers } from "./providers";
+import { PAPER } from "@/app/lib/theme";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://flooor.fun"),
@@ -105,7 +106,7 @@ export default function RootLayout({
     <html
       lang="en"
       className={oldschoolGrotesk.variable}
-      style={{ backgroundColor: "#F2ECE0" }}
+      style={{ backgroundColor: PAPER }}
     >
       <head>
         <meta name="msapplication-TileColor" content="#1A1A1A" />
