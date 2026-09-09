@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RobinhoodLayout({
+export default function StonkBrokersLayout({
   children,
 }: {
   children: React.ReactNode;

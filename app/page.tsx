@@ -2415,6 +2415,13 @@ export default function BetaPage() {
                 href: "/base-day-one",
               },
               {
+                name: "Stonk Brokers",
+                sub: "Robinhood Chain",
+                chain: "Robinhood",
+                img: "/stonkbrokers.svg",
+                href: "/robinhood/stonkbrokers",
+              },
+              {
                 name: "pyopyopyopyo",
                 sub: "Robinhood Chain",
                 chain: "Robinhood",
