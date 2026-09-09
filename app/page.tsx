@@ -1959,7 +1959,7 @@ export default function BetaPage() {
                     }
                   >
                     <Image
-                      src={heroToken?.image ?? "/vrnounz.svg"}
+                      src="/vrnounz.svg"
                       alt={heroToken ? `VRNoun #${heroToken.id}` : "VRNouns"}
                       width={560}
                       height={560}
