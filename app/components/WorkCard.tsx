@@ -8,7 +8,7 @@ const INK = "#1A1A1A";
 const MUTED = "#75716A";
 const FAINT = "#A8A39B";
 const HAIRLINE = "#E6E2DA";
-const IVORY = "#F7F5F1";
+const IVORY = "#EAE2D2";
 const GREEN = "#1E7B4F";
 const AMBER = "#A9731E";
 const GOLD = "#A4863D";
@@ -120,7 +120,7 @@ export default function WorkCard({
     : "#fff";
   const primaryBg = primaryDisabled
     ? primaryTone === "waiting"
-      ? "#fff"
+      ? "#F2ECE0"
       : IVORY
     : primaryTone === "ready"
       ? GREEN
@@ -133,7 +133,7 @@ export default function WorkCard({
     <article
       data-token-id={tokenIdStr}
       className="flex flex-col work-card"
-      style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "#fff" }}
+      style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "#F2ECE0" }}
     >
       {/* Lot line */}
       <div
@@ -225,7 +225,7 @@ export default function WorkCard({
             busy ? (
               <div
                 className="absolute inset-0 flex items-center justify-center"
-                style={{ backgroundColor: "rgba(255,255,255,0.9)" }}
+                style={{ backgroundColor: "rgba(242,236,224,0.9)" }}
               >
                 <span style={smallCaps}>Processing…</span>
               </div>

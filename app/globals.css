@@ -3,13 +3,13 @@
 @tailwind utilities;
 
 :root {
-  --background: #f7f5f1;
+  --background: #F2ECE0;
   --foreground: #1a1a1a;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #f7f5f1;
+    --background: #F2ECE0;
     --foreground: #1a1a1a;
   }
 }
@@ -35,7 +35,7 @@ body {
 /* Metin seçimi mürekkep rengine döner — fildişi üzerinde şık kontrast */
 ::selection {
   background: #1a1a1a;
-  color: #f7f5f1;
+  color: #F2ECE0;
 }
 
 /* Eser görseli ilk boyamada yumuşakça belirir */

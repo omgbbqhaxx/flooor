@@ -1736,7 +1736,7 @@ export default function Page() {
                       type="text"
                       inputMode="decimal"
                       placeholder={`minimum Ξ ${MINIMUM_BID_FOR_SELL}`}
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg font-oldschool text-lg bg-white text-black placeholder-gray-400 caret-black focus:border-black focus:outline-none transition-colors"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg font-oldschool text-lg bg-[#F2ECE0] text-black placeholder-gray-400 caret-black focus:border-black focus:outline-none transition-colors"
                       value={bidInput}
                       onChange={handleBidInputChange}
                     />
@@ -1768,7 +1768,7 @@ export default function Page() {
           </div>
 
           <div
-            className="bg-white w-screen -mx-3 py-16"
+            className="bg-[#F2ECE0] w-screen -mx-3 py-16"
             style={{
               marginLeft: "calc(-50vw + 50%)",
               marginRight: "calc(-50vw + 50%)",
@@ -1886,7 +1886,7 @@ export default function Page() {
             onClick={() => setPendingSellTokenId(null)}
           >
             <div
-              className="w-full max-w-sm rounded-2xl p-6 bg-white shadow-2xl"
+              className="w-full max-w-sm rounded-2xl p-6 bg-[#F2ECE0] shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               <h3 className="text-xl font-bold text-gray-900 mb-2 font-oldschool">

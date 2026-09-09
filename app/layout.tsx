@@ -105,7 +105,7 @@ export default function RootLayout({
     <html
       lang="en"
       className={oldschoolGrotesk.variable}
-      style={{ backgroundColor: "#F7F5F1" }}
+      style={{ backgroundColor: "#F2ECE0" }}
     >
       <head>
         <meta name="msapplication-TileColor" content="#1A1A1A" />

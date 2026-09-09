@@ -326,7 +326,7 @@ const INK = "#1A1A1A";
 const MUTED = "#75716A";
 const FAINT = "#A8A39B";
 const HAIRLINE = "#E6E2DA";
-const IVORY = "#F7F5F1";
+const IVORY = "#EAE2D2";
 const PLINTH = "#F1EEE8";
 const GREEN = "#1E7B4F";
 const GOLD = "#A4863D";
@@ -1831,13 +1831,13 @@ export default function BetaPage() {
   return (
     <div
       className={`${playfair.variable} ${inter.variable} min-h-screen relative z-10`}
-      style={{ backgroundColor: "#FFFFFF", color: INK, ...SANS }}
+      style={{ backgroundColor: "#F2ECE0", color: INK, ...SANS }}
     >
       {/* Header */}
       <header
         className="sticky top-0 z-50"
         style={{
-          backgroundColor: "rgba(255,255,255,0.95)",
+          backgroundColor: "rgba(242,236,224,0.95)",
           backdropFilter: "blur(8px)",
           WebkitBackdropFilter: "blur(8px)",
           borderBottom: `1px solid ${HAIRLINE}`,
@@ -1969,7 +1969,7 @@ export default function BetaPage() {
                           ...smallCaps,
                           color: "#9B1C1C",
                           border: "1px solid #9B1C1C",
-                          backgroundColor: "#fff",
+                          backgroundColor: "#F2ECE0",
                         }}
                       >
                         Wrong Network
@@ -1983,7 +1983,7 @@ export default function BetaPage() {
                           ...smallCaps,
                           color: INK,
                           border: `1px solid ${INK}`,
-                          backgroundColor: "#fff",
+                          backgroundColor: "#F2ECE0",
                         }}
                       >
                         {account.displayName}
@@ -2010,7 +2010,7 @@ export default function BetaPage() {
           <div
             className="w-full max-w-sm p-8 sm:p-10 text-center"
             style={{
-              backgroundColor: "#fff",
+              backgroundColor: "#F2ECE0",
               border: `1px solid ${HAIRLINE}`,
               boxShadow: "0 24px 64px -16px rgba(0,0,0,0.3)",
             }}
@@ -2078,7 +2078,7 @@ export default function BetaPage() {
               {/* Lot plate — matches the "Your Collection" card design below */}
               <article
                 className="w-full max-w-[560px] fade-in-soft"
-                style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "#fff" }}
+                style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "#F2ECE0" }}
               >
                 {/* Lot line */}
                 <div
@@ -2292,7 +2292,7 @@ export default function BetaPage() {
                   style={{
                     ...SANS,
                     color: INK,
-                    backgroundColor: "#fff",
+                    backgroundColor: "#F2ECE0",
                     border: "none",
                   }}
                   value={bidInput}
@@ -2823,7 +2823,7 @@ export default function BetaPage() {
         >
           <path
             d="M0,48 L0,25.6 Q0,25.6 13,27.9 Q26,30.2 39,31.7 Q52,33.2 65,30.2 Q78,27.2 91,30.0 Q104,32.8 117,31.9 Q130,31 143,31.1 Q156,31.2 169,32.3 Q182,33.3 195,32.5 Q208,31.7 221,30.4 Q234,29.2 247,26.8 Q260,24.3 273,26.3 Q286,28.2 299,22.4 Q312,16.5 325,17.1 Q338,17.7 351,16.4 Q364,15 377,16.6 Q390,18.3 403,16.8 Q416,15.3 429,18.5 Q442,21.7 455,22.6 Q468,23.5 481,22.7 Q494,21.9 507,23.4 Q520,24.9 533,23.2 Q546,21.5 559,22.6 Q572,23.6 585,26.5 Q598,29.3 611,27.3 Q624,25.3 637,27.6 Q650,29.9 663,29.5 Q676,29.1 689,28.5 Q702,27.9 715,25.0 Q728,22.2 741,23.9 Q754,25.7 767,25.9 Q780,26.2 793,28.2 Q806,30.2 819,29.4 Q832,28.5 845,30.0 Q858,31.5 871,30.9 Q884,30.3 897,32.4 Q910,34.4 923,35.7 Q936,37 949,37.0 Q962,37.1 975,34.5 Q988,32 1001,30.4 Q1014,28.7 1027,29.9 Q1040,31 1053,30.6 Q1066,30.2 1079,29.4 Q1092,28.6 1105,27.6 Q1118,26.5 1131,28.4 Q1144,30.4 1157,30.9 Q1170,31.5 1183,30.7 Q1196,29.9 1209,29.6 Q1222,29.4 1235,27.0 Q1248,24.6 1261,24.6 Q1274,24.5 1287,26.6 Q1300,28.6 1313,27.0 Q1326,25.3 1339,25.8 Q1352,26.3 1365,27.6 Q1378,28.8 1391,28.9 Q1404,29 1417,26.4 Q1430,23.7 1443,27.9 Q1456,32 1469,29.9 Q1482,27.7 1495,29.4 Q1508,31.1 1521,28.4 Q1534,25.6 1547,27.6 Q1560,29.7 1573,32.0 L1600,34.2 L1600,48 Z"
-            fill="#FFFFFF"
+            fill="#F2ECE0"
           />
         </svg>
       </div>
@@ -2861,7 +2861,7 @@ export default function BetaPage() {
           height: 48,
           lineHeight: 0,
           overflow: "hidden",
-          backgroundColor: "#FFFFFF",
+          backgroundColor: "#F2ECE0",
         }}
       >
         <svg
@@ -2886,7 +2886,7 @@ export default function BetaPage() {
           <div
             className="w-full max-w-md p-8 sm:p-10"
             style={{
-              backgroundColor: "#fff",
+              backgroundColor: "#F2ECE0",
               border: `1px solid ${HAIRLINE}`,
               boxShadow: "0 24px 64px -16px rgba(0,0,0,0.25)",
             }}
@@ -2917,7 +2917,7 @@ export default function BetaPage() {
               className="mt-4 w-full px-4 py-3 text-sm focus:outline-none"
               style={{
                 border: `1px solid ${sendAddressError ? "#9B1C1C" : HAIRLINE}`,
-                backgroundColor: "#fff",
+                backgroundColor: "#F2ECE0",
                 color: INK,
               }}
             />
@@ -2934,7 +2934,7 @@ export default function BetaPage() {
                   ...smallCaps,
                   color: INK,
                   border: `1px solid ${INK}`,
-                  backgroundColor: "#fff",
+                  backgroundColor: "#F2ECE0",
                 }}
               >
                 Cancel
@@ -2987,7 +2987,7 @@ export default function BetaPage() {
                   lineHeight: 1.6,
                   whiteSpace: "pre-line",
                   padding: "12px",
-                  backgroundColor: "#fff",
+                  backgroundColor: "#F2ECE0",
                   border: `1px solid ${HAIRLINE}`,
                 }}
               >

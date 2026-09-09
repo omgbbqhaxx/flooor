@@ -308,7 +308,7 @@ const convertReverseNodeToBytes = (address: Address, chainId: number) => {
 const INK = "#1A1A1A";
 const MUTED = "#75716A";
 const HAIRLINE = "#E6E2DA";
-const IVORY = "#F7F5F1";
+const IVORY = "#EAE2D2";
 const PLINTH = "#F1EEE8";
 const GREEN = "#1E7B4F";
 const GOLD = "#A4863D";
@@ -1684,7 +1684,7 @@ export default function GnarsPage() {
               {/* Lot plate — matches the "Your Collection" card design below */}
               <article
                 className="w-full max-w-[560px] fade-in-soft"
-                style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "#fff" }}
+                style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "#F2ECE0" }}
               >
                 {/* Lot line */}
                 <div
@@ -1869,7 +1869,7 @@ export default function GnarsPage() {
                         : `Ξ ${minOutbidAmount.toFixed(6)} or more`
                     }
                     className="flex-1 px-4 py-3.5 focus:outline-none min-w-0 text-lg tabular-nums"
-                    style={{ ...SANS, color: INK, backgroundColor: "#fff", border: "none" }}
+                    style={{ ...SANS, color: INK, backgroundColor: "#F2ECE0", border: "none" }}
                     value={bidInput}
                     onChange={handleBidInputChange}
                   />
@@ -2080,7 +2080,7 @@ export default function GnarsPage() {
                   fontSize: "13px",
                   padding: "10px 12px",
                   border: `1px solid ${sendAddressError ? "#9B1C1C" : HAIRLINE}`,
-                  backgroundColor: "#fff",
+                  backgroundColor: "#F2ECE0",
                   width: "100%",
                   outline: "none",
                 }}
@@ -2158,7 +2158,7 @@ export default function GnarsPage() {
                   lineHeight: 1.6,
                   whiteSpace: "pre-line",
                   padding: "12px",
-                  backgroundColor: "#fff",
+                  backgroundColor: "#F2ECE0",
                   border: `1px solid ${HAIRLINE}`,
                 }}
               >
