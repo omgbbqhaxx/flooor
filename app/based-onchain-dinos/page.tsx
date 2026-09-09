@@ -1532,7 +1532,7 @@ export default function BasedOnchainDinosPage() {
           position: "sticky",
           top: 0,
           zIndex: 100,
-          backgroundColor: "rgba(247,245,241,0.92)",
+          backgroundColor: "rgba(242,236,224,0.92)",
           backdropFilter: "blur(8px)",
           WebkitBackdropFilter: "blur(8px)",
           borderBottom: `1px solid ${HAIRLINE}`,
