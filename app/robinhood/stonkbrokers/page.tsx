@@ -1651,10 +1651,12 @@ export default function StonkBrokersPage() {
                   </div>
 
                   {/* Meta strip */}
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-1">
-                    <span style={{ ...smallCaps, fontSize: 9 }}>Stonk Brokers · Robinhood Chain</span>
+                  {/* Meta strip — 3 kolonlu grid: sol etiket / ortada faz / sağda link.
+                      Dar ekranda faz satırı tam genişlikte ortalanır, link sağda kalır. */}
+                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-[1fr_auto_1fr] items-center gap-x-4 gap-y-1.5 px-1">
+                    <span className="justify-self-start whitespace-nowrap" style={{ ...smallCaps, fontSize: 9 }}>Robinhood Chain</span>
                     <span
-                      className="order-last w-full text-center sm:order-none sm:w-auto"
+                      className="order-last col-span-2 text-center whitespace-nowrap sm:order-none sm:col-span-1"
                       style={{ ...smallCaps, fontSize: 9, color: GOLD }}
                     >
                       {IS_DEPLOYED && (
@@ -1669,7 +1671,7 @@ export default function StonkBrokersPage() {
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{ ...smallCaps, fontSize: 9 }}
-                      className="hover:opacity-70 transition-colors"
+                      className="justify-self-end whitespace-nowrap hover:opacity-70 transition-colors"
                     >
                       View Collection
                     </a>
@@ -1679,8 +1681,8 @@ export default function StonkBrokersPage() {
             </div>
           </div>
 
-          {/* Lot details */}
-          <div>
+          {/* Lot details — stretches to the artwork card so both columns end on the same line */}
+          <div className="lg:self-stretch lg:flex lg:flex-col">
             {!IS_DEPLOYED ? (
               <div
                 className="px-8 py-6"
@@ -1692,7 +1694,7 @@ export default function StonkBrokersPage() {
                 </p>
               </div>
             ) : (
-              <div>
+              <div className="lg:flex lg:flex-col lg:flex-1">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
                   <div>
                     <p style={smallCaps}>Current Bid</p>
@@ -1811,8 +1813,8 @@ export default function StonkBrokersPage() {
                   )}
                 </p>
 
-                {/* Signers, TVS, vault, yield */}
-                <div className="mt-10">
+                {/* Signers, TVS, vault, yield — pinned to the bottom of the column on desktop */}
+                <div className="mt-10 lg:mt-auto">
                   {[
                     { label: "Signers", value: `${dailySigners}`, sub: null, green: false, rainbow: false },
                     { label: "TVS — Total Value Signed", value: tvsUsdDisplay, sub: tvsEthDisplay, green: false, rainbow: false },
