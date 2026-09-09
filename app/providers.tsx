@@ -46,6 +46,13 @@ export const robinhoodChain = defineChain({
       http: ["https://robinhood-mainnet.g.alchemy.com/v2/R11AN4bze2Uyhg3V6KZ7m"],
     },
   },
+  // Canonical Multicall3 is deployed on Robinhood Chain. Without this entry
+  // wagmi's readContracts falls back to one eth_call per token, which turns
+  // the RH Machines ownership scan (10,000 ownerOf calls) into thousands of
+  // requests and the owned-token grid never fills in.
+  contracts: {
+    multicall3: { address: "0xcA11bde05977b3631167028862bE2a173976CA11" },
+  },
 });
 
 const robinhoodTransport = http(

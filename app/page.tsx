@@ -2414,7 +2414,14 @@ export default function BetaPage() {
                 img: "/basedayone.gif",
                 href: "/base-day-one",
               },
-            ].map((col) => {
+              {
+                name: "pyopyopyopyo",
+                sub: "Robinhood Chain",
+                chain: "Robinhood",
+                img: "/pyopyo.jpg",
+                href: undefined,
+              },
+            ].map((col: { name: string; sub: string; img: string; href?: string; chain?: string }) => {
               const isLive = Boolean(col.href);
               const isFeatured = col.name === "Base Day One";
               const card = (
@@ -2446,7 +2453,7 @@ export default function BetaPage() {
                                 border: "1px solid rgba(255,255,255,0.22)",
                               }}
                             >
-                              Base
+                              {col.chain ?? "Base"}
                             </span>
                           </div>
                           {isFeatured ? (

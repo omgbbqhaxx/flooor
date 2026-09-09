@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { FAINT, GOLD, HAIRLINE, MUTED } from "@/app/lib/theme";
+import { FRONTEND_VERSION } from "@/app/lib/version";
 
 
 const SERIF = { fontFamily: "var(--font-serif)" } as const;
@@ -173,7 +174,7 @@ export default function Footer({
           MMXXVI
         </p>
         <p className="mt-2 text-xs" style={{ color: FAINT }}>
-          © flooor.fun · CC0 Licensed · Front-end v3.0.187 · Contract v1.0 ·
+          © flooor.fun · CC0 Licensed · Front-end v{FRONTEND_VERSION} · Contract v1.0 ·
           Beta · Crafted with Claude Fable 5
         </p>
         <Image

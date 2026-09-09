@@ -30,6 +30,7 @@ import confetti from "canvas-confetti";
 import ROBINHOOD_ABI from "@/app/abi/rhmachines.json";
 import NFT_ABI from "@/app/abi/nft.json";
 import { scanOwnedTokenIds } from "@/app/lib/scanOwnedTokenIds";
+import { FRONTEND_VERSION } from "@/app/lib/version";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
 import { awaitTx } from "@/app/lib/awaitTx";
 import { HoloFrame } from "@/app/components/HoloFrame";
@@ -329,7 +330,7 @@ const decodeTokenImage = (tokenURI: string): string | null => {
 };
 
 
-export default function RobinhoodPage() {
+export default function RhMachinesPage() {
   const config = useConfig();
 
   useEffect(() => {
@@ -1126,7 +1127,7 @@ export default function RobinhoodPage() {
       fireConfetti();
       setSharePrompt({
         type: "bid",
-        text: `Just placed a bid of Ξ${fmtEth(effectiveBidInput)} on RH Machines at flooor.fun/robinhood 🔨\n\nIf someone outbids me, my ETH comes right back — no risk, no lockup.\n\nRoyalties to the community.`,
+        text: `Just placed a bid of Ξ${fmtEth(effectiveBidInput)} on RH Machines at flooor.fun/robinhood/rhmachines 🔨\n\nIf someone outbids me, my ETH comes right back — no risk, no lockup.\n\nRoyalties to the community.`,
       });
       setBidInput("");
       setTimeout(() => {
@@ -1195,14 +1196,14 @@ export default function RobinhoodPage() {
           setNftSignedStatus((prev) => ({ ...prev, [idStr]: true }));
           setSharePrompt({
             type: "sign",
-            text: `Just signed my RH Machines NFT on flooor.fun/robinhood 🖊️\n\n${dailySigners + 1} signers sharing today's vault of Ξ${fmtEth(dailyVault)}.\n\nSign daily, earn daily. Royalties to the community.`,
+            text: `Just signed my RH Machines NFT on flooor.fun/robinhood/rhmachines 🖊️\n\n${dailySigners + 1} signers sharing today's vault of Ξ${fmtEth(dailyVault)}.\n\nSign daily, earn daily. Royalties to the community.`,
           });
         } else {
           setNftClaimedStatus((prev) => ({ ...prev, [idStr]: true }));
           const claimedUsd = toUsd(yieldPerSigner);
           setSharePrompt({
             type: "claim",
-            text: `Claimed Ξ${fmtEth(yieldPerSigner)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun/robinhood 💰\n\nMy Robinhood NFT earns yield every single day — no lockup, no transfer.`,
+            text: `Claimed Ξ${fmtEth(yieldPerSigner)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun/robinhood/rhmachines 💰\n\nMy Robinhood NFT earns yield every single day — no lockup, no transfer.`,
           });
         }
         setTimeout(() => {
@@ -1238,7 +1239,7 @@ export default function RobinhoodPage() {
           ? "@farcaster /flooor"
           : "@vrnouns";
       const text = `${sharePrompt.text}\n\n${mentions}`;
-      const url = "https://flooor.fun/robinhood";
+      const url = "https://flooor.fun/robinhood/rhmachines";
       setSharePrompt(null);
       if (platform === "farcaster") {
         // Mini app içinde native compose, web'de intent URL
@@ -1313,7 +1314,7 @@ export default function RobinhoodPage() {
         const soldUsd = toUsd(currentBid);
         setSharePrompt({
           type: "sell",
-          text: `Just sold my RH Machines NFT for Ξ${fmtEth(currentBid)}${soldUsd ? ` (${soldUsd})` : ""} on flooor.fun/robinhood 🤝\n\nInstant liquidity, any time. Every sale feeds the vault — distributed to holders daily.`,
+          text: `Just sold my RH Machines NFT for Ξ${fmtEth(currentBid)}${soldUsd ? ` (${soldUsd})` : ""} on flooor.fun/robinhood/rhmachines 🤝\n\nInstant liquidity, any time. Every sale feeds the vault — distributed to holders daily.`,
         });
         setTimeout(() => {
           getCurrentBid();
@@ -1663,7 +1664,7 @@ export default function RobinhoodPage() {
                         : `${isSignPhase ? "Sign Phase" : "Claim Phase"} · Epoch ${phaseInfo ? phaseInfo.eid.toString() : "—"}`}
                     </span>
                     <a
-                      href="https://opensea.io/collection/0x8c71d170fbd94bcba93bb08fc2cfd0e8620cd9ce"
+                      href="https://opensea.io/collection/rhmachines"
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{ ...smallCaps, fontSize: 9 }}
@@ -2174,7 +2175,7 @@ export default function RobinhoodPage() {
                 RH Machines Market
               </a>
               <a
-                href="https://opensea.io/collection/0x8c71d170fbd94bcba93bb08fc2cfd0e8620cd9ce"
+                href="https://opensea.io/collection/rhmachines"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm hover:opacity-70 transition-colors"
@@ -2222,7 +2223,7 @@ export default function RobinhoodPage() {
           style={{ borderTop: `1px solid ${HAIRLINE}` }}
         >
           <p className="text-xs" style={{ color: FAINT }}>
-            © flooor.fun · CC0 Licensed · Live on Robinhood Chain
+            © flooor.fun · CC0 Licensed · Front-end v{FRONTEND_VERSION} · Contract v2.0 · Live on Robinhood Chain
           </p>
         </div>
       </footer>
