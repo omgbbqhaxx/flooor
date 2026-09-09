@@ -1,6 +1,6 @@
     // SPDX-License-Identifier: MIT
     pragma solidity ^0.8.34;
-    // 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73 ROBINHOOD CHAIN (chainId 4663) WETH — constructor arg (_weth); deployed at 0xe43963dc6b4cdc6f860119e70332bb317f4f2cbc
+    // 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73 ROBINHOOD CHAIN (chainId 4663) WETH — constructor arg (_weth)
 
     interface IERC721Like {
         function safeTransferFrom(address from, address to, uint256 tokenId) external;
@@ -21,14 +21,14 @@
         function transfer(address to, uint256 amount) external returns (bool);
     }
 
-    contract flooordotfunronks {
+    contract flooordotfunrhmaxhines {
         address payable private owner;
         bool private locked;
         address public immutable WETH;
         modifier onlyOwner(){ require(msg.sender==owner,"owner"); _; }
         uint256 public  constant rBLOCKS   = 1440 minutes;
         uint256 public constant sDURATION  = 960 minutes;
-        address public constant collectionId = 0x9b368Ea7e4E614C56cB29C2dC12049201Dc4db15;
+        address public constant collectionId = 0x8C71D170fBd94BCba93bB08FC2CFD0e8620cD9cE;
         IERC721Like private constant nft = IERC721Like(collectionId);
         uint256 public minbidAM  = 10**8;
         uint256 public activebidAM;
