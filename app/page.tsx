@@ -2010,8 +2010,8 @@ export default function BetaPage() {
             </div>
           </div>
 
-          {/* Lot details */}
-          <div>
+          {/* Lot details — stretches to the artwork card so both columns end on the same line */}
+          <div className="lg:self-stretch lg:flex lg:flex-col">
             {/* Current bid */}
             <div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
@@ -2248,9 +2248,9 @@ export default function BetaPage() {
               ))}
             </div>
 
-            {/* Daily sign */}
+            {/* Daily sign — pinned to the bottom of the column on desktop */}
             <div
-              className="mt-10 pt-8"
+              className="mt-10 lg:mt-auto pt-8 lg:pt-6"
               style={{ borderTop: `1px solid ${HAIRLINE}` }}
             >
               <button
