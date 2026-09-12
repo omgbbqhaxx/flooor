@@ -254,6 +254,8 @@ const flushPendingChime = () => {
 };
 
 const CONTRACT_ADDR = "0x0c2d41b6896a7dde2641a0fe04165df180c43242" as const;
+// Amazon'un marka turuncusu; sadece "Claim as AMZNc" butonunda
+const AMAZON_ORANGE = "#FF9900";
 const COLLECTION_ADDR = "0x699727F9E01A822EFdcf7333073f0461e5914b4E" as const;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const IS_DEPLOYED = CONTRACT_ADDR.toLowerCase() !== ZERO_ADDRESS;
@@ -2062,18 +2064,31 @@ export default function WarpletsPage() {
                     <button
                       onClick={() => handleBulkSignOrClaim(true)}
                       disabled={bulkButtonDisabled}
-                      className="mt-2 w-full px-12 py-3 transition-colors enabled:hover:bg-black/[0.03]"
+                      className="mt-2 w-full px-12 py-3 flex items-center justify-center gap-2.5 transition-opacity enabled:hover:opacity-85"
                       style={{
                         ...smallCaps,
-                        color: bulkButtonDisabled ? FAINT : INK,
-                        backgroundColor: "transparent",
-                        border: `1px solid ${bulkButtonDisabled ? HAIRLINE : INK}`,
+                        color: bulkButtonDisabled ? FAINT : "#fff",
+                        // Amazon turuncusu — buton hangi hisseye gittiğini renkten söylesin
+                        backgroundColor: bulkButtonDisabled ? IVORY : AMAZON_ORANGE,
+                        border: bulkButtonDisabled ? `1px solid ${HAIRLINE}` : "none",
                         cursor: bulkButtonDisabled ? "not-allowed" : "pointer",
                       }}
                     >
-                      {bulkBusy
-                        ? `${bulkStage || "Working"}…`
-                        : `Claim as ${AMZNC.symbol}${stockQuote !== null ? ` · ≈${formatStock(stockQuote)}` : ""}`}
+                      {/* Amazon gülümsemesi — beyaz, tek çizgi */}
+                      <svg width="26" height="12" viewBox="0 0 26 12" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+                        <path
+                          d="M1.5 3.2C5.2 7.6 12.3 9.6 19.2 8.1c1.6-.35 3.1-.9 4.4-1.55"
+                          stroke="currentColor"
+                          strokeWidth="2.2"
+                          strokeLinecap="round"
+                        />
+                        <path d="M20.6 3.4l3.9 2.9-4.6 1.6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <span>
+                        {bulkBusy
+                          ? `${bulkStage || "Working"}…`
+                          : `Claim as ${AMZNC.symbol}${stockQuote !== null ? ` · ≈${formatStock(stockQuote)}` : ""}`}
+                      </span>
                     </button>
                   )}
                   <p className="mt-3 text-xs" style={{ color: FAINT }}>
