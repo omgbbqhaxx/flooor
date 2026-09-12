@@ -7,6 +7,7 @@ import Footer from "@/app/components/Footer";
 import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
 import { bulkSignOrClaim, supportsAtomicBatch } from "@/app/lib/bulkSignOrClaim";
+import { AMZNC, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
 import { awaitTx } from "@/app/lib/awaitTx";
 import WorkCard from "@/app/components/WorkCard";
 
@@ -369,6 +370,8 @@ export default function WarpletsPage() {
   const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
   const [bulkBusy, setBulkBusy] = useState<boolean>(false);
   const [bulkStage, setBulkStage] = useState<string>("");
+  // "Claim as AMZNc" için ön izleme: bugünkü claim'in tamamı kaç hisse eder
+  const [stockQuote, setStockQuote] = useState<bigint | null>(null);
   const [isBidding, setIsBidding] = useState<boolean>(false);
   const [pendingSendTokenId, setPendingSendTokenId] = useState<bigint | null>(null);
   const [sendAddressInput, setSendAddressInput] = useState("");
@@ -1278,7 +1281,7 @@ export default function WarpletsPage() {
   // Kartlardaki tek tek sign/claim aynen duruyor; bu onların üstüne eklenen
   // toplu yol. Kontrat dizi almadığı için N ayrı signOrClaim çağrısını tek
   // wallet_sendCalls paketine koyuyoruz — tek imza, tek işlem.
-  const handleBulkSignOrClaim = useCallback(async () => {
+  const handleBulkSignOrClaim = useCallback(async (asStock: boolean = false) => {
     if (!IS_DEPLOYED || !address) {
       toast.warning("Please connect your wallet first");
       return;
@@ -1332,6 +1335,24 @@ export default function WarpletsPage() {
       const atomic = await supportsAtomicBatch({ config, account: address, chainId: base.id });
 
       setBulkStage(isSignPhase ? "Signing" : "Claiming");
+      // Hisse olarak claim: claim'lerin getireceği tam ETH'i kontrattan
+      // hesaplayıp o miktar için bir Uniswap swap call'ı paketin sonuna
+      // ekliyoruz. Bir wei fazla istersek paket revert eder, o yüzden
+      // frontend'deki yuvarlanmış "yield per signer" değil, kontratın bölmesi.
+      let trailingCalls: { to: `0x${string}`; data: `0x${string}`; value: bigint }[] = [];
+      let stockOut: bigint | null = null;
+      if (asStock && !isSignPhase) {
+        setBulkStage("Quoting");
+        const share = await exactClaimShare({ config, contract: CONTRACT_ADDR, abi: WARPLETS_ABI, chainId: base.id });
+        const amountIn = share * BigInt(eligible.length);
+        if (amountIn === BigInt(0)) {
+          toast.warning("Nothing to swap — today's share is zero.");
+          return;
+        }
+        stockOut = await quoteStock({ config, chainId: base.id, amountInWei: amountIn });
+        trailingCalls = [buildStockSwapCall({ recipient: address, amountInWei: amountIn, quotedOut: stockOut })];
+      }
+
       const verb = isSignPhase ? "Signing" : "Claiming";
       const outcome = await bulkSignOrClaim({
         config,
@@ -1344,11 +1365,13 @@ export default function WarpletsPage() {
         // Cüzdan batch bilmiyorsa sırayla gidiyor; butonda kaçıncı onayda
         // olduğumuz görünsün ki N popup'ın nedeni anlaşılsın
         onProgress: (done, total) => setBulkStage(`${verb} ${done + 1} of ${total}`),
+        trailingCalls,
         onSequentialFallback: () => {
-          setBulkStage(`${verb} 1 of ${eligible.length}`);
-          if (eligible.length > 1) {
+          const total = eligible.length + trailingCalls.length;
+          setBulkStage(`${verb} 1 of ${total}`);
+          if (total > 1) {
             toast.warning(
-              `MetaMask and older wallets don't support batch transactions — you'll confirm ${eligible.length} transactions one by one.`,
+              `MetaMask and older wallets don't support batch transactions — you'll confirm ${total} transactions one by one.`,
               { duration: 8000 },
             );
           }
@@ -1362,10 +1385,11 @@ export default function WarpletsPage() {
 
       const n = outcome.sequential ? (outcome.done ?? eligible.length) : eligible.length;
       const past = isSignPhase ? "signed" : "claimed";
+      const stockNote = stockOut !== null ? ` — ≈${formatStock(stockOut)} ${AMZNC.symbol} in your wallet` : "";
       toast.success(
         n === 1
-          ? `Warplet ${past}!`
-          : `${n} works ${past}${outcome.sequential ? "" : " in one transaction"}!` +
+          ? `Warplet ${past}${stockNote}!`
+          : `${n} works ${past}${outcome.sequential ? "" : " in one transaction"}${stockNote}!` +
               (skipped > 0 ? ` (${skipped} skipped)` : "") +
               (atomic || outcome.sequential ? "" : " Your wallet ran them one by one — check each card."),
       );
@@ -1381,7 +1405,10 @@ export default function WarpletsPage() {
         const claimedUsd = toUsd(totalEth);
         setSharePrompt({
           type: "claim",
-          text: `Claimed Ξ${fmtEth(totalEth)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun 💰\n\nMy Warplet earns yield every single day — no lockup, no transfer.`,
+          text:
+            stockOut !== null
+              ? `Claimed today's vault share on flooor.fun as ${formatStock(stockOut)} ${AMZNC.symbol} — Amazon stock, onchain on Base 📈\n\nMy Warplet earns yield every single day — no lockup, no transfer.`
+              : `Claimed Ξ${fmtEth(totalEth)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun 💰\n\nMy Warplet earns yield every single day — no lockup, no transfer.`,
         });
       }
 
@@ -1417,6 +1444,22 @@ export default function WarpletsPage() {
     fmtEth,
     toUsd,
   ]);
+
+  // Claim hazırken ikinci seçeneğin altına "≈ X AMZNc" yazabilmek için quote.
+  // Sadece gösterim; gerçek swap miktarı tıklama anında yeniden hesaplanıyor.
+  const stockQuoteEligible = !isSignPhase && bulkEligibleCount > 0 && parseFloat(yieldPerSigner) > 0;
+  useEffect(() => {
+    if (!stockQuoteEligible) {
+      setStockQuote(null);
+      return;
+    }
+    let cancelled = false;
+    const amountIn = parseEther(yieldPerSigner as `${string}`) * BigInt(bulkEligibleCount);
+    quoteStock({ config, chainId: base.id, amountInWei: amountIn })
+      .then((out) => { if (!cancelled) setStockQuote(out); })
+      .catch(() => { if (!cancelled) setStockQuote(null); });
+    return () => { cancelled = true; };
+  }, [config, stockQuoteEligible, yieldPerSigner, bulkEligibleCount]);
 
   // Ana sayfadaki (vrnouns) günlük imza butonunun metin/durum kuralları; tek
   // fark burada "kullanıcı" yerine "cüzdandaki uygun token sayısı" konuşuyor.
@@ -2000,7 +2043,7 @@ export default function WarpletsPage() {
                     her uygun Warplet'i tek onayla (batch) imzalar / claim eder */}
                 <div className="mt-10 pt-8">
                   <button
-                    onClick={handleBulkSignOrClaim}
+                    onClick={() => handleBulkSignOrClaim(false)}
                     disabled={bulkButtonDisabled}
                     className="w-full px-12 py-4 transition-opacity enabled:hover:opacity-85"
                     style={{
@@ -2013,8 +2056,31 @@ export default function WarpletsPage() {
                   >
                     {bulkButtonText}
                   </button>
+                  {/* İkinci claim yolu: aynı paket, sonunda Uniswap swap'ı.
+                      Sadece claim hazırken görünür; sign fazında anlamı yok. */}
+                  {bulkClaimReady && (
+                    <button
+                      onClick={() => handleBulkSignOrClaim(true)}
+                      disabled={bulkButtonDisabled}
+                      className="mt-2 w-full px-12 py-3 transition-colors enabled:hover:bg-black/[0.03]"
+                      style={{
+                        ...smallCaps,
+                        color: bulkButtonDisabled ? FAINT : INK,
+                        backgroundColor: "transparent",
+                        border: `1px solid ${bulkButtonDisabled ? HAIRLINE : INK}`,
+                        cursor: bulkButtonDisabled ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {bulkBusy
+                        ? `${bulkStage || "Working"}…`
+                        : `Claim as ${AMZNC.symbol}${stockQuote !== null ? ` · ≈${formatStock(stockQuote)}` : ""}`}
+                    </button>
+                  )}
                   <p className="mt-3 text-xs" style={{ color: FAINT }}>
-                    Hold Warplets? Daily sign to claim your share of the daily
+                    {bulkClaimReady
+                      ? `Take your share in ETH, or swap it into ${AMZNC.symbol} — tokenized Amazon stock on Base — in the same transaction via Uniswap.`
+                      : ""}
+                    {bulkClaimReady ? " " : ""}Hold Warplets? Daily sign to claim your share of the daily
                     vault — every work in your wallet, one tap. No lockup, no transfer.
                   </p>
                 </div>

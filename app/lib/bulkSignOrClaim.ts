@@ -16,6 +16,7 @@ import {
   waitForCallsStatus,
   waitForTransactionReceipt,
   writeContract,
+  sendTransaction,
 } from "wagmi/actions";
 import type { Config } from "wagmi";
 import { encodeFunctionData, type Abi, type Address, type Hex } from "viem";
@@ -77,22 +78,28 @@ export const bulkSignOrClaim = async (opts: {
   // Cüzdan batch bilmiyor, sıralı yola geçiliyor — N popup gelmeden önce
   // kullanıcıya nedenini söylemek için
   onSequentialFallback?: () => void;
+  // signOrClaim'lerden SONRA koşacak ek call'lar (örn. claim edilen ETH'i
+  // hisseye çeviren swap). Sıralı yedek yolda da aynı sırayla gider.
+  trailingCalls?: readonly { to: Address; data: Hex; value: bigint }[];
 }): Promise<BulkOutcome> => {
-  const { config, contract, abi, tokenIds, account, chainId, dataSuffix, onProgress, onSequentialFallback } = opts;
+  const { config, contract, abi, tokenIds, account, chainId, dataSuffix, onProgress, onSequentialFallback, trailingCalls = [] } = opts;
 
   if (tokenIds.length === 0) {
     return { ok: false, message: "Nothing to do — no eligible works." };
   }
 
   const suffix = dataSuffix ? dataSuffix.slice(2) : "";
-  const calls = tokenIds.map((tokenId) => ({
-    to: contract,
-    data: (encodeFunctionData({
-      abi: abi as Abi,
-      functionName: "signOrClaim",
-      args: [tokenId],
-    }) + suffix) as Hex,
-  }));
+  const calls = [
+    ...tokenIds.map((tokenId) => ({
+      to: contract,
+      data: (encodeFunctionData({
+        abi: abi as Abi,
+        functionName: "signOrClaim",
+        args: [tokenId],
+      }) + suffix) as Hex,
+    })),
+    ...trailingCalls,
+  ];
 
   let id: string;
   try {
@@ -108,6 +115,7 @@ export const bulkSignOrClaim = async (opts: {
     // sürüklemesin. Kullanıcı ortada iptal ederse o ana kadar geçenler
     // zincirde kalır — çağıran taraf durumu zincirden yeniden okuyor.
     onSequentialFallback?.();
+    const total = tokenIds.length + trailingCalls.length;
     let done = 0;
     for (const tokenId of tokenIds) {
       const hash = await writeContract(config, {
@@ -125,14 +133,26 @@ export const bulkSignOrClaim = async (opts: {
           ok: false,
           message:
             done > 0
-              ? `Transaction ${done + 1} of ${tokenIds.length} reverted — the first ${done} went through.`
+              ? `Transaction ${done + 1} of ${total} reverted — the first ${done} went through.`
               : "The transaction reverted on-chain — nothing was changed.",
         };
       }
       done += 1;
-      onProgress?.(done, tokenIds.length);
+      onProgress?.(done, total);
     }
-    return { ok: true, sequential: true, done };
+    for (const call of trailingCalls) {
+      const hash = await sendTransaction(config, { account, chainId, ...call });
+      const receipt = await waitForTransactionReceipt(config, { hash, chainId });
+      if (receipt.status !== "success") {
+        return {
+          ok: false,
+          message: `Your claim went through, but the swap reverted — the ETH is in your wallet.`,
+        };
+      }
+      done += 1;
+      onProgress?.(done, total);
+    }
+    return { ok: true, sequential: true, done: tokenIds.length };
   }
 
   // Paket kabul edildi ≠ zincirde başarılı. Tek tek akışta awaitTx ne yapıyorsa
