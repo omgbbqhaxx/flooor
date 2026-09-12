@@ -1963,8 +1963,8 @@ export default function BetaPage() {
                     <Image
                       src="/amznc-promo.jpg"
                       alt="Claim AMZNc for 1 week as a VRNouns holder"
-                      width={1400}
-                      height={896}
+                      width={933}
+                      height={1400}
                       priority
                       className="w-full h-auto"
                     />
