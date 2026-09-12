@@ -74,8 +74,11 @@ export const bulkSignOrClaim = async (opts: {
   dataSuffix?: Hex;
   // Sıralı yedek yolda her onaydan sonra çağrılır (kaç bitti / toplam)
   onProgress?: (done: number, total: number) => void;
+  // Cüzdan batch bilmiyor, sıralı yola geçiliyor — N popup gelmeden önce
+  // kullanıcıya nedenini söylemek için
+  onSequentialFallback?: () => void;
 }): Promise<BulkOutcome> => {
-  const { config, contract, abi, tokenIds, account, chainId, dataSuffix, onProgress } = opts;
+  const { config, contract, abi, tokenIds, account, chainId, dataSuffix, onProgress, onSequentialFallback } = opts;
 
   if (tokenIds.length === 0) {
     return { ok: false, message: "Nothing to do — no eligible works." };
@@ -104,6 +107,7 @@ export const bulkSignOrClaim = async (opts: {
     // nonce sırası bozulmasın ve iptal edilen bir tanesi geri kalanı
     // sürüklemesin. Kullanıcı ortada iptal ederse o ana kadar geçenler
     // zincirde kalır — çağıran taraf durumu zincirden yeniden okuyor.
+    onSequentialFallback?.();
     let done = 0;
     for (const tokenId of tokenIds) {
       const hash = await writeContract(config, {

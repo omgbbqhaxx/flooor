@@ -1344,6 +1344,15 @@ export default function WarpletsPage() {
         // Cüzdan batch bilmiyorsa sırayla gidiyor; butonda kaçıncı onayda
         // olduğumuz görünsün ki N popup'ın nedeni anlaşılsın
         onProgress: (done, total) => setBulkStage(`${verb} ${done + 1} of ${total}`),
+        onSequentialFallback: () => {
+          setBulkStage(`${verb} 1 of ${eligible.length}`);
+          if (eligible.length > 1) {
+            toast.warning(
+              `MetaMask and older wallets don't support batch transactions — you'll confirm ${eligible.length} transactions one by one.`,
+              { duration: 8000 },
+            );
+          }
+        },
       });
 
       if (!outcome.ok) {
