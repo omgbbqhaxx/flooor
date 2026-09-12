@@ -6,10 +6,11 @@ import { FAINT, GOLD, GREEN, HAIRLINE, INK, IVORY, MUTED, PLINTH, SANS, SERIF, s
 import Footer from "@/app/components/Footer";
 import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
+import { bulkSignOrClaim, supportsAtomicBatch } from "@/app/lib/bulkSignOrClaim";
 import { awaitTx } from "@/app/lib/awaitTx";
 import WorkCard from "@/app/components/WorkCard";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useConfig, useAccount, useSwitchChain } from "wagmi";
 import { writeContract, readContract, getBalance, getPublicClient } from "wagmi/actions";
 import { base } from "wagmi/chains";
@@ -366,6 +367,8 @@ export default function WarpletsPage() {
   const [nftSignedStatus, setNftSignedStatus] = useState<{ [key: string]: boolean }>({});
   const [nftClaimedStatus, setNftClaimedStatus] = useState<{ [key: string]: boolean }>({});
   const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
+  const [bulkBusy, setBulkBusy] = useState<boolean>(false);
+  const [bulkStage, setBulkStage] = useState<string>("");
   const [isBidding, setIsBidding] = useState<boolean>(false);
   const [pendingSendTokenId, setPendingSendTokenId] = useState<bigint | null>(null);
   const [sendAddressInput, setSendAddressInput] = useState("");
@@ -1258,6 +1261,128 @@ export default function WarpletsPage() {
     [config, ensureBase, address, isSignPhase, checkSignClaimStatus, getPhaseInfo, getDailyVault, dailySigners, dailyVault, yieldPerSigner, fmtEth, toUsd],
   );
 
+  // Butonun sayısı ile handler'ın işlediği küme aynı kaynaktan gelsin diye
+  // uygunluk kuralı tek yerde: faz neyse ona göre filtre.
+  const bulkEligible = useMemo(
+    () =>
+      userNFTs.filter((tokenId) => {
+        const id = tokenId.toString();
+        const signed = nftSignedStatus[id] === true;
+        const claimed = nftClaimedStatus[id] === true;
+        return isSignPhase ? !signed : signed && !claimed;
+      }),
+    [userNFTs, nftSignedStatus, nftClaimedStatus, isSignPhase],
+  );
+  const bulkEligibleCount = bulkEligible.length;
+
+  // Kartlardaki tek tek sign/claim aynen duruyor; bu onların üstüne eklenen
+  // toplu yol. Kontrat dizi almadığı için N ayrı signOrClaim çağrısını tek
+  // wallet_sendCalls paketine koyuyoruz — tek imza, tek işlem.
+  const handleBulkSignOrClaim = useCallback(async () => {
+    if (!IS_DEPLOYED || !address) {
+      toast.warning("Please connect your wallet first");
+      return;
+    }
+
+    const candidates = bulkEligible;
+
+    if (candidates.length === 0) {
+      toast.info(isSignPhase ? "Every work is already signed." : "Nothing left to claim.");
+      return;
+    }
+
+    setBulkBusy(true);
+    try {
+      await ensureBase();
+
+      // Pakete koymadan önce her token'ı ayrı ayrı simüle ediyoruz. Tek bir
+      // uygunsuz token — örneğin o epoch'ta zaten imzalanmış biri — atomik
+      // pakette hepsini geri sardırır. Elemeyi burada yapıp sadece geçenleri
+      // gönderiyoruz.
+      setBulkStage("Checking");
+      const checks = await Promise.all(
+        candidates.map(async (tokenId) => ({
+          tokenId,
+          guard: await guardSignOrClaim({
+            config,
+            contract: CONTRACT_ADDR,
+            abi: WARPLETS_ABI,
+            tokenId,
+            account: address,
+            chainId: base.id,
+          }),
+        })),
+      );
+      const eligible = checks.filter((c) => c.guard.ok).map((c) => c.tokenId);
+      const skipped = checks.length - eligible.length;
+
+      if (eligible.length === 0) {
+        const first = checks.find((c) => !c.guard.ok);
+        toast.warning(
+          first && !first.guard.ok
+            ? first.guard.message
+            : "None of these works can be processed right now.",
+          { duration: 6000 },
+        );
+        return;
+      }
+
+      // Atomik değilse paket yarıda kalabilir; engellemiyoruz ama kullanıcı
+      // bunu önceden bilsin.
+      const atomic = await supportsAtomicBatch({ config, account: address, chainId: base.id });
+
+      setBulkStage(isSignPhase ? "Signing" : "Claiming");
+      const outcome = await bulkSignOrClaim({
+        config,
+        contract: CONTRACT_ADDR,
+        abi: WARPLETS_ABI,
+        tokenIds: eligible,
+        account: address,
+        chainId: base.id,
+        dataSuffix: DATA_SUFFIX,
+      });
+
+      if (!outcome.ok) {
+        toast.error(outcome.message, { duration: 6000 });
+        return;
+      }
+
+      toast.success(
+        `${eligible.length} ${eligible.length === 1 ? "work" : "works"} ${isSignPhase ? "signed" : "claimed"} in one transaction!` +
+          (skipped > 0 ? ` (${skipped} skipped)` : "") +
+          (atomic ? "" : " Your wallet ran them one by one — check each card."),
+      );
+      playChime();
+      fireConfetti();
+
+      // Ekrandaki durumu tahmin etmiyoruz: atomik olmayan cüzdanda paketin bir
+      // kısmı geçmiş olabilir, doğru cevap zincirde.
+      setBulkStage("");
+      checkSignClaimStatus();
+      getPhaseInfo();
+      getDailyVault();
+    } catch (error) {
+      if (isUserRejectedError(error)) {
+        toast.info("Transaction cancelled.");
+        return;
+      }
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      toast.error(`Bulk ${isSignPhase ? "sign" : "claim"} failed: ${errorMessage}`, { duration: 5000 });
+    } finally {
+      setBulkBusy(false);
+      setBulkStage("");
+    }
+  }, [
+    config,
+    address,
+    ensureBase,
+    bulkEligible,
+    isSignPhase,
+    checkSignClaimStatus,
+    getPhaseInfo,
+    getDailyVault,
+  ]);
+
   const handleShare = useCallback(
     async (platform: "x" | "farcaster") => {
       if (!sharePrompt) return;
@@ -1835,6 +1960,32 @@ export default function WarpletsPage() {
             <p className="mt-2 text-sm" style={{ color: MUTED }}>
               Sign daily from each card below, or tap More to send or sell.
             </p>
+
+            {/* Kartlardaki tek tek imza aynen duruyor; bu sadece hepsini tek
+                imzaya indiren kısa yol. Uygun iş yoksa hiç görünmüyor. */}
+            {address && bulkEligibleCount > 1 && (
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={handleBulkSignOrClaim}
+                  disabled={bulkBusy}
+                  className="px-6 py-3 whitespace-nowrap transition-opacity hover:opacity-80 disabled:hover:opacity-100"
+                  style={{
+                    ...smallCaps,
+                    color: "#fff",
+                    backgroundColor: INK,
+                    opacity: bulkBusy ? 0.6 : 1,
+                    cursor: bulkBusy ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {bulkBusy
+                    ? `${bulkStage || "Working"}…`
+                    : `${isSignPhase ? "Sign" : "Claim"} all ${bulkEligibleCount} in one tx`}
+                </button>
+                <span className="text-xs" style={{ color: FAINT }}>
+                  One signature, one transaction.
+                </span>
+              </div>
+            )}
 
             {!address ? (
               <div className="mt-8 py-14 text-center" style={{ border: `1px solid ${HAIRLINE}` }}>
