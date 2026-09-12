@@ -1332,6 +1332,7 @@ export default function WarpletsPage() {
       const atomic = await supportsAtomicBatch({ config, account: address, chainId: base.id });
 
       setBulkStage(isSignPhase ? "Signing" : "Claiming");
+      const verb = isSignPhase ? "Signing" : "Claiming";
       const outcome = await bulkSignOrClaim({
         config,
         contract: CONTRACT_ADDR,
@@ -1340,6 +1341,9 @@ export default function WarpletsPage() {
         account: address,
         chainId: base.id,
         dataSuffix: DATA_SUFFIX,
+        // Cüzdan batch bilmiyorsa sırayla gidiyor; butonda kaçıncı onayda
+        // olduğumuz görünsün ki N popup'ın nedeni anlaşılsın
+        onProgress: (done, total) => setBulkStage(`${verb} ${done + 1} of ${total}`),
       });
 
       if (!outcome.ok) {
@@ -1347,13 +1351,30 @@ export default function WarpletsPage() {
         return;
       }
 
+      const n = outcome.sequential ? (outcome.done ?? eligible.length) : eligible.length;
+      const past = isSignPhase ? "signed" : "claimed";
       toast.success(
-        `${eligible.length} ${eligible.length === 1 ? "work" : "works"} ${isSignPhase ? "signed" : "claimed"} in one transaction!` +
-          (skipped > 0 ? ` (${skipped} skipped)` : "") +
-          (atomic ? "" : " Your wallet ran them one by one — check each card."),
+        n === 1
+          ? `Warplet ${past}!`
+          : `${n} works ${past}${outcome.sequential ? "" : " in one transaction"}!` +
+              (skipped > 0 ? ` (${skipped} skipped)` : "") +
+              (atomic || outcome.sequential ? "" : " Your wallet ran them one by one — check each card."),
       );
       playChime();
       fireConfetti();
+      if (isSignPhase) {
+        setSharePrompt({
+          type: "sign",
+          text: `Just signed my Warplet on flooor.fun 🖊️\n\n${dailySigners + n} signers sharing today's vault of Ξ${fmtEth(dailyVault)}.\n\nSign daily, earn daily. Royalties to the community.`,
+        });
+      } else {
+        const totalEth = String((parseFloat(yieldPerSigner) || 0) * n);
+        const claimedUsd = toUsd(totalEth);
+        setSharePrompt({
+          type: "claim",
+          text: `Claimed Ξ${fmtEth(totalEth)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun 💰\n\nMy Warplet earns yield every single day — no lockup, no transfer.`,
+        });
+      }
 
       // Ekrandaki durumu tahmin etmiyoruz: atomik olmayan cüzdanda paketin bir
       // kısmı geçmiş olabilir, doğru cevap zincirde.
@@ -1381,7 +1402,38 @@ export default function WarpletsPage() {
     checkSignClaimStatus,
     getPhaseInfo,
     getDailyVault,
+    dailySigners,
+    dailyVault,
+    yieldPerSigner,
+    fmtEth,
+    toUsd,
   ]);
+
+  // Ana sayfadaki (vrnouns) günlük imza butonunun metin/durum kuralları; tek
+  // fark burada "kullanıcı" yerine "cüzdandaki uygun token sayısı" konuşuyor.
+  const allSigned = userNFTs.length > 0 && userNFTs.every((t) => nftSignedStatus[t.toString()] === true);
+  const allClaimed = userNFTs.length > 0 && userNFTs.every((t) => nftClaimedStatus[t.toString()] === true);
+  const bulkEarnUsd = toUsd(String((parseFloat(yieldPerSigner) || 0) * Math.max(bulkEligibleCount, 1))) ?? "$0.00";
+  const bulkButtonDisabled =
+    !IS_DEPLOYED || !phaseInfo || !address || bulkBusy || bulkEligibleCount === 0 ||
+    (isSignPhase && allSigned && remainingTimeDisplay < 30);
+  const bulkButtonText = (() => {
+    if (bulkBusy) return `${bulkStage || "Working"}…`;
+    if (!phaseInfo || !address || userNFTs.length === 0) return `Daily Sign · Earn ${bulkEarnUsd}`;
+    if (isSignPhase) {
+      if (bulkEligibleCount > 0)
+        return bulkEligibleCount > 1
+          ? `Sign all ${bulkEligibleCount} · Earn ${bulkEarnUsd}`
+          : `Daily Sign · Earn ${bulkEarnUsd}`;
+      if (remainingTimeDisplay < 60) return "Refreshing...";
+      return `Claim opens ${formatTimeRemaining(remainingTimeDisplay)}`;
+    }
+    if (bulkEligibleCount > 0)
+      return bulkEligibleCount > 1 ? `Claim all ${bulkEligibleCount} · ${bulkEarnUsd}` : `Claim ${bulkEarnUsd}`;
+    if (allClaimed) return `Next sign ${formatTimeRemaining(remainingTimeDisplay)}`;
+    return `Sign ended ${formatTimeRemaining(remainingTimeDisplay)}`;
+  })();
+  const bulkClaimReady = !isSignPhase && bulkEligibleCount > 0;
 
   const handleShare = useCallback(
     async (platform: "x" | "farcaster") => {
@@ -1934,6 +1986,29 @@ export default function WarpletsPage() {
                   {/* Son satırın (Projected APR) altını kapatan çizgi */}
                   <div style={{ borderTop: `1px solid ${HAIRLINE}` }} />
                 </div>
+
+                {/* Daily sign — ana sayfadaki butonun aynısı; burada cüzdandaki
+                    her uygun Warplet'i tek onayla (batch) imzalar / claim eder */}
+                <div className="mt-10 pt-8">
+                  <button
+                    onClick={handleBulkSignOrClaim}
+                    disabled={bulkButtonDisabled}
+                    className="w-full px-12 py-4 transition-opacity enabled:hover:opacity-85"
+                    style={{
+                      ...smallCaps,
+                      color: bulkButtonDisabled ? FAINT : "#fff",
+                      backgroundColor: bulkButtonDisabled ? IVORY : bulkClaimReady ? GREEN : INK,
+                      border: bulkButtonDisabled ? `1px solid ${HAIRLINE}` : "none",
+                      cursor: bulkButtonDisabled ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {bulkButtonText}
+                  </button>
+                  <p className="mt-3 text-xs" style={{ color: FAINT }}>
+                    Hold Warplets? Sign in today to claim your share of the daily
+                    vault — every work in your wallet, one tap. No lockup, no transfer.
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -1960,32 +2035,6 @@ export default function WarpletsPage() {
             <p className="mt-2 text-sm" style={{ color: MUTED }}>
               Sign daily from each card below, or tap More to send or sell.
             </p>
-
-            {/* Kartlardaki tek tek imza aynen duruyor; bu sadece hepsini tek
-                imzaya indiren kısa yol. Uygun iş yoksa hiç görünmüyor. */}
-            {address && bulkEligibleCount > 1 && (
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                <button
-                  onClick={handleBulkSignOrClaim}
-                  disabled={bulkBusy}
-                  className="px-6 py-3 whitespace-nowrap transition-opacity hover:opacity-80 disabled:hover:opacity-100"
-                  style={{
-                    ...smallCaps,
-                    color: "#fff",
-                    backgroundColor: INK,
-                    opacity: bulkBusy ? 0.6 : 1,
-                    cursor: bulkBusy ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {bulkBusy
-                    ? `${bulkStage || "Working"}…`
-                    : `${isSignPhase ? "Sign" : "Claim"} all ${bulkEligibleCount} in one tx`}
-                </button>
-                <span className="text-xs" style={{ color: FAINT }}>
-                  One signature, one transaction.
-                </span>
-              </div>
-            )}
 
             {!address ? (
               <div className="mt-8 py-14 text-center" style={{ border: `1px solid ${HAIRLINE}` }}>
