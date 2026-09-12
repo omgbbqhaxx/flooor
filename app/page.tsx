@@ -2274,7 +2274,7 @@ export default function BetaPage() {
                 {getSignButtonText()}
               </button>
               <p className="mt-3 text-xs" style={{ color: FAINT }}>
-                Hold a VRNouns NFT? Sign in today to claim your share of the
+                Hold a VRNouns NFT? Daily sign to claim your share of the
                 daily vault. No lockup, no transfer.
               </p>
             </div>

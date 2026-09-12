@@ -2005,7 +2005,7 @@ export default function WarpletsPage() {
                     {bulkButtonText}
                   </button>
                   <p className="mt-3 text-xs" style={{ color: FAINT }}>
-                    Hold Warplets? Sign in today to claim your share of the daily
+                    Hold Warplets? Daily sign to claim your share of the daily
                     vault — every work in your wallet, one tap. No lockup, no transfer.
                   </p>
                 </div>
