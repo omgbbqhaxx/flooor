@@ -1955,6 +1955,21 @@ export default function BetaPage() {
                         >
                           Market Cap {marketCapDisplay} · {marketCapEthDisplay}
                         </span>
+                        {/* AMZNc kampanya kartı — sağ alt köşe, eserin küçük bir
+                            kısmını kapatacak kadar; mcap rozetiyle aynı hizada */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src="/amznc-promo.jpg"
+                          alt="Claim AMZNc for 1 week as a VRNouns holder"
+                          style={{
+                            width: "34%",
+                            maxWidth: 190,
+                            height: "auto",
+                            display: "block",
+                            border: "1px solid rgba(255,255,255,0.22)",
+                            boxShadow: "0 2px 10px rgba(5,12,28,0.35)",
+                          }}
+                        />
                       </div>
                     }
                   >
