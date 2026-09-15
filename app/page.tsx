@@ -113,9 +113,13 @@ import NFT_ABI from "@/app/abi/nft.json";
 import { MINIMUM_BID_FOR_SELL } from "@/app/lib/minBid";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
 import { awaitTx } from "@/app/lib/awaitTx";
+import { bulkSignOrClaim } from "@/app/lib/bulkSignOrClaim";
+import { AMZNC, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
 
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
+// Amazon'un marka turuncusu; sadece "Claim as AMZNc" butonunda
+const AMAZON_ORANGE = "#FF9900";
 
 // Market cap hesabında kullanılan koleksiyon toplam arzı (mint edilmiş adet değil)
 const COLLECTION_TOTAL_SUPPLY = 5000;
@@ -375,6 +379,10 @@ export default function BetaPage() {
   const [sendAddressInput, setSendAddressInput] = useState("");
   const [sendAddressError, setSendAddressError] = useState(false);
   const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
+  // "Claim as AMZNc" için ön izleme: bugünkü claim kaç hisse eder
+  const [stockQuote, setStockQuote] = useState<bigint | null>(null);
+  // Hisse claim'i sırasında butonda gösterilen aşama ("Quoting", "Claiming")
+  const [stockStage, setStockStage] = useState<string>("");
   const [isBidding, setIsBidding] = useState<boolean>(false);
   const [sharePrompt, setSharePrompt] = useState<{
     type: "sign" | "claim" | "bid" | "sell";
@@ -1603,7 +1611,7 @@ export default function BetaPage() {
     if (tokenId !== null) handleSendNFT(tokenId, to as Address);
   }, [pendingSendTokenId, sendAddressInput, handleSendNFT]);
 
-  const handleSign = useCallback(async () => {
+  const handleSign = useCallback(async (asStock: boolean = false) => {
     if (!address) {
       toast.warning("Please connect your wallet first");
       return;
@@ -1644,18 +1652,55 @@ export default function BetaPage() {
         toast.warning(guard.message, { duration: 6000 });
         return;
       }
-      const txHash = await writeContract(config, {
-        address: CONTRACT_ADDR,
-        abi: MARKET_ABI,
-        functionName: "signOrClaim",
-        args: [tokenId],
-        // Simulasyon bu hesapla dogrulandi — gonderim de ayni hesaptan olmali.
-        // Pinlenmezse cuzdan baska bir hesaptan imzalayip "Not owner" alabiliyor.
-        account: address,
-        dataSuffix: DATA_SUFFIX,
-      });
-      // Hash ≠ onay: iptal/revert'te başarı akışı (share, konfeti) çalışmasın
-      if (!(await awaitTx(config, txHash, base.id))) return;
+      // Hisse olarak claim (Warplets'teki akışın tek token'lık hali): claim'in
+      // getireceği tam ETH'i kontrattan hesaplayıp o miktar için bir Uniswap
+      // swap call'ını aynı wallet_sendCalls paketinin sonuna ekliyoruz.
+      // Bir wei fazla istersek paket revert eder — frontend'in yuvarlanmış
+      // yield değeri değil, kontratın bölmesi kullanılıyor.
+      let stockOut: bigint | null = null;
+      if (asStock && !isSignPhase) {
+        setStockStage("Quoting");
+        const share = await exactClaimShare({ config, contract: CONTRACT_ADDR, abi: MARKET_ABI, chainId: base.id });
+        if (share === BigInt(0)) {
+          toast.warning("Nothing to swap — today's share is zero.");
+          return;
+        }
+        stockOut = await quoteStock({ config, chainId: base.id, amountInWei: share });
+        setStockStage("Claiming");
+        const outcome = await bulkSignOrClaim({
+          config,
+          contract: CONTRACT_ADDR,
+          abi: MARKET_ABI,
+          tokenIds: [tokenId],
+          account: address,
+          chainId: base.id,
+          dataSuffix: DATA_SUFFIX,
+          trailingCalls: [buildStockSwapCall({ recipient: address, amountInWei: share, quotedOut: stockOut })],
+          onSequentialFallback: () => {
+            toast.warning(
+              "MetaMask and older wallets don't support batch transactions — you'll confirm the claim and the swap one by one.",
+              { duration: 8000 },
+            );
+          },
+        });
+        if (!outcome.ok) {
+          toast.error(outcome.message, { duration: 6000 });
+          return;
+        }
+      } else {
+        const txHash = await writeContract(config, {
+          address: CONTRACT_ADDR,
+          abi: MARKET_ABI,
+          functionName: "signOrClaim",
+          args: [tokenId],
+          // Simulasyon bu hesapla dogrulandi — gonderim de ayni hesaptan olmali.
+          // Pinlenmezse cuzdan baska bir hesaptan imzalayip "Not owner" alabiliyor.
+          account: address,
+          dataSuffix: DATA_SUFFIX,
+        });
+        // Hash ≠ onay: iptal/revert'te başarı akışı (share, konfeti) çalışmasın
+        if (!(await awaitTx(config, txHash, base.id))) return;
+      }
       playChime();
       fireConfetti();
       if (isSignPhase) {
@@ -1667,11 +1712,18 @@ export default function BetaPage() {
         });
       } else {
         setUserHasClaimed(true);
-        toast.success("Claim successful!");
+        toast.success(
+          stockOut !== null
+            ? `Claimed — ≈${formatStock(stockOut)} ${AMZNC.symbol} in your wallet!`
+            : "Claim successful!",
+        );
         const claimedUsd = toUsd(yieldPerNFT);
         setSharePrompt({
           type: "claim",
-          text: `Claimed Ξ${fmtEth(yieldPerNFT)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun 💰\n\nMy VRNoun earns yield every single day — no lockup, no transfer.`,
+          text:
+            stockOut !== null
+              ? `Claimed today's vault share on flooor.fun as ${formatStock(stockOut)} ${AMZNC.symbol} — Amazon stock, onchain on Base 📈\n\nMy VRNoun earns yield every single day — no lockup, no transfer.`
+              : `Claimed Ξ${fmtEth(yieldPerNFT)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun 💰\n\nMy VRNoun earns yield every single day — no lockup, no transfer.`,
         });
       }
       setTimeout(() => {
@@ -1687,8 +1739,10 @@ export default function BetaPage() {
         error instanceof Error ? error.message : String(error);
       toast.error(`Sign/Claim failed: ${errorMessage}`, {
         duration: 5000,
-        action: { label: "Retry", onClick: () => handleSign() },
+        action: { label: "Retry", onClick: () => handleSign(asStock) },
       });
+    } finally {
+      setStockStage("");
     }
   }, [
     config,
@@ -1704,6 +1758,26 @@ export default function BetaPage() {
     toUsd,
   ]);
 
+  // Claim hazırken ikinci seçeneğin altına "≈ X AMZNc" yazabilmek için quote.
+  // Sadece gösterim; gerçek swap miktarı tıklama anında yeniden hesaplanıyor.
+  const stockQuoteEligible =
+    !!phaseInfo &&
+    !phaseInfo.currentPhase.toLowerCase().includes("sign") &&
+    userHasSigned &&
+    !userHasClaimed &&
+    parseFloat(yieldPerNFT) > 0;
+  useEffect(() => {
+    if (!stockQuoteEligible) {
+      setStockQuote(null);
+      return;
+    }
+    let cancelled = false;
+    quoteStock({ config, chainId: base.id, amountInWei: parseEther(yieldPerNFT as `${string}`) })
+      .then((out) => { if (!cancelled) setStockQuote(out); })
+      .catch(() => { if (!cancelled) setStockQuote(null); });
+    return () => { cancelled = true; };
+  }, [config, stockQuoteEligible, yieldPerNFT]);
+
   const handleShare = useCallback(
     async (platform: "x" | "farcaster") => {
       if (!sharePrompt) return;
@@ -1712,7 +1786,7 @@ export default function BetaPage() {
       const mentions =
         platform === "farcaster"
           ? "@farcaster /flooor"
-          : "@vrnouns @base @baseapp";
+          : "@vrnouns @base @CoinbaseWallet";
       const text = `${sharePrompt.text}\n\n${mentions}`;
       const url = "https://flooor.fun";
       setSharePrompt(null);
@@ -1963,8 +2037,8 @@ export default function BetaPage() {
                     <Image
                       src="/amznc-promo.jpg"
                       alt="Claim AMZNc for 1 week as a VRNouns holder"
-                      width={933}
-                      height={1400}
+                      width={1122}
+                      height={1402}
                       priority
                       className="w-full h-auto"
                     />
@@ -2256,7 +2330,7 @@ export default function BetaPage() {
               style={{ borderTop: `1px solid ${HAIRLINE}` }}
             >
               <button
-                onClick={handleSign}
+                onClick={() => handleSign(false)}
                 disabled={isSignButtonDisabled()}
                 className="w-full px-12 py-4 transition-opacity enabled:hover:opacity-85"
                 style={{
@@ -2275,7 +2349,43 @@ export default function BetaPage() {
               >
                 {getSignButtonText()}
               </button>
+              {/* İkinci claim yolu: aynı paket, sonunda Uniswap swap'ı.
+                  Sadece claim hazırken görünür; sign fazında anlamı yok. */}
+              {isClaimReady && (
+                <button
+                  onClick={() => handleSign(true)}
+                  disabled={isSignButtonDisabled() || stockStage !== ""}
+                  className="mt-2 w-full px-12 py-3 flex items-center justify-center gap-2.5 transition-opacity enabled:hover:opacity-85"
+                  style={{
+                    ...smallCaps,
+                    color: isSignButtonDisabled() ? FAINT : "#fff",
+                    // Amazon turuncusu — buton hangi hisseye gittiğini renkten söylesin
+                    backgroundColor: isSignButtonDisabled() ? IVORY : AMAZON_ORANGE,
+                    border: isSignButtonDisabled() ? `1px solid ${HAIRLINE}` : "none",
+                    cursor: isSignButtonDisabled() ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {/* Amazon gülümsemesi — beyaz, tek çizgi */}
+                  <svg width="26" height="12" viewBox="0 0 26 12" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+                    <path
+                      d="M1.5 3.2C5.2 7.6 12.3 9.6 19.2 8.1c1.6-.35 3.1-.9 4.4-1.55"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                    />
+                    <path d="M20.6 3.4l3.9 2.9-4.6 1.6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <span>
+                    {stockStage
+                      ? `${stockStage}…`
+                      : `Claim as ${AMZNC.symbol}${stockQuote !== null ? ` · ≈${formatStock(stockQuote)}` : ""}`}
+                  </span>
+                </button>
+              )}
               <p className="mt-3 text-xs" style={{ color: FAINT }}>
+                {isClaimReady
+                  ? `Take your share in ETH, or swap it into ${AMZNC.symbol} — tokenized Amazon stock on Base — in the same transaction via Uniswap. `
+                  : ""}
                 Hold a VRNouns NFT? Daily sign to claim your share of the
                 daily vault. No lockup, no transfer.
               </p>
@@ -2356,7 +2466,7 @@ export default function BetaPage() {
                           ? "ready"
                           : "default"
                     }
-                    onPrimaryClick={handleSign}
+                    onPrimaryClick={() => handleSign(false)}
                     isExpanded={isExpanded}
                     onToggleExpand={() => toggleCardExpanded(tokenId)}
                     busy={busy || nftLoadingStatus[tokenIdStr] === true}

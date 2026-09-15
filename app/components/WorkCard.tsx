@@ -246,7 +246,9 @@ export default function WorkCard({
 
       <div className="p-3.5 flex flex-col flex-1">
         {/* Title */}
-        <p style={{ ...SERIF, fontWeight: 500, fontSize: 19 }}>
+        {/* Kart her zaman açık zeminde; koyu temalı sayfalarda (Robinhood)
+            body rengini miras almasın diye INK açıkça veriliyor */}
+        <p style={{ ...SERIF, fontWeight: 500, fontSize: 19, color: INK }}>
           {itemName} #{tokenIdStr}
         </p>
 

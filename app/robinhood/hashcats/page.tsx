@@ -2,17 +2,17 @@
 
 import { toast } from "sonner";
 import SiteHeader from "@/app/components/SiteHeader";
-import { FAINT, GOLD, GREEN, HAIRLINE, INK, IVORY, MUTED, PLINTH, SANS, SERIF, smallCaps } from "@/app/lib/theme";
-import Footer from "@/app/components/Footer";
-import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
-import { guardSignOrClaim } from "@/app/lib/signGuard";
-import { awaitTx } from "@/app/lib/awaitTx";
+import { DARK, SANS, SERIF, smallCapsFor } from "@/app/lib/theme";
+const { FAINT, GOLD, GREEN, HAIRLINE, INK, IVORY, MUTED, PLINTH } = DARK;
+const smallCaps = smallCapsFor(DARK.MUTED);
 import WorkCard from "@/app/components/WorkCard";
+import Link from "next/link";
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useConfig, useAccount, useSwitchChain } from "wagmi";
 import { writeContract, readContract, getBalance, getPublicClient } from "wagmi/actions";
 import { base } from "wagmi/chains";
+import { robinhoodChain } from "@/app/providers";
 import {
   parseEther,
   formatEther,
@@ -28,10 +28,14 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import { Playfair_Display, Inter } from "next/font/google";
 import confetti from "canvas-confetti";
 
-import BASEDAYONE_ABI from "@/app/abi/basedayone.json";
+import ROBINHOOD_ABI from "@/app/abi/hashcats.json";
 import NFT_ABI from "@/app/abi/nft.json";
 import { scanOwnedTokenIds } from "@/app/lib/scanOwnedTokenIds";
+import { FRONTEND_VERSION } from "@/app/lib/version";
+import { guardSignOrClaim } from "@/app/lib/signGuard";
+import { awaitTx } from "@/app/lib/awaitTx";
 import { HoloFrame } from "@/app/components/HoloFrame";
+import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -90,19 +94,6 @@ const isUserRejectedError = (error: unknown): boolean => {
     message.includes("rejected the request") ||
     message.includes("action_rejected")
   );
-};
-
-// "1234567" -> "1.2M", "42000" -> "42K" — market cap rozetinde kısa gösterim
-const formatCompactUsd = (n: number): string => {
-  if (n >= 1_000_000) {
-    const v = n / 1_000_000;
-    return `${Number.isInteger(v) ? v.toFixed(0) : v.toFixed(1)}M`;
-  }
-  if (n >= 1_000) {
-    const v = n / 1_000;
-    return `${Number.isInteger(v) ? v.toFixed(0) : v.toFixed(1)}K`;
-  }
-  return n.toFixed(0);
 };
 
 // --- Bildirim sesi: Web Audio API ---
@@ -252,8 +243,8 @@ const flushPendingChime = () => {
   }
 };
 
-const CONTRACT_ADDR = "0x7b4A2c265dECE5A48e9c9232de1bd4940dfb6A0F" as const;
-const COLLECTION_ADDR = "0x7d5861cfe1C74Aaa0999b7E2651Bf2ebD2A62D89" as const;
+const CONTRACT_ADDR = "0x352E6e9EF7BA1BC4398C2c3784dFdF1930D0df32" as const;
+const COLLECTION_ADDR = "0xCA75DF55Cc9C476DB27a7375D1fc8E794cf80721" as const;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const IS_DEPLOYED = CONTRACT_ADDR.toLowerCase() !== ZERO_ADDRESS;
 
@@ -305,9 +296,7 @@ const convertReverseNodeToBytes = (address: Address, chainId: number) => {
   );
 };
 
-
-const BASEDAYONE_IMG =
-  "/basedayone.gif";
+// Robinhood-inspired dark palette — black canvas, neon lime accent
 
 
 type PhaseInfo = {
@@ -342,11 +331,11 @@ const decodeTokenImage = (tokenURI: string): string | null => {
 };
 
 
-export default function BaseDayOnePage() {
+export default function HashcatsPage() {
   const config = useConfig();
 
   useEffect(() => {
-    document.title = "Base Day One · flooor.fun — 5% royalty accumulates in the daily vault — 16-hour sign phase, 8-hour claim phase";
+    document.title = "Hashcats · flooor.fun — 5% royalty accumulates in the daily vault — 16-hour sign phase, 8-hour claim phase";
   }, []);
   const { address, chain: connectedChain } = useAccount();
   const { switchChainAsync } = useSwitchChain();
@@ -361,7 +350,6 @@ export default function BaseDayOnePage() {
   const [activeBidder, setActiveBidder] = useState<string>("");
   const [activeBidderName, setActiveBidderName] = useState<string>("");
   const [userNFTs, setUserNFTs] = useState<bigint[]>([]);
-  const [collectionSupply, setCollectionSupply] = useState<number | null>(null);
   const [nftImages, setNftImages] = useState<{ [key: string]: string }>({});
   const [nftApprovalStatus, setNftApprovalStatus] = useState<{ [key: string]: boolean }>({});
   const [nftSignedStatus, setNftSignedStatus] = useState<{ [key: string]: boolean }>({});
@@ -477,13 +465,13 @@ export default function BaseDayOnePage() {
   );
 
   const ensureBase = useCallback(async () => {
-    if (connectedChain?.id !== base.id) {
+    if (connectedChain?.id !== robinhoodChain.id) {
       try {
-        await switchChainAsync({ chainId: base.id });
+        await switchChainAsync({ chainId: robinhoodChain.id });
       } catch (error) {
         console.error("Failed to switch network:", error);
-        toast.error("Couldn't switch to Base — please switch manually in your wallet.");
-        throw new Error("Please switch to Base network to continue");
+        toast.error("Couldn't switch to Robinhood Chain — please switch manually in your wallet.");
+        throw new Error("Please switch to Robinhood Chain to continue");
       }
     }
   }, [connectedChain, switchChainAsync]);
@@ -493,8 +481,9 @@ export default function BaseDayOnePage() {
     try {
       const info = (await retryWithBackoff(async () => {
         return (await readContract(config, {
+          chainId: robinhoodChain.id,
           address: CONTRACT_ADDR,
-          abi: BASEDAYONE_ABI,
+          abi: ROBINHOOD_ABI,
           functionName: "getPhaseInfo",
           args: [],
         })) as [string, bigint, bigint, bigint];
@@ -512,16 +501,18 @@ export default function BaseDayOnePage() {
     try {
       const currentEpochStart = (await retryWithBackoff(async () => {
         return (await readContract(config, {
+          chainId: robinhoodChain.id,
           address: CONTRACT_ADDR,
-          abi: BASEDAYONE_ABI,
+          abi: ROBINHOOD_ABI,
           functionName: "currentEpochStart",
           args: [],
         })) as bigint;
       })) as bigint;
       const signersCount = (await retryWithBackoff(async () => {
         return (await readContract(config, {
+          chainId: robinhoodChain.id,
           address: CONTRACT_ADDR,
-          abi: BASEDAYONE_ABI,
+          abi: ROBINHOOD_ABI,
           functionName: "partCount",
           args: [currentEpochStart],
         })) as bigint;
@@ -542,16 +533,18 @@ export default function BaseDayOnePage() {
       const [poolAccrued, epochStart] = (await Promise.all([
         retryWithBackoff(async () => {
           return (await readContract(config, {
+            chainId: robinhoodChain.id,
             address: CONTRACT_ADDR,
-            abi: BASEDAYONE_ABI,
+            abi: ROBINHOOD_ABI,
             functionName: "poolAccrued",
             args: [],
           })) as bigint;
         }),
         retryWithBackoff(async () => {
           return (await readContract(config, {
+            chainId: robinhoodChain.id,
             address: CONTRACT_ADDR,
-            abi: BASEDAYONE_ABI,
+            abi: ROBINHOOD_ABI,
             functionName: "currentEpochStart",
             args: [],
           })) as bigint;
@@ -559,8 +552,9 @@ export default function BaseDayOnePage() {
       ])) as [bigint, bigint];
       const poolSnap = (await retryWithBackoff(async () => {
         return (await readContract(config, {
+          chainId: robinhoodChain.id,
           address: CONTRACT_ADDR,
-          abi: BASEDAYONE_ABI,
+          abi: ROBINHOOD_ABI,
           functionName: "poolSnap",
           args: [epochStart],
         })) as bigint;
@@ -577,16 +571,18 @@ export default function BaseDayOnePage() {
     try {
       const minBid = (await retryWithBackoff(async () => {
         return (await readContract(config, {
+          chainId: robinhoodChain.id,
           address: CONTRACT_ADDR,
-          abi: BASEDAYONE_ABI,
+          abi: ROBINHOOD_ABI,
           functionName: "minbidAM",
           args: [],
         })) as bigint;
       })) as bigint;
       const nextMin = (await retryWithBackoff(async () => {
         return (await readContract(config, {
+          chainId: robinhoodChain.id,
           address: CONTRACT_ADDR,
-          abi: BASEDAYONE_ABI,
+          abi: ROBINHOOD_ABI,
           functionName: "nextMinBid",
           args: [],
         })) as bigint;
@@ -603,8 +599,9 @@ export default function BaseDayOnePage() {
     try {
       const activeBidAmount = (await retryWithBackoff(async () => {
         return (await readContract(config, {
+          chainId: robinhoodChain.id,
           address: CONTRACT_ADDR,
-          abi: BASEDAYONE_ABI,
+          abi: ROBINHOOD_ABI,
           functionName: "activebidAM",
           args: [],
         })) as bigint;
@@ -620,8 +617,9 @@ export default function BaseDayOnePage() {
     try {
       const bidderAddress = (await retryWithBackoff(async () => {
         return (await readContract(config, {
+          chainId: robinhoodChain.id,
           address: CONTRACT_ADDR,
-          abi: BASEDAYONE_ABI,
+          abi: ROBINHOOD_ABI,
           functionName: "activeBidder",
           args: [],
         })) as string;
@@ -631,11 +629,11 @@ export default function BaseDayOnePage() {
         try {
           const baseName = (await retryWithBackoff(async () => {
             return (await readContract(config, {
+              chainId: base.id,
               address: BASENAME_L2_RESOLVER_ADDRESS,
               abi: L2_RESOLVER_ABI,
               functionName: "name",
               args: [convertReverseNodeToBytes(bidderAddress as Address, base.id)],
-              chainId: base.id,
             })) as string;
           })) as string;
           setActiveBidderName(
@@ -657,28 +655,11 @@ export default function BaseDayOnePage() {
     }
   }, [config]);
 
-  // Base Day One koleksiyonu ERC721Enumerable değil (tokenOfOwnerByIndex yok —
+  // Gnars koleksiyonu ERC721Enumerable değil (tokenOfOwnerByIndex yok —
   // bkz. supportsInterface(0x780e9d63) === false) ve tokenId'ler ardışık da
   // değil (1..totalSupply aralığının çok dışında ID'ler mevcut — bkz.
   // scanOwnedTokenIds.ts). Bu yüzden sahiplik Alchemy'nin transfer
   // indeksinden (alchemy_getAssetTransfers) tespit ediliyor.
-  const getCollectionSupply = useCallback(async () => {
-    if (!config) return;
-    try {
-      const supply = (await retryWithBackoff(async () => {
-        return (await readContract(config, {
-          address: COLLECTION_ADDR,
-          abi: NFT_ABI,
-          functionName: "totalSupply",
-          args: [],
-        })) as bigint;
-      })) as bigint;
-      setCollectionSupply(Number(supply));
-    } catch (error) {
-      console.error("Error getting collection supply:", error);
-    }
-  }, [config]);
-
   const getUserNFTs = useCallback(async () => {
     if (!address || !config) {
       setUserNFTs((prev) => (prev.length === 0 ? prev : []));
@@ -691,6 +672,10 @@ export default function BaseDayOnePage() {
         abi: NFT_ABI,
         owner: address,
         retryWithBackoff,
+        chainId: robinhoodChain.id,
+        // Hashcats totalSupply sunmuyor (sadece totalMinted); koleksiyon
+        // 16 384 kediyle sınırlı, Alchemy indeksi düşerse bu aralık taranır.
+        fallbackMaxTokenId: 16384,
       });
 
       // Liste değişmediyse referansı koru — downstream effect zincirini tetiklemez
@@ -723,6 +708,7 @@ export default function BaseDayOnePage() {
       try {
         const tokenURI = (await retryWithBackoff(async () => {
           return (await readContract(config, {
+            chainId: robinhoodChain.id,
             address: COLLECTION_ADDR,
             abi: NFT_ABI,
             functionName: "tokenURI",
@@ -760,6 +746,7 @@ export default function BaseDayOnePage() {
     try {
       isAllApproved = (await retryWithBackoff(async () => {
         return await readContract(config, {
+          chainId: robinhoodChain.id,
           address: COLLECTION_ADDR,
           abi: NFT_ABI,
           functionName: "isApprovedForAll",
@@ -777,6 +764,7 @@ export default function BaseDayOnePage() {
         try {
           const approvedAddress = (await retryWithBackoff(async () => {
             return await readContract(config, {
+              chainId: robinhoodChain.id,
               address: COLLECTION_ADDR,
               abi: NFT_ABI,
               functionName: "getApproved",
@@ -802,8 +790,9 @@ export default function BaseDayOnePage() {
     try {
       const currentEpochStart = (await retryWithBackoff(async () => {
         return (await readContract(config, {
+          chainId: robinhoodChain.id,
           address: CONTRACT_ADDR,
-          abi: BASEDAYONE_ABI,
+          abi: ROBINHOOD_ABI,
           functionName: "currentEpochStart",
           args: [],
         })) as bigint;
@@ -814,16 +803,18 @@ export default function BaseDayOnePage() {
         const idStr = id.toString();
         signed[idStr] = (await retryWithBackoff(async () => {
           return (await readContract(config, {
+            chainId: robinhoodChain.id,
             address: CONTRACT_ADDR,
-            abi: BASEDAYONE_ABI,
+            abi: ROBINHOOD_ABI,
             functionName: "isTokenSigned",
             args: [currentEpochStart, id],
           })) as boolean;
         })) as boolean;
         claimed[idStr] = (await retryWithBackoff(async () => {
           return (await readContract(config, {
+            chainId: robinhoodChain.id,
             address: CONTRACT_ADDR,
-            abi: BASEDAYONE_ABI,
+            abi: ROBINHOOD_ABI,
             functionName: "isTokenClaimed",
             args: [currentEpochStart, id],
           })) as boolean;
@@ -891,11 +882,6 @@ export default function BaseDayOnePage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Toplam arz zincirde neredeyse hiç değişmez — bir kez çekmek yeterli
-  useEffect(() => {
-    getCollectionSupply();
-  }, [getCollectionSupply]);
-
   useEffect(() => {
     const countdownInterval = setInterval(() => {
       setRemainingTimeDisplay((prev) => {
@@ -920,7 +906,7 @@ export default function BaseDayOnePage() {
       if (polling) return;
       polling = true;
       try {
-        const client = getPublicClient(config);
+        const client = getPublicClient(config, { chainId: robinhoodChain.id });
         if (!client) return;
         const latest = await client.getBlockNumber();
         if (lastBlock === null) {
@@ -931,7 +917,7 @@ export default function BaseDayOnePage() {
         if (latest <= lastBlock) return;
         const logs = await client.getContractEvents({
           address: CONTRACT_ADDR,
-          abi: BASEDAYONE_ABI as never,
+          abi: ROBINHOOD_ABI as never,
           fromBlock: lastBlock + BigInt(1),
           toBlock: latest,
         });
@@ -1073,6 +1059,9 @@ export default function BaseDayOnePage() {
     return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   }, []);
 
+  const isWrongNetwork =
+    !!address && !!connectedChain && connectedChain.id !== robinhoodChain.id;
+
   const isSignPhase = phaseInfo?.currentPhase.toLowerCase().includes("sign") ?? false;
 
   const handleBidInputChange = useCallback(
@@ -1094,15 +1083,15 @@ export default function BaseDayOnePage() {
   const handleBid = useCallback(async () => {
     if (isBidding) return;
     if (!IS_DEPLOYED) {
-      toast.info("Base Day One contract is not live yet — stay tuned.");
+      toast.info("Hashcats contract is not live yet — stay tuned.");
       return;
     }
     if (!address) {
       toast.warning("Please connect your wallet first");
       return;
     }
-    if (connectedChain?.id !== base.id) {
-      toast.error("Please switch to Base network first.");
+    if (connectedChain?.id !== robinhoodChain.id) {
+      toast.error("Please switch to Robinhood Chain first.");
       return;
     }
     const trimmedInput = (bidInput || "").trim();
@@ -1121,37 +1110,28 @@ export default function BaseDayOnePage() {
     try {
       await ensureBase();
       const value = parseEther(effectiveBidInput as `${string}`);
-      const balance = await getBalance(config, { address });
+      const balance = await getBalance(config, { address, chainId: robinhoodChain.id });
       if (balance.value < value) {
-        toast.error("Insufficient balance to place this bid.", {
-          action: {
-            label: "Check wallet",
-            onClick: () =>
-              window.open(`https://basescan.org/address/${address}`, "_blank"),
-          },
-          actionButtonStyle: {
-            background: "#1A1A1A",
-            color: "#fff",
-          },
-        });
+        toast.error("Insufficient balance to place this bid.");
         return;
       }
       const txHash = await writeContract(config, {
+        chainId: robinhoodChain.id,
         address: CONTRACT_ADDR,
-        abi: BASEDAYONE_ABI,
+        abi: ROBINHOOD_ABI,
         functionName: "placeBid",
         args: [],
         value,
         dataSuffix: DATA_SUFFIX,
       });
       // Hash ≠ onay: iptal/revert'te başarı akışı (share, konfeti) çalışmasın
-      if (!(await awaitTx(config, txHash, base.id))) return;
+      if (!(await awaitTx(config, txHash, robinhoodChain.id))) return;
       toast.success("Bid placed successfully!");
       playChime();
       fireConfetti();
       setSharePrompt({
         type: "bid",
-        text: `Just placed a bid of Ξ${fmtEth(effectiveBidInput)} on a Base Day One at flooor.fun 🔨\n\nIf someone outbids me, my ETH comes right back — no risk, no lockup.\n\nRoyalties to the community.`,
+        text: `Just placed a bid of Ξ${fmtEth(effectiveBidInput)} on Hashcats at flooor.fun/robinhood/hashcats 🔨\n\nIf someone outbids me, my ETH comes right back — no risk, no lockup.\n\nRoyalties to the community.`,
       });
       setBidInput("");
       setTimeout(() => {
@@ -1177,7 +1157,7 @@ export default function BaseDayOnePage() {
   const handleSignOrClaim = useCallback(
     async (tokenId: bigint) => {
       if (!IS_DEPLOYED) {
-        toast.info("Base Day One contract is not live yet — stay tuned.");
+        toast.info("Hashcats contract is not live yet — stay tuned.");
         return;
       }
       if (!address) {
@@ -1188,22 +1168,23 @@ export default function BaseDayOnePage() {
       setNftBusy((prev) => ({ ...prev, [idStr]: true }));
       try {
         await ensureBase();
-        // Cuzdani ancak simulasyon temiz gecerse aciyoruz; guard fail-closed —
-        // dogrulanamazsa da durur, eskiden sessizce cuzdanda patliyordu.
+        // Cuzdani ancak simulasyon temiz gecerse aciyoruz; guard fail-closed
         const guard = await guardSignOrClaim({
           config,
           contract: CONTRACT_ADDR,
-          abi: BASEDAYONE_ABI,
+          abi: ROBINHOOD_ABI,
           tokenId,
           account: address,
+          chainId: robinhoodChain.id,
         });
         if (!guard.ok) {
           toast.warning(guard.message, { duration: 6000 });
           return;
         }
         const txHash = await writeContract(config, {
+          chainId: robinhoodChain.id,
           address: CONTRACT_ADDR,
-          abi: BASEDAYONE_ABI,
+          abi: ROBINHOOD_ABI,
           functionName: "signOrClaim",
           args: [tokenId],
           // Simulasyon bu hesapla dogrulandi — gonderim de ayni hesaptan olmali
@@ -1211,7 +1192,7 @@ export default function BaseDayOnePage() {
           dataSuffix: DATA_SUFFIX,
         });
         // Hash ≠ onay: iptal/revert'te başarı akışı (share, konfeti) çalışmasın
-        if (!(await awaitTx(config, txHash, base.id))) return;
+        if (!(await awaitTx(config, txHash, robinhoodChain.id))) return;
         toast.success(isSignPhase ? `Token #${idStr} signed!` : `Token #${idStr} claimed!`);
         playChime();
         fireConfetti();
@@ -1219,14 +1200,14 @@ export default function BaseDayOnePage() {
           setNftSignedStatus((prev) => ({ ...prev, [idStr]: true }));
           setSharePrompt({
             type: "sign",
-            text: `Just signed my Base Day One on flooor.fun 🖊️\n\n${dailySigners + 1} signers sharing today's vault of Ξ${fmtEth(dailyVault)}.\n\nSign daily, earn daily. Royalties to the community.`,
+            text: `Just signed my Hashcats NFT on flooor.fun/robinhood/hashcats 🖊️\n\n${dailySigners + 1} signers sharing today's vault of Ξ${fmtEth(dailyVault)}.\n\nSign daily, earn daily. Royalties to the community.`,
           });
         } else {
           setNftClaimedStatus((prev) => ({ ...prev, [idStr]: true }));
           const claimedUsd = toUsd(yieldPerSigner);
           setSharePrompt({
             type: "claim",
-            text: `Claimed Ξ${fmtEth(yieldPerSigner)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun 💰\n\nMy Base Day One earns yield every single day — no lockup, no transfer.`,
+            text: `Claimed Ξ${fmtEth(yieldPerSigner)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun/robinhood/hashcats 💰\n\nMy Robinhood NFT earns yield every single day — no lockup, no transfer.`,
           });
         }
         setTimeout(() => {
@@ -1255,14 +1236,14 @@ export default function BaseDayOnePage() {
     async (platform: "x" | "farcaster") => {
       if (!sharePrompt) return;
       // Mention biçimleri platforma göre farklı: Farcaster'da @farcaster
-      // hesabı + /flooor kanalı (ayrı token'lar), X'te genel üçlü
-      // (Base Day One'a özel bir handle belirtilmedi — bkz. social-share-mentions memory)
+      // hesabı + /flooor kanalı (ayrı token'lar), X'te flooor + Hashcats'un
+      // kendi hesabı etiketleniyor (Base değil — Hashcats Robinhood Chain'de)
       const mentions =
         platform === "farcaster"
           ? "@farcaster /flooor"
-          : "@vrnouns @base @CoinbaseWallet";
+          : "@vrnouns";
       const text = `${sharePrompt.text}\n\n${mentions}`;
-      const url = "https://flooor.fun/base-day-one";
+      const url = "https://flooor.fun/robinhood/hashcats";
       setSharePrompt(null);
       if (platform === "farcaster") {
         // Mini app içinde native compose, web'de intent URL
@@ -1291,7 +1272,7 @@ export default function BaseDayOnePage() {
   const handleSellNFT = useCallback(
     async (tokenId: bigint) => {
       if (!IS_DEPLOYED) {
-        toast.info("Base Day One contract is not live yet — stay tuned.");
+        toast.info("Hashcats contract is not live yet — stay tuned.");
         return;
       }
       if (!address) {
@@ -1311,6 +1292,7 @@ export default function BaseDayOnePage() {
           toast.info(`Approving token #${idStr}...`);
           await retryWithBackoff(async () => {
             return await writeContract(config, {
+              chainId: robinhoodChain.id,
               address: COLLECTION_ADDR,
               abi: NFT_ABI,
               functionName: "setApprovalForAll",
@@ -1322,20 +1304,21 @@ export default function BaseDayOnePage() {
           await checkApprovalStatus();
         }
         const txHash = await writeContract(config, {
+          chainId: robinhoodChain.id,
           address: CONTRACT_ADDR,
-          abi: BASEDAYONE_ABI,
+          abi: ROBINHOOD_ABI,
           functionName: "sellToHighest",
           args: [tokenId],
           dataSuffix: DATA_SUFFIX,
         });
         // Hash ≠ onay: iptal/revert'te başarı akışı (share, konfeti) çalışmasın
-        if (!(await awaitTx(config, txHash, base.id))) return;
+        if (!(await awaitTx(config, txHash, robinhoodChain.id))) return;
         toast.success(`Token #${idStr} sold successfully!`);
         fireConfetti();
         const soldUsd = toUsd(currentBid);
         setSharePrompt({
           type: "sell",
-          text: `Just sold my Base Day One for Ξ${fmtEth(currentBid)}${soldUsd ? ` (${soldUsd})` : ""} on flooor.fun 🤝\n\nInstant liquidity, any time. Every sale feeds the vault — distributed to holders daily.`,
+          text: `Just sold my Hashcats NFT for Ξ${fmtEth(currentBid)}${soldUsd ? ` (${soldUsd})` : ""} on flooor.fun/robinhood/hashcats 🤝\n\nInstant liquidity, any time. Every sale feeds the vault — distributed to holders daily.`,
         });
         setTimeout(() => {
           getCurrentBid();
@@ -1420,6 +1403,7 @@ export default function BaseDayOnePage() {
       try {
         await ensureBase();
         await writeContract(config, {
+          chainId: robinhoodChain.id,
           address: COLLECTION_ADDR,
           abi: NFT_ABI,
           functionName: "transferFrom",
@@ -1484,16 +1468,6 @@ export default function BaseDayOnePage() {
       ? (annualYieldEth / minOutbidAmount) * 100
       : 0;
 
-  // Market cap = koleksiyondaki toplam adet × taban fiyat (min bid)
-  const marketCapEth =
-    collectionSupply !== null ? collectionSupply * (parseFloat(chainMinBid) || 0) : null;
-  const marketCapUsd =
-    marketCapEth !== null && ethPrice ? marketCapEth * ethPrice : null;
-  const marketCapDisplay =
-    marketCapUsd !== null ? `$${formatCompactUsd(marketCapUsd)}` : "—";
-  const marketCapEthDisplay =
-    marketCapEth !== null ? `Ξ${fmtEth(marketCapEth.toString())}` : "—";
-
   // TVS (Total Value Signed) = bu epoch'ta imzalayan sayısı × taban fiyat (min bid)
   const tvsEth = dailySigners * (parseFloat(chainMinBid) || 0);
   const tvsUsd = ethPrice ? tvsEth * ethPrice : null;
@@ -1509,7 +1483,79 @@ export default function BaseDayOnePage() {
       style={{ backgroundColor: IVORY, minHeight: "100vh", color: INK }}
     >
       {/* Header */}
-      <SiteHeader collectionUrl="https://opensea.io/collection/base-day-one" soundOn={soundOn} onToggleSound={toggleSound} />
+      <SiteHeader soundOn={soundOn} onToggleSound={toggleSound} variant="dark" />
+
+      {/* Network Gate — full-screen block until on Robinhood Chain */}
+      {isWrongNetwork && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center px-6"
+          style={{
+            backgroundColor: "rgba(0,0,0,0.72)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+          }}
+        >
+          <div
+            className="w-full max-w-sm p-8 sm:p-10 text-center"
+            style={{
+              backgroundColor: PLINTH,
+              border: `1px solid ${HAIRLINE}`,
+              boxShadow: "0 24px 64px -16px rgba(0,0,0,0.6)",
+            }}
+          >
+            <div
+              className="mx-auto mb-6 flex items-center justify-center"
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: "50%",
+                backgroundColor: "rgba(205,255,0,0.12)",
+                border: `1px solid ${GOLD}`,
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path
+                  d="M10 2L2 17h16L10 2z"
+                  stroke={GOLD}
+                  strokeWidth="1.5"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M10 8v4M10 14.5v.5"
+                  stroke={GOLD}
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </div>
+            <p style={{ ...smallCaps, color: GOLD }}>Wrong Network</p>
+            <h3
+              className="mt-3"
+              style={{ ...SERIF, fontWeight: 500, fontSize: "22px" }}
+            >
+              Switch to Robinhood Chain
+            </h3>
+            <p
+              className="mt-3 text-sm leading-relaxed"
+              style={{ color: MUTED }}
+            >
+              Hashcats runs on Robinhood Chain. Please switch your wallet to
+              continue.
+            </p>
+            <button
+              onClick={() => {
+                ensureBase().catch(() => {
+                  // hata zaten toast ile gösterildi
+                });
+              }}
+              className="mt-7 w-full py-4 transition-opacity hover:opacity-85"
+              style={{ ...smallCaps, color: IVORY, backgroundColor: GOLD, fontWeight: 700 }}
+            >
+              Switch to Robinhood Chain
+            </button>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-6xl mx-auto px-5 sm:px-8">
         {/* Lot hero */}
@@ -1517,116 +1563,130 @@ export default function BaseDayOnePage() {
           {/* Artwork */}
           <div className="lg:sticky lg:top-28">
             <div className="flex items-center justify-center">
-              {/* Lot plate — matches the "Your Collection" card design below */}
-              <article
+              {/* Trading-card shell — neon-glow border + near-black cardstock body */}
+              <div
                 className="w-full max-w-[560px] fade-in-soft"
-                style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "#F2ECE0" }}
+                style={{
+                  padding: 9,
+                  borderRadius: 24,
+                  backgroundImage:
+                    "linear-gradient(155deg, #cdff00 0%, #7a9900 22%, #eaffa0 42%, #5c7300 62%, #cdff00 80%, #a8d400 100%)",
+                  boxShadow:
+                    "0 24px 48px rgba(205,255,0,0.16), 0 2px 6px rgba(0,0,0,0.5)",
+                }}
               >
-                {/* Lot line */}
                 <div
-                  className="flex items-center justify-between px-3.5 py-2.5"
-                  style={{ borderBottom: `1px solid ${HAIRLINE}` }}
+                  style={{
+                    borderRadius: 18,
+                    backgroundColor: "#0E0E0F",
+                    padding: 12,
+                    border: "1px solid rgba(255,255,255,0.06)",
+                  }}
                 >
-                  <span className="flex items-center gap-1.5">
-                    <svg width="15" height="15" viewBox="0 0 22 22" aria-hidden="true">
-                      <path
-                        fill={GOLD}
-                        d="M11 0l2.2 1.6 2.6-.7 1.4 2.3 2.6.7.1 2.7 2.1 1.6-1.2 2.4 1.2 2.4-2.1 1.6-.1 2.7-2.6.7-1.4 2.3-2.6-.7L11 22l-2.2-1.6-2.6.7-1.4-2.3-2.6-.7-.1-2.7L0 13.8l1.2-2.4L0 9l2.1-1.6.1-2.7 2.6-.7L6.2.9 8.8 1.6 11 0z"
-                      />
-                      <path fill="#fff" d="M9.6 14.9L6.3 11.6l1.1-1.1 2.2 2.2 5-5 1.1 1.1z" />
-                    </svg>
-                    <span style={{ ...SERIF, fontWeight: 500, fontSize: 19, color: INK }}>
-                      Base Day One
+                  {/* Name + rarity row */}
+                  <div className="flex items-center justify-between gap-2 px-1">
+                    <span style={{ ...SERIF, fontWeight: 600, fontSize: 17, color: INK }}>
+                      Hashcats
                     </span>
-                  </span>
-                  <span style={{ ...smallCaps, fontSize: 9 }}>
-                    {collectionSupply !== null ? `${collectionSupply.toLocaleString()} Editions` : "—"}
-                  </span>
-                </div>
+                    <span
+                      style={{
+                        ...smallCaps,
+                        fontSize: 9,
+                        color: GOLD,
+                        border: `1px solid ${GOLD}`,
+                        padding: "3px 8px",
+                        borderRadius: 999,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      flooor.fun ✦
+                    </span>
+                  </div>
 
-                {/* Art plate */}
-                <div
-                  className="p-4"
-                  style={{ backgroundColor: IVORY, borderBottom: `1px solid ${HAIRLINE}` }}
-                >
-                  <HoloFrame
-                    className="w-full"
-                    overlay={
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: 10,
-                          right: 10,
-                          bottom: 10,
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <span
+                  {/* Art window */}
+                  <div className="mt-2">
+                    <HoloFrame
+                      className="w-full"
+                      overlay={
+                        <div
                           style={{
-                            ...smallCaps,
-                            color: "#fff",
-                            fontSize: 9,
-                            padding: "4px 9px",
-                            backgroundColor: "rgba(5,12,28,0.42)",
-                            backdropFilter: "blur(6px)",
-                            border: "1px solid rgba(255,255,255,0.22)",
+                            position: "absolute",
+                            left: 10,
+                            right: 10,
+                            bottom: 10,
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
                           }}
                         >
-                          Market Cap {marketCapDisplay} · {marketCapEthDisplay}
-                        </span>
+                          <span
+                            style={{
+                              ...smallCaps,
+                              color: "#0B0B0C",
+                              fontSize: 9,
+                              padding: "4px 9px",
+                              backgroundColor: "rgba(205,255,0,0.85)",
+                              backdropFilter: "blur(6px)",
+                              border: "1px solid rgba(11,11,12,0.15)",
+                            }}
+                          >
+                            Robinhood Chain
+                          </span>
+                        </div>
+                      }
+                    >
+                      <div
+                        className="relative aspect-square flex items-center justify-center"
+                        style={{ backgroundColor: "#0B0B0C" }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src="/hashcats.svg"
+                          alt="Hashcats"
+                          className="w-full h-full"
+                          style={{ imageRendering: "pixelated" }}
+                        />
                       </div>
-                    }
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={BASEDAYONE_IMG}
-                      alt="Base Day One"
-                      className="w-full h-auto"
-                    />
-                  </HoloFrame>
-                </div>
+                    </HoloFrame>
+                  </div>
 
-                {/* Community fee band */}
-                <div
-                  className="px-3.5 py-2.5 flex items-center justify-center"
-                  style={{ borderBottom: `1px solid ${HAIRLINE}` }}
-                >
-                  <CommunityFeeBadge amount={`Ξ ${fmtEth(dailyVault)}`} amountUsd={toUsd(dailyVault)} />
-                </div>
+                  <div className="mt-3 flex items-center justify-center">
+                    <CommunityFeeBadge tone="dark" amount={`Ξ ${fmtEth(dailyVault)}`} amountUsd={toUsd(dailyVault)} />
+                  </div>
 
-                {/* Meta strip */}
-                <div className="px-3.5 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
-                  <span style={{ ...smallCaps, fontSize: 9 }}>No. 001 · Base</span>
-                  {/* Market durumu — sağ sütundan buraya taşındı, iki sütun aynı boyda kalsın */}
-                  <span
-                    className="order-last w-full text-center sm:order-none sm:w-auto"
-                    style={{ ...smallCaps, fontSize: 9, color: GOLD }}
-                  >
-                    {IS_DEPLOYED && (
-                      <span className="live-dot mr-1.5" style={{ width: 5, height: 5 }} aria-hidden />
-                    )}
-                    {!IS_DEPLOYED
-                      ? "Coming Soon"
-                      : `${isSignPhase ? "Sign Phase" : "Claim Phase"} · Epoch ${phaseInfo ? phaseInfo.eid.toString() : "—"}`}
-                  </span>
-                  <a
-                    href="https://opensea.io/collection/base-day-one"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ ...smallCaps, fontSize: 9 }}
-                    className="hover:text-black transition-colors"
-                  >
-                    View Collection
-                  </a>
+                  {/* Meta strip */}
+                  {/* Meta strip — 3 kolonlu grid: sol etiket / ortada faz / sağda link.
+                      Dar ekranda faz satırı tam genişlikte ortalanır, link sağda kalır. */}
+                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-[1fr_auto_1fr] items-center gap-x-4 gap-y-1.5 px-1">
+                    <span className="justify-self-start whitespace-nowrap" style={{ ...smallCaps, fontSize: 9 }}>Robinhood Chain</span>
+                    <span
+                      className="order-last col-span-2 text-center whitespace-nowrap sm:order-none sm:col-span-1"
+                      style={{ ...smallCaps, fontSize: 9, color: GOLD }}
+                    >
+                      {IS_DEPLOYED && (
+                        <span className="live-dot mr-1.5" style={{ width: 5, height: 5 }} aria-hidden />
+                      )}
+                      {!IS_DEPLOYED
+                        ? "Coming Soon"
+                        : `${isSignPhase ? "Sign Phase" : "Claim Phase"} · Epoch ${phaseInfo ? phaseInfo.eid.toString() : "—"}`}
+                    </span>
+                    <a
+                      href="https://opensea.io/collection/hash-cats"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ ...smallCaps, fontSize: 9 }}
+                      className="justify-self-end whitespace-nowrap hover:opacity-70 transition-colors"
+                    >
+                      View Collection
+                    </a>
+                  </div>
                 </div>
-              </article>
+              </div>
             </div>
           </div>
 
-          {/* Lot details */}
-          <div>
+          {/* Lot details — stretches to the artwork card so both columns end on the same line */}
+          <div className="lg:self-stretch lg:flex lg:flex-col">
             {!IS_DEPLOYED ? (
               <div
                 className="px-8 py-6"
@@ -1634,11 +1694,11 @@ export default function BaseDayOnePage() {
               >
                 <p style={{ ...smallCaps, marginBottom: "8px" }}>Royalties to the community</p>
                 <p style={{ ...SANS, fontSize: "14px", color: MUTED, lineHeight: 1.6 }}>
-                  The Base Day One contract is being finalized and isn&apos;t live yet. Connect your wallet to be ready when it ships.
+                  The Hashcats contract is being finalized and isn&apos;t live yet. Connect your wallet to be ready when it ships.
                 </p>
               </div>
             ) : (
-              <div>
+              <div className="lg:flex lg:flex-col lg:flex-1">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
                   <div>
                     <p style={smallCaps}>Current Bid</p>
@@ -1658,10 +1718,10 @@ export default function BaseDayOnePage() {
                         <>
                           {toUsd(currentBid) ? `${toUsd(currentBid)} · ` : ""}
                           <a
-                            href={`https://basescan.org/address/${activeBidder}`}
+                            href={`https://robinscan.io/address/${activeBidder}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="hover:text-black transition-colors underline underline-offset-4"
+                            className="hover:opacity-70 transition-colors underline underline-offset-4"
                             style={{ textDecorationColor: HAIRLINE }}
                           >
                             {activeBidderName ||
@@ -1705,7 +1765,7 @@ export default function BaseDayOnePage() {
                         : `Ξ ${minOutbidAmount.toFixed(6)} or more`
                     }
                     className="flex-1 px-4 py-3.5 focus:outline-none min-w-0 text-lg tabular-nums"
-                    style={{ ...SANS, color: INK, backgroundColor: "#F2ECE0", border: "none" }}
+                    style={{ ...SANS, color: INK, backgroundColor: PLINTH, border: "none" }}
                     value={bidInput}
                     onChange={handleBidInputChange}
                   />
@@ -1715,8 +1775,9 @@ export default function BaseDayOnePage() {
                     className="px-5 sm:px-10 whitespace-nowrap transition-opacity hover:opacity-80 disabled:hover:opacity-100"
                     style={{
                       ...smallCaps,
-                      color: "#fff",
-                      backgroundColor: INK,
+                      color: IVORY,
+                      backgroundColor: GOLD,
+                      fontWeight: 700,
                       opacity: isBidding ? 0.6 : 1,
                       cursor: isBidding ? "not-allowed" : "pointer",
                     }}
@@ -1756,8 +1817,8 @@ export default function BaseDayOnePage() {
                   )}
                 </p>
 
-                {/* Signers, TVS, vault, yield */}
-                <div className="mt-10">
+                {/* Signers, TVS, vault, yield — pinned to the bottom of the column on desktop */}
+                <div className="mt-10 lg:mt-auto">
                   {[
                     { label: "Signers", value: `${dailySigners}`, sub: null, green: false, rainbow: false },
                     { label: "TVS — Total Value Signed", value: tvsUsdDisplay, sub: tvsEthDisplay, green: false, rainbow: false },
@@ -1814,7 +1875,7 @@ export default function BaseDayOnePage() {
               <p style={smallCaps}>Your Collection</p>
               <button
                 onClick={fetchAllData}
-                className="text-xs hover:text-black transition-colors shrink-0"
+                className="text-xs hover:opacity-70 transition-colors shrink-0"
                 style={{ ...smallCaps, color: MUTED }}
               >
                 Refresh Data
@@ -1863,7 +1924,7 @@ export default function BaseDayOnePage() {
                     <WorkCard
                       key={idStr}
                       tokenIdStr={idStr}
-                      itemName="Base Day One"
+                      itemName="Hashcats"
                       image={image}
                       approved={approved}
                       primaryLabel={busy ? "..." : signClaimLabel}
@@ -1887,6 +1948,7 @@ export default function BaseDayOnePage() {
         )}
 
       </main>
+
 
       {/* Send confirmation modal */}
       {pendingSendTokenId !== null && (
@@ -1915,13 +1977,14 @@ export default function BaseDayOnePage() {
                   fontSize: "13px",
                   padding: "10px 12px",
                   border: `1px solid ${sendAddressError ? "#9B1C1C" : HAIRLINE}`,
-                  backgroundColor: "#F2ECE0",
+                  backgroundColor: PLINTH,
+                  color: INK,
                   width: "100%",
                   outline: "none",
                 }}
               />
               {sendAddressError && (
-                <p style={{ ...SANS, fontSize: "12px", color: "#9B1C1C", marginTop: "6px" }}>
+                <p style={{ ...SANS, fontSize: "12px", color: "#e05c5c", marginTop: "6px" }}>
                   Enter a valid wallet address.
                 </p>
               )}
@@ -1949,11 +2012,11 @@ export default function BaseDayOnePage() {
                   style={{
                     ...SANS,
                     fontSize: "12px",
-                    fontWeight: 500,
+                    fontWeight: 700,
                     letterSpacing: "0.06em",
                     textTransform: "uppercase",
                     padding: "10px 16px",
-                    backgroundColor: INK,
+                    backgroundColor: GOLD,
                     color: IVORY,
                     border: "none",
                     cursor: "pointer",
@@ -1993,7 +2056,7 @@ export default function BaseDayOnePage() {
                   lineHeight: 1.6,
                   whiteSpace: "pre-line",
                   padding: "12px",
-                  backgroundColor: "#F2ECE0",
+                  backgroundColor: PLINTH,
                   border: `1px solid ${HAIRLINE}`,
                 }}
               >
@@ -2005,11 +2068,11 @@ export default function BaseDayOnePage() {
                   style={{
                     ...SANS,
                     fontSize: "12px",
-                    fontWeight: 500,
+                    fontWeight: 700,
                     letterSpacing: "0.06em",
                     textTransform: "uppercase",
                     padding: "10px 16px",
-                    backgroundColor: INK,
+                    backgroundColor: GOLD,
                     color: IVORY,
                     border: "none",
                     cursor: "pointer",
@@ -2023,11 +2086,11 @@ export default function BaseDayOnePage() {
                   style={{
                     ...SANS,
                     fontSize: "12px",
-                    fontWeight: 500,
+                    fontWeight: 700,
                     letterSpacing: "0.06em",
                     textTransform: "uppercase",
                     padding: "10px 16px",
-                    backgroundColor: INK,
+                    backgroundColor: GOLD,
                     color: IVORY,
                     border: "none",
                     cursor: "pointer",
@@ -2060,7 +2123,157 @@ export default function BaseDayOnePage() {
         </div>
       )}
 
-      <Footer contractAddr={CONTRACT_ADDR} />
+      {/* Footer — dark/neon variant, distinct from the shared light Footer used on other pages */}
+      {/* /robinhood ana sayfası Hashcats'i gösterir; diğer Robinhood Chain
+          koleksiyonları buradan ulaşılabilir kalsın */}
+      <section
+        className="max-w-6xl mx-auto px-5 sm:px-8 py-12"
+        style={{ marginTop: "80px" }}
+      >
+        <p style={smallCaps}>More on Robinhood Chain</p>
+        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Link
+            href="/robinhood/stonkbrokers"
+            className="group flex items-center gap-4 p-4 transition-colors "
+            style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: PLINTH }}
+          >
+            <div
+              className="w-16 h-16 shrink-0 flex items-center justify-center overflow-hidden"
+              style={{ backgroundColor: "#0B0B0C" }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/stonkbrokers.svg"
+                alt="Stonk Brokers"
+                className="w-full h-full"
+                style={{ imageRendering: "pixelated" }}
+              />
+            </div>
+            <div className="min-w-0">
+              <p className="text-base font-medium" style={{ color: INK }}>
+                Stonk Brokers
+              </p>
+              <p className="text-sm mt-0.5" style={{ color: MUTED }}>
+                Sign daily, claim daily yield — 5% royalty to the vault.
+              </p>
+              <p className="text-xs mt-2 group-hover:opacity-70 transition-opacity" style={{ color: FAINT }}>
+                Open market →
+              </p>
+            </div>
+          </Link>
+        </div>
+      </section>
+
+      <footer style={{ borderTop: `1px solid ${HAIRLINE}` }}>
+        <div className="max-w-6xl mx-auto px-5 sm:px-8 py-14 grid grid-cols-2 md:grid-cols-4 gap-10">
+          <div className="col-span-2 md:col-span-1">
+            <p style={{ ...SERIF, fontWeight: 500, fontSize: "22px", color: GOLD }}>
+              Robinhood
+            </p>
+            <p className="mt-3 text-sm leading-relaxed" style={{ color: MUTED }}>
+              A new network on flooor.fun. Royalties to the community.
+            </p>
+          </div>
+          <div>
+            <p style={smallCaps}>Protocol</p>
+            <div className="mt-4 flex flex-col gap-2.5">
+              <a
+                href="https://vrnouns.gitbook.io/flooor/documentation/documentation-en"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm hover:opacity-70 transition-colors"
+                style={{ color: MUTED }}
+              >
+                Documentation
+              </a>
+              <a
+                href="https://github.com/omgbbqhaxx/flooor"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm hover:opacity-70 transition-colors"
+                style={{ color: MUTED }}
+              >
+                GitHub
+              </a>
+              <a
+                href="https://snapshot.org/#/s:vrnouns.eth"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm hover:opacity-70 transition-colors"
+                style={{ color: MUTED }}
+              >
+                Snapshot DAO
+              </a>
+            </div>
+          </div>
+          <div>
+            <p style={smallCaps}>Contracts</p>
+            <div className="mt-4 flex flex-col gap-2.5">
+              <span className="text-sm" style={{ color: MUTED }}>
+                Robinhood Chain · ID 4663
+              </span>
+              <a
+                href={`https://robinscan.io/address/${CONTRACT_ADDR}?tab=contract`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm hover:opacity-70 transition-colors"
+                style={{ color: MUTED }}
+              >
+                Hashcats Market
+              </a>
+              <a
+                href="https://opensea.io/collection/hash-cats"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm hover:opacity-70 transition-colors"
+                style={{ color: MUTED }}
+              >
+                OpenSea
+              </a>
+            </div>
+          </div>
+          <div>
+            <p style={smallCaps}>Social</p>
+            <div className="mt-4 flex flex-col gap-2.5">
+              <a
+                href="https://x.com/vrnouns"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm hover:opacity-70 transition-colors"
+                style={{ color: MUTED }}
+              >
+                X / Twitter
+              </a>
+              <a
+                href="https://farcaster.xyz/miniapps/pIFtRBsgnWAF/flooorfun"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm hover:opacity-70 transition-colors"
+                style={{ color: MUTED }}
+              >
+                Farcaster
+              </a>
+              <a
+                href="https://base.app/app/flooor.fun"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm hover:opacity-70 transition-colors"
+                style={{ color: MUTED }}
+              >
+                Base App
+              </a>
+            </div>
+          </div>
+        </div>
+        <div
+          className="py-6 px-5 sm:px-20 text-center"
+          style={{ borderTop: `1px solid ${HAIRLINE}` }}
+        >
+          <p className="text-xs" style={{ color: FAINT }}>
+            © flooor.fun · CC0 Licensed · Front-end v{FRONTEND_VERSION} · Contract v2.0 · Live on Robinhood Chain
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

@@ -1260,7 +1260,7 @@ export default function GnarsPage() {
       const mentions =
         platform === "farcaster"
           ? "@farcaster /flooor"
-          : "@vrnouns @base @baseapp @gnars_dao";
+          : "@vrnouns @base @CoinbaseWallet @gnars_dao";
       const text = `${sharePrompt.text}\n\n${mentions}`;
       const url = "https://flooor.fun/gnars";
       setSharePrompt(null);

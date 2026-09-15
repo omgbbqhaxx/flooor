@@ -1260,7 +1260,7 @@ export default function BasedOnchainDinosPage() {
       const mentions =
         platform === "farcaster"
           ? "@farcaster /flooor"
-          : "@vrnouns @base @baseapp @OnChainDinos";
+          : "@vrnouns @base @CoinbaseWallet @OnChainDinos";
       const text = `${sharePrompt.text}\n\n${mentions}`;
       const url = "https://flooor.fun/based-onchain-dinos";
       setSharePrompt(null);
