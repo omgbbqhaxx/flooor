@@ -122,3 +122,19 @@ body {
     animation: none;
   }
 }
+
+/* "New" rozeti: yeni koleksiyon kartında dışa doğru yayılan yumuşak yeşil hale */
+@keyframes new-badge-glow {
+  0%,
+  100% {
+    box-shadow: 0 4px 14px rgba(30, 123, 79, 0.45), 0 0 0 0 rgba(30, 123, 79, 0.55);
+  }
+  50% {
+    box-shadow: 0 4px 14px rgba(30, 123, 79, 0.45), 0 0 0 10px rgba(30, 123, 79, 0);
+  }
+}
+.new-badge {
+  display: inline-flex;
+  align-items: center;
+  animation: new-badge-glow 2.2s ease-out infinite;
+}

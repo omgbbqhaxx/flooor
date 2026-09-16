@@ -2503,6 +2503,12 @@ export default function BetaPage() {
           <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
             {[
               {
+                name: "Loopers",
+                sub: "Base · Helixa",
+                img: "https://i2c.seadn.io/collection/loopers-639312714/image_type_section_media/b5d3e9fbc1c2a0e09e40d824d2a9f5/37b5d3e9fbc1c2a0e09e40d824d2a9f5.png",
+                href: "/loopers",
+              },
+              {
                 name: "The Warplets",
                 sub: "Base · Farcaster",
                 img: "https://i2c.seadn.io/base/0x699727f9e01a822efdcf7333073f0461e5914b4e/c4dd77598815bd89610930ca12be02/a2c4dd77598815bd89610930ca12be02.jpeg?w=1000",
@@ -2528,17 +2534,17 @@ export default function BetaPage() {
               },
             ].map((col: { name: string; sub: string; img: string; href?: string; chain?: string }) => {
               const isLive = Boolean(col.href);
-              const isFeatured = col.name === "Base Day One";
+              const isFeatured = col.name === "Loopers";
               const card = (
                 <>
                   <div
                     className="relative aspect-square overflow-hidden"
                     style={{
                       backgroundColor: isFeatured ? "#f6efe3" : PLINTH,
-                      border: `1px solid ${HAIRLINE}`,
+                      border: `1px solid ${isFeatured ? GREEN : HAIRLINE}`,
                       borderRadius: 16,
                       boxShadow: isFeatured
-                        ? "0 18px 38px rgba(26, 26, 26, 0.12)"
+                        ? "0 0 0 4px rgba(30,123,79,0.14), 0 18px 38px rgba(26, 26, 26, 0.12)"
                         : "0 6px 18px rgba(26, 26, 26, 0.05)",
                     }}
                   >
@@ -2564,16 +2570,19 @@ export default function BetaPage() {
                           {isFeatured ? (
                             <div className="absolute right-3 top-3">
                               <span
+                                className="new-badge"
                                 style={{
                                   ...smallCaps,
                                   color: "#fff",
-                                  fontSize: 9,
-                                  padding: "4px 9px",
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  padding: "7px 14px",
                                   backgroundColor: GREEN,
-                                  letterSpacing: "0.14em",
-                                  boxShadow: "0 4px 12px rgba(30,123,79,0.38)",
+                                  letterSpacing: "0.2em",
+                                  border: "1px solid rgba(255,255,255,0.45)",
                                 }}
                               >
+                                <span className="live-dot" style={{ background: "#fff", marginRight: 7 }} />
                                 New
                               </span>
                             </div>
