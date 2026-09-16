@@ -11,7 +11,7 @@ import WorkCard from "@/app/components/WorkCard";
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useConfig, useAccount, useSwitchChain } from "wagmi";
-import { writeContract, readContract, getBalance, getPublicClient } from "wagmi/actions";
+import { writeContract, readContract, getBalance, getPublicClient, sendCalls, sendTransaction, waitForCallsStatus } from "wagmi/actions";
 import { base } from "wagmi/chains";
 import {
   parseEther,
@@ -21,6 +21,7 @@ import {
   namehash,
   toHex,
   isAddress,
+  parseAbi,
   type Address,
 } from "viem";
 import { Attribution } from "ox/erc8021";
@@ -257,6 +258,38 @@ const COLLECTION_ADDR = "0x1649CD37f4748807b4882FC48765bA0B2aFfa94a" as const;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const IS_DEPLOYED = CONTRACT_ADDR.toLowerCase() !== ZERO_ADDRESS;
 
+// Loopers public mint (koleksiyon kontratı, LoopersUpgradeable). Mint açıkken
+// bid kutusu yerine mint butonları gösterilir; kapanınca/bitince bid'e dönülür.
+// publicMint msg.value == PUBLIC_PRICE * quantity tam eşitliği ister.
+const MINT_ABI = parseAbi([
+  "function publicMint(uint256 quantity) payable",
+  "function PUBLIC_PRICE() view returns (uint256)",
+  "function PUBLIC_WALLET_LIMIT() view returns (uint256)",
+  "function remainingPaidPublicSupply() view returns (uint256)",
+  "function publicMintClosed() view returns (bool)",
+  "function publicSaleConfigured() view returns (bool)",
+  "function publicSaleStart() view returns (uint64)",
+  "function publicSaleEnd() view returns (uint64)",
+  "function paused() view returns (bool)",
+  "function mintedByWallet(address) view returns (uint256)",
+]);
+const MINT_QTY_OPTIONS = [1, 5, 10] as const;
+// Mint başına flooor'a giden sabit hizmet ücreti (USD). ETH karşılığı anlık
+// fiyattan hesaplanır; fiyat yoksa MINT_FEE_FALLBACK_ETH kullanılır.
+// Koleksiyon kontratında referral yok, ücret ayrı bir ETH transferi olarak
+// mint ile aynı batch'te (EIP-5792) gönderilir; batch desteklenmiyorsa
+// mint sonrasında ikinci tx olarak istenir.
+const MINT_FEE_ADDR = "0xa0Cf2260CA43252A3620e80A5CFE40968f042634" as const;
+const MINT_FEE_USD = 1;
+const MINT_FEE_FALLBACK_ETH = "0.0003";
+type MintInfo = {
+  active: boolean;
+  price: bigint;
+  walletLimit: number;
+  remaining: number;
+  mintedByWallet: number;
+};
+
 // Claim/sell başarılı olduğunda "Realistic Look" konfeti: farklı hız/yayılımda
 // beş ardışık patlama, site paletiyle (mürekkep/yeşil/altın/fildişi).
 // prefers-reduced-motion'da hiç tetiklenmez.
@@ -372,6 +405,8 @@ export default function LoopersPage() {
   const [nftClaimedStatus, setNftClaimedStatus] = useState<{ [key: string]: boolean }>({});
   const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
   const [isBidding, setIsBidding] = useState<boolean>(false);
+  const [mintInfo, setMintInfo] = useState<MintInfo | null>(null);
+  const [mintingQty, setMintingQty] = useState<number | null>(null);
   const [pendingSendTokenId, setPendingSendTokenId] = useState<bigint | null>(null);
   const [sendAddressInput, setSendAddressInput] = useState("");
   const [sendAddressError, setSendAddressError] = useState(false);
@@ -383,7 +418,7 @@ export default function LoopersPage() {
   const [chainMinBid, setChainMinBid] = useState<string>("0");
   const [chainNextMinBid, setChainNextMinBid] = useState<string>("0");
   const [sharePrompt, setSharePrompt] = useState<{
-    type: "sign" | "claim" | "bid" | "sell";
+    type: "sign" | "claim" | "bid" | "sell" | "mint";
     text: string;
   } | null>(null);
   // Token görselleri zincirde değişmediği için oturum boyunca cache'lenir
@@ -682,6 +717,53 @@ export default function LoopersPage() {
       console.error("Error getting collection supply:", error);
     }
   }, [config]);
+
+  // Mint durumu: fiyat, cüzdan limiti, kalan adet ve satışın açık olup olmadığı
+  const getMintInfo = useCallback(async () => {
+    if (!config) return;
+    try {
+      const rd = <T,>(functionName: string, args: unknown[] = []) =>
+        retryWithBackoff(() =>
+          readContract(config, {
+            address: COLLECTION_ADDR,
+            abi: MINT_ABI,
+            functionName: functionName as never,
+            args: args as never,
+            chainId: base.id,
+          }),
+        ) as Promise<T>;
+      const [price, limit, remaining, closed, configured, start, end, paused] =
+        await Promise.all([
+          rd<bigint>("PUBLIC_PRICE"),
+          rd<bigint>("PUBLIC_WALLET_LIMIT"),
+          rd<bigint>("remainingPaidPublicSupply"),
+          rd<boolean>("publicMintClosed"),
+          rd<boolean>("publicSaleConfigured"),
+          rd<bigint>("publicSaleStart"),
+          rd<bigint>("publicSaleEnd"),
+          rd<boolean>("paused"),
+        ]);
+      const minted = address ? await rd<bigint>("mintedByWallet", [address]) : BigInt(0);
+      const now = BigInt(Math.floor(Date.now() / 1000));
+      const active =
+        configured && !closed && !paused && remaining > BigInt(0) && now >= start && now < end;
+      setMintInfo({
+        active,
+        price,
+        walletLimit: Number(limit),
+        remaining: Number(remaining),
+        mintedByWallet: Number(minted),
+      });
+    } catch (error) {
+      console.error("Error getting mint info:", error);
+    }
+  }, [config, address]);
+
+  useEffect(() => {
+    getMintInfo();
+    const t = setInterval(getMintInfo, 30_000);
+    return () => clearInterval(t);
+  }, [getMintInfo]);
 
   const getUserNFTs = useCallback(async () => {
     if (!address || !config) {
@@ -1178,6 +1260,123 @@ export default function LoopersPage() {
     }
   }, [config, ensureBase, bidInput, address, connectedChain, getCurrentBid, getActiveBidder, getChainMinBid, chainNextMinBid, fmtEth, isBidding]);
 
+  const handleMint = useCallback(
+    async (qty: number) => {
+      if (mintingQty !== null || !mintInfo?.active) return;
+      if (!address) {
+        toast.warning("Please connect your wallet first");
+        return;
+      }
+      if (connectedChain?.id !== base.id) {
+        toast.error("Please switch to Base network first.");
+        return;
+      }
+      const allowance = mintInfo.walletLimit - mintInfo.mintedByWallet;
+      if (qty > allowance) {
+        toast.error(
+          allowance <= 0
+            ? `Wallet limit reached (${mintInfo.walletLimit} per wallet).`
+            : `You can mint ${allowance} more from this wallet.`,
+        );
+        return;
+      }
+      if (qty > mintInfo.remaining) {
+        toast.error(`Only ${mintInfo.remaining} left to mint.`);
+        return;
+      }
+      setMintingQty(qty);
+      try {
+        await ensureBase();
+        const value = mintInfo.price * BigInt(qty);
+        const feeEth = ethPrice
+          ? (MINT_FEE_USD / ethPrice).toFixed(8)
+          : MINT_FEE_FALLBACK_ETH;
+        const feeWei = parseEther(feeEth as `${string}`);
+        const balance = await getBalance(config, { address });
+        if (balance.value < value + feeWei) {
+          toast.error("Insufficient balance to mint.", {
+            action: {
+              label: "Check wallet",
+              onClick: () =>
+                window.open(`https://basescan.org/address/${address}`, "_blank"),
+            },
+            actionButtonStyle: { background: "#1A1A1A", color: "#fff" },
+          });
+          return;
+        }
+        // Önce tek onaylı batch (mint + ücret) dene; cüzdan wallet_sendCalls
+        // bilmiyorsa mint'i normal tx, ücreti ayrı tx olarak gönder.
+        let batched = false;
+        try {
+          const { id } = await sendCalls(config, {
+            chainId: base.id,
+            forceAtomic: true,
+            calls: [
+              {
+                to: COLLECTION_ADDR,
+                abi: MINT_ABI,
+                functionName: "publicMint",
+                args: [BigInt(qty)],
+                value,
+              },
+              { to: MINT_FEE_ADDR, value: feeWei },
+            ],
+          });
+          batched = true;
+          const status = await waitForCallsStatus(config, { id, timeout: 180_000 });
+          if (status.status !== "success") {
+            toast.error("Mint failed or was reverted.");
+            return;
+          }
+        } catch (error) {
+          if (batched || isUserRejectedError(error)) throw error;
+          // Batch desteklenmiyor → klasik akış
+          const txHash = await writeContract(config, {
+            address: COLLECTION_ADDR,
+            abi: MINT_ABI,
+            functionName: "publicMint",
+            args: [BigInt(qty)],
+            value,
+            chainId: base.id,
+          });
+          if (!(await awaitTx(config, txHash, base.id))) return;
+          try {
+            const feeHash = await sendTransaction(config, {
+              to: MINT_FEE_ADDR,
+              value: feeWei,
+              chainId: base.id,
+            });
+            await awaitTx(config, feeHash, base.id);
+          } catch (feeError) {
+            // Mint zaten onaylandı; ücret reddedilse bile akışı bozma
+            console.error("Mint fee transfer failed:", feeError);
+          }
+        }
+        toast.success(`Minted ${qty} Looper${qty > 1 ? "s" : ""}!`);
+        playChime();
+        fireConfetti();
+        setSharePrompt({
+          type: "mint",
+          text: `Just minted ${qty} Looper${qty > 1 ? "s" : ""} on flooor.fun 🌀\n\nSign daily, earn daily. Royalties to the community.`,
+        });
+        setTimeout(() => {
+          getMintInfo();
+          getUserNFTs();
+        }, 2000);
+      } catch (error) {
+        if (isUserRejectedError(error)) {
+          toast.info("Transaction cancelled.");
+          return;
+        }
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        toast.error(`Mint failed: ${errorMessage}`, { duration: 5000 });
+      } finally {
+        setMintingQty(null);
+      }
+    },
+    [config, ensureBase, address, connectedChain, mintInfo, mintingQty, getMintInfo, getUserNFTs, ethPrice],
+  );
+
   const handleSignOrClaim = useCallback(
     async (tokenId: bigint) => {
       if (!IS_DEPLOYED) {
@@ -1644,6 +1843,28 @@ export default function LoopersPage() {
             ) : (
               <div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
+                  {mintInfo?.active ? (
+                  <div>
+                    <p style={smallCaps}>Mint Price</p>
+                    <p
+                      className="mt-2 tabular-nums"
+                      style={{
+                        ...SERIF,
+                        fontWeight: 500,
+                        fontSize: "clamp(28px, 3.4vw, 44px)",
+                        lineHeight: 1.1,
+                      }}
+                    >
+                      Ξ {fmtEth(formatEther(mintInfo.price))}
+                    </p>
+                    <p className="mt-1.5 text-sm" style={{ color: MUTED }}>
+                      {toUsd(formatEther(mintInfo.price))
+                        ? `${toUsd(formatEther(mintInfo.price))} each · `
+                        : ""}
+                      {mintInfo.remaining.toLocaleString()} left
+                    </p>
+                  </div>
+                  ) : (
                   <div>
                     <p style={smallCaps}>Current Bid</p>
                     <p
@@ -1677,6 +1898,7 @@ export default function LoopersPage() {
                       )}
                     </p>
                   </div>
+                  )}
                   <div>
                     <p style={smallCaps}>
                       {isSignPhase ? "Sign Closes In" : "Claim Closes In"}
@@ -1695,6 +1917,44 @@ export default function LoopersPage() {
                   </div>
                 </div>
 
+                {mintInfo?.active ? (
+                  <>
+                    {/* Mint buttons — bid kutusu mint bitince geri gelir */}
+                    <div className="mt-8 grid gap-3" style={{ gridTemplateColumns: `repeat(${MINT_QTY_OPTIONS.filter((q) => q <= mintInfo.walletLimit).length}, minmax(0, 1fr))` }}>
+                      {MINT_QTY_OPTIONS.filter((q) => q <= mintInfo.walletLimit).map((q) => {
+                        const allowance = mintInfo.walletLimit - mintInfo.mintedByWallet;
+                        const disabled =
+                          mintingQty !== null || (address ? q > allowance : false) || q > mintInfo.remaining;
+                        const busy = mintingQty === q;
+                        return (
+                          <button
+                            key={q}
+                            onClick={() => handleMint(q)}
+                            disabled={disabled}
+                            className="py-4 whitespace-nowrap transition-opacity hover:opacity-80 disabled:hover:opacity-100"
+                            style={{
+                              ...smallCaps,
+                              fontSize: 12,
+                              color: "#fff",
+                              backgroundColor: INK,
+                              border: `1px solid ${INK}`,
+                              opacity: disabled ? 0.45 : 1,
+                              cursor: disabled ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            {busy ? "Minting…" : `Mint ${q}`}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-3 text-xs" style={{ color: FAINT }}>
+                      Max {mintInfo.walletLimit} per wallet
+                      {address ? ` · you have minted ${mintInfo.mintedByWallet}` : ""}
+                      {" "}— minted directly from the Loopers contract, plus a ${MINT_FEE_USD} flooor fee per mint. Every sale on flooor feeds the vault.
+                    </p>
+                  </>
+                ) : (
+                <>
                 {/* Bid box */}
                 <div
                   className={hasBid ? "mt-3 flex items-stretch" : "mt-8 flex items-stretch"}
@@ -1759,6 +2019,8 @@ export default function LoopersPage() {
                     </>
                   )}
                 </p>
+                </>
+                )}
 
                 {/* Signers, TVS, vault, yield */}
                 <div className="mt-10">
@@ -1988,7 +2250,9 @@ export default function LoopersPage() {
                     ? "Claimed — spread the word?"
                     : sharePrompt.type === "bid"
                       ? "Bid placed — spread the word?"
-                      : "Sold — spread the word?"}
+                      : sharePrompt.type === "mint"
+                        ? "Minted — spread the word?"
+                        : "Sold — spread the word?"}
               </p>
               <p
                 style={{
