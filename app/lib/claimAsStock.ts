@@ -1,22 +1,24 @@
-// Claim'i ETH yerine AMZNc (Coinbase'in Base'deki tokenize Amazon hissesi)
-// olarak alma yolu.
+// Claim'i ETH yerine SPCXc (Coinbase'in Base'deki tokenize SpaceX hissesi)
+// olarak alma yolu. Önceki kampanya AMZNc idi; token adresi/sembolü tek yerde.
 //
 // Kontrat claim'de ETH'i cüzdana yollar; biz aynı wallet_sendCalls paketinin
 // sonuna bir Uniswap V3 swap call'ı ekliyoruz. Paket atomik cüzdanda tek
-// işlemde koşar: claim'ler ETH'i getirir, son call o ETH'i AMZNc'ye çevirir.
+// işlemde koşar: claim'ler ETH'i getirir, son call o ETH'i SPCXc'ye çevirir.
 //
 // Base app'in kendi swap'ı CDP Trade API'ye gidiyor (sunucu anahtarı ister,
 // statik siteye konmaz). Onun yerine doğrudan zincirdeki havuzları kullanıyoruz:
-// ETH → USDC (0.05%, derin) → AMZNc (1%, Coinbase hisse havuzu). Claim
+// ETH → USDC (0.05%, derin) → SPCXc (1%, Coinbase hisse havuzu). Claim
 // boyutlarında (birkaç dolar – birkaç yüz dolar) kayma ihmal edilebilir.
 import { simulateContract, readContract } from "wagmi/actions";
 import type { Config } from "wagmi";
 import { encodeFunctionData, encodePacked, parseAbi, type Abi, type Address, type Hex } from "viem";
 
-export const AMZNC: { address: Address; symbol: string; decimals: number } = {
-  address: "0xb200000000000000000000d9192b6B456483C2E8",
-  symbol: "AMZNc",
+export const SPCXC: { address: Address; symbol: string; decimals: number; cashtag: string } = {
+  address: "0xb2000000000000000000007b9fcbd005511acbd5",
+  symbol: "SPCXc",
   decimals: 8,
+  // X paylaşımında hisse etiketi
+  cashtag: "$SPCX",
 };
 
 const WETH: Address = "0x4200000000000000000000000000000000000006";
@@ -30,7 +32,7 @@ const SLIPPAGE_BPS = BigInt(300);
 
 const PATH: Hex = encodePacked(
   ["address", "uint24", "address", "uint24", "address"],
-  [WETH, 500, USDC, 10000, AMZNC.address],
+  [WETH, 500, USDC, 10000, SPCXC.address],
 );
 
 const QUOTER_ABI = parseAbi([
@@ -44,7 +46,7 @@ const ROUTER_ABI = parseAbi([
 
 export type StockCall = { to: Address; data: Hex; value: bigint };
 
-// Bu kadar ETH kaç AMZNc eder? (8 decimals)
+// Bu kadar ETH kaç SPCXc eder? (8 decimals)
 export const quoteStock = async (opts: {
   config: Config;
   chainId: number;
@@ -62,7 +64,7 @@ export const quoteStock = async (opts: {
 };
 
 export const formatStock = (units: bigint): string => {
-  const n = Number(units) / 10 ** AMZNC.decimals;
+  const n = Number(units) / 10 ** SPCXC.decimals;
   if (n === 0) return "0";
   if (n < 0.0001) return n.toFixed(8);
   if (n < 1) return n.toFixed(5);

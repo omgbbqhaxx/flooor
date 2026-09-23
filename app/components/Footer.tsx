@@ -83,6 +83,15 @@ export default function Footer({
             >
               DefiLlama
             </a>
+            <a
+              href="https://dune.com/yasinaktimur/flooor"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-black transition-colors"
+              style={linkStyle}
+            >
+              Dune Analytics
+            </a>
           </div>
         </div>
         <div>

@@ -6,10 +6,12 @@ import { FAINT, GOLD, GREEN, HAIRLINE, INK, IVORY, MUTED, PLINTH, SANS, SERIF, s
 import Footer from "@/app/components/Footer";
 import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
+import { bulkSignOrClaim, supportsAtomicBatch } from "@/app/lib/bulkSignOrClaim";
+import { SPCXC, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
 import { awaitTx } from "@/app/lib/awaitTx";
 import WorkCard from "@/app/components/WorkCard";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useConfig, useAccount, useSwitchChain } from "wagmi";
 import { writeContract, readContract, getBalance, getPublicClient, sendCalls, sendTransaction, waitForCallsStatus } from "wagmi/actions";
 import { base } from "wagmi/chains";
@@ -258,6 +260,9 @@ const COLLECTION_ADDR = "0x1649CD37f4748807b4882FC48765bA0B2aFfa94a" as const;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const IS_DEPLOYED = CONTRACT_ADDR.toLowerCase() !== ZERO_ADDRESS;
 
+// SpaceX siyahı; sadece "Claim as SPCXc" butonunda
+const SPACEX_BLACK = "#000000";
+
 // Loopers public mint (koleksiyon kontratı, LoopersUpgradeable). Mint açıkken
 // bid kutusu yerine mint butonları gösterilir; kapanınca/bitince bid'e dönülür.
 // publicMint msg.value == PUBLIC_PRICE * quantity tam eşitliği ister.
@@ -404,6 +409,10 @@ export default function LoopersPage() {
   const [nftSignedStatus, setNftSignedStatus] = useState<{ [key: string]: boolean }>({});
   const [nftClaimedStatus, setNftClaimedStatus] = useState<{ [key: string]: boolean }>({});
   const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
+  const [bulkBusy, setBulkBusy] = useState<boolean>(false);
+  const [bulkStage, setBulkStage] = useState<string>("");
+  // "Claim as SPCXc" için ön izleme: bugünkü claim'in tamamı kaç hisse eder
+  const [stockQuote, setStockQuote] = useState<bigint | null>(null);
   const [isBidding, setIsBidding] = useState<boolean>(false);
   const [mintInfo, setMintInfo] = useState<MintInfo | null>(null);
   const [mintingQty, setMintingQty] = useState<number | null>(null);
@@ -1454,6 +1463,223 @@ export default function LoopersPage() {
     [config, ensureBase, address, isSignPhase, checkSignClaimStatus, getPhaseInfo, getDailyVault, dailySigners, dailyVault, yieldPerSigner, fmtEth, toUsd],
   );
 
+  // Butonun sayısı ile handler'ın işlediği küme aynı kaynaktan gelsin diye
+  // uygunluk kuralı tek yerde: faz neyse ona göre filtre.
+  const bulkEligible = useMemo(
+    () =>
+      userNFTs.filter((tokenId) => {
+        const id = tokenId.toString();
+        const signed = nftSignedStatus[id] === true;
+        const claimed = nftClaimedStatus[id] === true;
+        return isSignPhase ? !signed : signed && !claimed;
+      }),
+    [userNFTs, nftSignedStatus, nftClaimedStatus, isSignPhase],
+  );
+  const bulkEligibleCount = bulkEligible.length;
+
+  // Kartlardaki tek tek sign/claim aynen duruyor; bu onların üstüne eklenen
+  // toplu yol. Kontrat dizi almadığı için N ayrı signOrClaim çağrısını tek
+  // wallet_sendCalls paketine koyuyoruz — tek imza, tek işlem.
+  const handleBulkSignOrClaim = useCallback(async (asStock: boolean = false) => {
+    if (!IS_DEPLOYED || !address) {
+      toast.warning("Please connect your wallet first");
+      return;
+    }
+
+    const candidates = bulkEligible;
+
+    if (candidates.length === 0) {
+      toast.info(isSignPhase ? "Every work is already signed." : "Nothing left to claim.");
+      return;
+    }
+
+    setBulkBusy(true);
+    try {
+      await ensureBase();
+
+      // Pakete koymadan önce her token'ı ayrı ayrı simüle ediyoruz. Tek bir
+      // uygunsuz token atomik pakette hepsini geri sardırır; elemeyi burada
+      // yapıp sadece geçenleri gönderiyoruz.
+      setBulkStage("Checking");
+      const checks = await Promise.all(
+        candidates.map(async (tokenId) => ({
+          tokenId,
+          guard: await guardSignOrClaim({
+            config,
+            contract: CONTRACT_ADDR,
+            abi: LOOPERS_ABI,
+            tokenId,
+            account: address,
+            chainId: base.id,
+          }),
+        })),
+      );
+      const eligible = checks.filter((c) => c.guard.ok).map((c) => c.tokenId);
+      const skipped = checks.length - eligible.length;
+
+      if (eligible.length === 0) {
+        const first = checks.find((c) => !c.guard.ok);
+        toast.warning(
+          first && !first.guard.ok
+            ? first.guard.message
+            : "None of these works can be processed right now.",
+          { duration: 6000 },
+        );
+        return;
+      }
+
+      const atomic = await supportsAtomicBatch({ config, account: address, chainId: base.id });
+
+      setBulkStage(isSignPhase ? "Signing" : "Claiming");
+      // Hisse olarak claim: claim'lerin getireceği tam ETH'i kontrattan
+      // hesaplayıp o miktar için bir Uniswap swap call'ı paketin sonuna
+      // ekliyoruz. Bir wei fazla istersek paket revert eder, o yüzden
+      // frontend'deki yuvarlanmış "yield per signer" değil, kontratın bölmesi.
+      let trailingCalls: { to: `0x${string}`; data: `0x${string}`; value: bigint }[] = [];
+      let stockOut: bigint | null = null;
+      if (asStock && !isSignPhase) {
+        setBulkStage("Quoting");
+        const share = await exactClaimShare({ config, contract: CONTRACT_ADDR, abi: LOOPERS_ABI, chainId: base.id });
+        const amountIn = share * BigInt(eligible.length);
+        if (amountIn === BigInt(0)) {
+          toast.warning("Nothing to swap — today's share is zero.");
+          return;
+        }
+        stockOut = await quoteStock({ config, chainId: base.id, amountInWei: amountIn });
+        trailingCalls = [buildStockSwapCall({ recipient: address, amountInWei: amountIn, quotedOut: stockOut })];
+      }
+
+      const verb = isSignPhase ? "Signing" : "Claiming";
+      const outcome = await bulkSignOrClaim({
+        config,
+        contract: CONTRACT_ADDR,
+        abi: LOOPERS_ABI,
+        tokenIds: eligible,
+        account: address,
+        chainId: base.id,
+        dataSuffix: DATA_SUFFIX,
+        onProgress: (done, total) => setBulkStage(`${verb} ${done + 1} of ${total}`),
+        trailingCalls,
+        onSequentialFallback: () => {
+          const total = eligible.length + trailingCalls.length;
+          setBulkStage(`${verb} 1 of ${total}`);
+          if (total > 1) {
+            toast.warning(
+              `MetaMask and older wallets don't support batch transactions — you'll confirm ${total} transactions one by one.`,
+              { duration: 8000 },
+            );
+          }
+        },
+      });
+
+      if (!outcome.ok) {
+        toast.error(outcome.message, { duration: 6000 });
+        return;
+      }
+
+      const n = outcome.sequential ? (outcome.done ?? eligible.length) : eligible.length;
+      const past = isSignPhase ? "signed" : "claimed";
+      const stockNote = stockOut !== null ? ` — ≈${formatStock(stockOut)} ${SPCXC.symbol} in your wallet` : "";
+      toast.success(
+        n === 1
+          ? `Looper ${past}${stockNote}!`
+          : `${n} works ${past}${outcome.sequential ? "" : " in one transaction"}${stockNote}!` +
+              (skipped > 0 ? ` (${skipped} skipped)` : "") +
+              (atomic || outcome.sequential ? "" : " Your wallet ran them one by one — check each card."),
+      );
+      playChime();
+      fireConfetti();
+      if (isSignPhase) {
+        setSharePrompt({
+          type: "sign",
+          text: `Just signed my Looper on flooor.fun 🖊️\n\n${dailySigners + n} signers sharing today's vault of Ξ${fmtEth(dailyVault)}.\n\nSign daily, earn daily. Royalties to the community.`,
+        });
+      } else {
+        const totalEth = String((parseFloat(yieldPerSigner) || 0) * n);
+        const claimedUsd = toUsd(totalEth);
+        setSharePrompt({
+          type: "claim",
+          text:
+            stockOut !== null
+              ? `Claimed today's vault share on flooor.fun as ${formatStock(stockOut)} ${SPCXC.symbol} (${SPCXC.cashtag}) — SpaceX stock, onchain on Base 🚀\n\nMy Looper earns yield every single day — no lockup, no transfer.`
+              : `Claimed Ξ${fmtEth(totalEth)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun 💰\n\nMy Looper earns yield every single day — no lockup, no transfer.`,
+        });
+      }
+
+      // Ekrandaki durumu tahmin etmiyoruz; doğru cevap zincirde.
+      setBulkStage("");
+      checkSignClaimStatus();
+      getPhaseInfo();
+      getDailyVault();
+    } catch (error) {
+      if (isUserRejectedError(error)) {
+        toast.info("Transaction cancelled.");
+        return;
+      }
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      toast.error(`Bulk ${isSignPhase ? "sign" : "claim"} failed: ${errorMessage}`, { duration: 5000 });
+    } finally {
+      setBulkBusy(false);
+      setBulkStage("");
+    }
+  }, [
+    config,
+    address,
+    ensureBase,
+    bulkEligible,
+    isSignPhase,
+    checkSignClaimStatus,
+    getPhaseInfo,
+    getDailyVault,
+    dailySigners,
+    dailyVault,
+    yieldPerSigner,
+    fmtEth,
+    toUsd,
+  ]);
+
+  // Claim hazırken ikinci seçeneğin altına "≈ X SPCXc" yazabilmek için quote.
+  // Sadece gösterim; gerçek swap miktarı tıklama anında yeniden hesaplanıyor.
+  const stockQuoteEligible = !isSignPhase && bulkEligibleCount > 0 && parseFloat(yieldPerSigner) > 0;
+  useEffect(() => {
+    if (!stockQuoteEligible) {
+      setStockQuote(null);
+      return;
+    }
+    let cancelled = false;
+    const amountIn = parseEther(yieldPerSigner as `${string}`) * BigInt(bulkEligibleCount);
+    quoteStock({ config, chainId: base.id, amountInWei: amountIn })
+      .then((out) => { if (!cancelled) setStockQuote(out); })
+      .catch(() => { if (!cancelled) setStockQuote(null); });
+    return () => { cancelled = true; };
+  }, [config, stockQuoteEligible, yieldPerSigner, bulkEligibleCount]);
+
+  // Ana sayfadaki günlük imza butonunun metin/durum kuralları; tek fark
+  // burada "kullanıcı" yerine "cüzdandaki uygun token sayısı" konuşuyor.
+  const allSigned = userNFTs.length > 0 && userNFTs.every((t) => nftSignedStatus[t.toString()] === true);
+  const allClaimed = userNFTs.length > 0 && userNFTs.every((t) => nftClaimedStatus[t.toString()] === true);
+  const bulkEarnUsd = toUsd(String((parseFloat(yieldPerSigner) || 0) * Math.max(bulkEligibleCount, 1))) ?? "$0.00";
+  const bulkButtonDisabled =
+    !IS_DEPLOYED || !phaseInfo || !address || bulkBusy || bulkEligibleCount === 0 ||
+    (isSignPhase && allSigned && remainingTimeDisplay < 30);
+  const bulkButtonText = (() => {
+    if (bulkBusy) return `${bulkStage || "Working"}…`;
+    if (!phaseInfo || !address || userNFTs.length === 0) return `Daily Sign · Earn ${bulkEarnUsd}`;
+    if (isSignPhase) {
+      if (bulkEligibleCount > 0)
+        return bulkEligibleCount > 1
+          ? `Sign all ${bulkEligibleCount} · Earn ${bulkEarnUsd}`
+          : `Daily Sign · Earn ${bulkEarnUsd}`;
+      if (remainingTimeDisplay < 60) return "Refreshing...";
+      return `Claim opens ${formatTimeRemaining(remainingTimeDisplay)}`;
+    }
+    if (bulkEligibleCount > 0)
+      return bulkEligibleCount > 1 ? `Claim all ${bulkEligibleCount} · ${bulkEarnUsd}` : `Claim ${bulkEarnUsd}`;
+    if (allClaimed) return `Next sign ${formatTimeRemaining(remainingTimeDisplay)}`;
+    return `Sign ended ${formatTimeRemaining(remainingTimeDisplay)}`;
+  })();
+  const bulkClaimReady = !isSignPhase && bulkEligibleCount > 0;
+
   const handleShare = useCallback(
     async (platform: "x" | "farcaster") => {
       if (!sharePrompt) return;
@@ -2068,6 +2294,61 @@ export default function LoopersPage() {
                   ))}
                   {/* Son satırın (Projected APR) altını kapatan çizgi */}
                   <div style={{ borderTop: `1px solid ${HAIRLINE}` }} />
+                </div>
+
+                {/* Daily sign — cüzdandaki her uygun Looper'ı tek onayla (batch)
+                    imzalar / claim eder; kartlardaki tekil butonlar duruyor */}
+                <div className="mt-10 pt-8">
+                  <button
+                    onClick={() => handleBulkSignOrClaim(false)}
+                    disabled={bulkButtonDisabled}
+                    className="w-full px-12 py-4 transition-opacity enabled:hover:opacity-85"
+                    style={{
+                      ...smallCaps,
+                      color: bulkButtonDisabled ? FAINT : "#fff",
+                      backgroundColor: bulkButtonDisabled ? IVORY : bulkClaimReady ? GREEN : INK,
+                      border: bulkButtonDisabled ? `1px solid ${HAIRLINE}` : "none",
+                      cursor: bulkButtonDisabled ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {bulkButtonText}
+                  </button>
+                  {/* İkinci claim yolu: aynı paket, sonunda Uniswap swap'ı.
+                      Sadece claim hazırken görünür; sign fazında anlamı yok. */}
+                  {bulkClaimReady && (
+                    <button
+                      onClick={() => handleBulkSignOrClaim(true)}
+                      disabled={bulkButtonDisabled}
+                      className="mt-2 w-full px-12 py-3 flex items-center justify-center gap-2.5 transition-opacity enabled:hover:opacity-85"
+                      style={{
+                        ...smallCaps,
+                        color: bulkButtonDisabled ? FAINT : "#fff",
+                        // SpaceX siyahı — buton hangi hisseye gittiğini renkten söylesin
+                        backgroundColor: bulkButtonDisabled ? IVORY : SPACEX_BLACK,
+                        border: bulkButtonDisabled ? `1px solid ${HAIRLINE}` : "none",
+                        cursor: bulkButtonDisabled ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {/* Roket — beyaz, tek çizgi */}
+                      <svg width="14" height="18" viewBox="0 0 14 18" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+                        <path d="M7 1c2.6 2 4 5.2 4 8.6V13H3V9.6C3 6.2 4.4 3 7 1z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+                        <path d="M3 10.5 1 13.5V15l2-1.2M11 10.5l2 3V15l-2-1.2M5.5 13v2.2L7 17l1.5-1.8V13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                        <circle cx="7" cy="7.5" r="1.3" fill="currentColor" />
+                      </svg>
+                      <span>
+                        {bulkBusy
+                          ? `${bulkStage || "Working"}…`
+                          : `Claim as ${SPCXC.symbol}${stockQuote !== null ? ` · ≈${formatStock(stockQuote)}` : ""}`}
+                      </span>
+                    </button>
+                  )}
+                  <p className="mt-3 text-xs" style={{ color: FAINT }}>
+                    {bulkClaimReady
+                      ? `Take your share in ETH, or swap it into ${SPCXC.symbol} — tokenized SpaceX stock on Base — in the same transaction via Uniswap.`
+                      : ""}
+                    {bulkClaimReady ? " " : ""}Hold Loopers? Daily sign to claim your share of the daily
+                    vault — every work in your wallet, one tap. No lockup, no transfer.
+                  </p>
                 </div>
               </div>
             )}

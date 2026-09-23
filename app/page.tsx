@@ -114,12 +114,12 @@ import { MINIMUM_BID_FOR_SELL } from "@/app/lib/minBid";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
 import { awaitTx } from "@/app/lib/awaitTx";
 import { bulkSignOrClaim } from "@/app/lib/bulkSignOrClaim";
-import { AMZNC, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
+import { SPCXC, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
 
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
-// Amazon'un marka turuncusu; sadece "Claim as AMZNc" butonunda
-const AMAZON_ORANGE = "#FF9900";
+// SpaceX siyahı; sadece "Claim as SPCXc" butonunda
+const SPACEX_BLACK = "#000000";
 
 // Market cap hesabında kullanılan koleksiyon toplam arzı (mint edilmiş adet değil)
 const COLLECTION_TOTAL_SUPPLY = 5000;
@@ -379,7 +379,7 @@ export default function BetaPage() {
   const [sendAddressInput, setSendAddressInput] = useState("");
   const [sendAddressError, setSendAddressError] = useState(false);
   const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
-  // "Claim as AMZNc" için ön izleme: bugünkü claim kaç hisse eder
+  // "Claim as SPCXc" için ön izleme: bugünkü claim kaç hisse eder
   const [stockQuote, setStockQuote] = useState<bigint | null>(null);
   // Hisse claim'i sırasında butonda gösterilen aşama ("Quoting", "Claiming")
   const [stockStage, setStockStage] = useState<string>("");
@@ -1714,7 +1714,7 @@ export default function BetaPage() {
         setUserHasClaimed(true);
         toast.success(
           stockOut !== null
-            ? `Claimed — ≈${formatStock(stockOut)} ${AMZNC.symbol} in your wallet!`
+            ? `Claimed — ≈${formatStock(stockOut)} ${SPCXC.symbol} in your wallet!`
             : "Claim successful!",
         );
         const claimedUsd = toUsd(yieldPerNFT);
@@ -1722,7 +1722,7 @@ export default function BetaPage() {
           type: "claim",
           text:
             stockOut !== null
-              ? `Claimed today's vault share on flooor.fun as ${formatStock(stockOut)} ${AMZNC.symbol} — Amazon stock, onchain on Base 📈\n\nMy VRNoun earns yield every single day — no lockup, no transfer.`
+              ? `Claimed today's vault share on flooor.fun as ${formatStock(stockOut)} ${SPCXC.symbol} (${SPCXC.cashtag}) — SpaceX stock, onchain on Base 🚀\n\nMy VRNoun earns yield every single day — no lockup, no transfer.`
               : `Claimed Ξ${fmtEth(yieldPerNFT)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun 💰\n\nMy VRNoun earns yield every single day — no lockup, no transfer.`,
         });
       }
@@ -1758,7 +1758,7 @@ export default function BetaPage() {
     toUsd,
   ]);
 
-  // Claim hazırken ikinci seçeneğin altına "≈ X AMZNc" yazabilmek için quote.
+  // Claim hazırken ikinci seçeneğin altına "≈ X SPCXc" yazabilmek için quote.
   // Sadece gösterim; gerçek swap miktarı tıklama anında yeniden hesaplanıyor.
   const stockQuoteEligible =
     !!phaseInfo &&
@@ -2032,13 +2032,13 @@ export default function BetaPage() {
                       </div>
                     }
                   >
-                    {/* AMZNc kampanyası boyunca eser plakasında kampanya görseli;
+                    {/* SPCXc kampanyası boyunca eser plakasında kampanya görseli;
                         bitince /vrnounz.svg'ye geri dön */}
                     <Image
-                      src="/amznc-promo.jpg"
-                      alt="Claim AMZNc for 1 week as a VRNouns holder"
-                      width={1122}
-                      height={1402}
+                      src="/spcxc-promo.png"
+                      alt="Claim SPCXc daily as a VRNouns holder"
+                      width={1254}
+                      height={1254}
                       priority
                       className="w-full h-auto"
                     />
@@ -2359,32 +2359,28 @@ export default function BetaPage() {
                   style={{
                     ...smallCaps,
                     color: isSignButtonDisabled() ? FAINT : "#fff",
-                    // Amazon turuncusu — buton hangi hisseye gittiğini renkten söylesin
-                    backgroundColor: isSignButtonDisabled() ? IVORY : AMAZON_ORANGE,
+                    // SpaceX siyahı — buton hangi hisseye gittiğini renkten söylesin
+                    backgroundColor: isSignButtonDisabled() ? IVORY : SPACEX_BLACK,
                     border: isSignButtonDisabled() ? `1px solid ${HAIRLINE}` : "none",
                     cursor: isSignButtonDisabled() ? "not-allowed" : "pointer",
                   }}
                 >
-                  {/* Amazon gülümsemesi — beyaz, tek çizgi */}
-                  <svg width="26" height="12" viewBox="0 0 26 12" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
-                    <path
-                      d="M1.5 3.2C5.2 7.6 12.3 9.6 19.2 8.1c1.6-.35 3.1-.9 4.4-1.55"
-                      stroke="currentColor"
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                    />
-                    <path d="M20.6 3.4l3.9 2.9-4.6 1.6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                  {/* Roket — beyaz, tek çizgi */}
+                  <svg width="14" height="18" viewBox="0 0 14 18" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+                    <path d="M7 1c2.6 2 4 5.2 4 8.6V13H3V9.6C3 6.2 4.4 3 7 1z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+                    <path d="M3 10.5 1 13.5V15l2-1.2M11 10.5l2 3V15l-2-1.2M5.5 13v2.2L7 17l1.5-1.8V13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                    <circle cx="7" cy="7.5" r="1.3" fill="currentColor" />
                   </svg>
                   <span>
                     {stockStage
                       ? `${stockStage}…`
-                      : `Claim as ${AMZNC.symbol}${stockQuote !== null ? ` · ≈${formatStock(stockQuote)}` : ""}`}
+                      : `Claim as ${SPCXC.symbol}${stockQuote !== null ? ` · ≈${formatStock(stockQuote)}` : ""}`}
                   </span>
                 </button>
               )}
               <p className="mt-3 text-xs" style={{ color: FAINT }}>
                 {isClaimReady
-                  ? `Take your share in ETH, or swap it into ${AMZNC.symbol} — tokenized Amazon stock on Base — in the same transaction via Uniswap. `
+                  ? `Take your share in ETH, or swap it into ${SPCXC.symbol} — tokenized SpaceX stock on Base — in the same transaction via Uniswap. `
                   : ""}
                 Hold a VRNouns NFT? Daily sign to claim your share of the
                 daily vault. No lockup, no transfer.
