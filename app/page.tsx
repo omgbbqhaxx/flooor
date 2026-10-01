@@ -114,12 +114,12 @@ import { MINIMUM_BID_FOR_SELL } from "@/app/lib/minBid";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
 import { awaitTx } from "@/app/lib/awaitTx";
 import { bulkSignOrClaim } from "@/app/lib/bulkSignOrClaim";
-import { SPCXC, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
+import { AAPLC, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
 
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
-// SpaceX siyahı; sadece "Claim as SPCXc" butonunda
-const SPACEX_BLACK = "#000000";
+// Apple siyahı; sadece "Claim as AAPLc" butonunda
+const APPLE_BLACK = "#000000";
 
 // Market cap hesabında kullanılan koleksiyon toplam arzı (mint edilmiş adet değil)
 const COLLECTION_TOTAL_SUPPLY = 5000;
@@ -379,7 +379,7 @@ export default function BetaPage() {
   const [sendAddressInput, setSendAddressInput] = useState("");
   const [sendAddressError, setSendAddressError] = useState(false);
   const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
-  // "Claim as SPCXc" için ön izleme: bugünkü claim kaç hisse eder
+  // "Claim as AAPLc" için ön izleme: bugünkü claim kaç hisse eder
   const [stockQuote, setStockQuote] = useState<bigint | null>(null);
   // Hisse claim'i sırasında butonda gösterilen aşama ("Quoting", "Claiming")
   const [stockStage, setStockStage] = useState<string>("");
@@ -1714,7 +1714,7 @@ export default function BetaPage() {
         setUserHasClaimed(true);
         toast.success(
           stockOut !== null
-            ? `Claimed — ≈${formatStock(stockOut)} ${SPCXC.symbol} in your wallet!`
+            ? `Claimed — ≈${formatStock(stockOut)} ${AAPLC.symbol} in your wallet!`
             : "Claim successful!",
         );
         const claimedUsd = toUsd(yieldPerNFT);
@@ -1722,7 +1722,7 @@ export default function BetaPage() {
           type: "claim",
           text:
             stockOut !== null
-              ? `Claimed today's vault share on flooor.fun as ${formatStock(stockOut)} ${SPCXC.symbol} (${SPCXC.cashtag}) — SpaceX stock, onchain on Base 🚀\n\nMy VRNoun earns yield every single day — no lockup, no transfer.`
+              ? `Claimed today's vault share on flooor.fun as ${formatStock(stockOut)} ${AAPLC.symbol} (${AAPLC.cashtag}) — Apple stock, onchain on Base 🍎\n\nMy VRNoun earns yield every single day — no lockup, no transfer.`
               : `Claimed Ξ${fmtEth(yieldPerNFT)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun 💰\n\nMy VRNoun earns yield every single day — no lockup, no transfer.`,
         });
       }
@@ -1758,7 +1758,7 @@ export default function BetaPage() {
     toUsd,
   ]);
 
-  // Claim hazırken ikinci seçeneğin altına "≈ X SPCXc" yazabilmek için quote.
+  // Claim hazırken ikinci seçeneğin altına "≈ X AAPLc" yazabilmek için quote.
   // Sadece gösterim; gerçek swap miktarı tıklama anında yeniden hesaplanıyor.
   const stockQuoteEligible =
     !!phaseInfo &&
@@ -2032,11 +2032,11 @@ export default function BetaPage() {
                       </div>
                     }
                   >
-                    {/* SPCXc kampanyası boyunca eser plakasında kampanya görseli;
+                    {/* AAPLc kampanyası boyunca eser plakasında kampanya görseli;
                         bitince /vrnounz.svg'ye geri dön */}
                     <Image
-                      src="/spcxc-promo.png"
-                      alt="Claim SPCXc daily as a VRNouns holder"
+                      src="/aaplc-promo.png"
+                      alt="Claim AAPLc daily as a VRNouns holder"
                       width={1254}
                       height={1254}
                       priority
@@ -2359,8 +2359,8 @@ export default function BetaPage() {
                   style={{
                     ...smallCaps,
                     color: isSignButtonDisabled() ? FAINT : "#fff",
-                    // SpaceX siyahı — buton hangi hisseye gittiğini renkten söylesin
-                    backgroundColor: isSignButtonDisabled() ? IVORY : SPACEX_BLACK,
+                    // Apple siyahı — buton hangi hisseye gittiğini renkten söylesin
+                    backgroundColor: isSignButtonDisabled() ? IVORY : APPLE_BLACK,
                     border: isSignButtonDisabled() ? `1px solid ${HAIRLINE}` : "none",
                     cursor: isSignButtonDisabled() ? "not-allowed" : "pointer",
                   }}
@@ -2374,13 +2374,13 @@ export default function BetaPage() {
                   <span>
                     {stockStage
                       ? `${stockStage}…`
-                      : `Claim as ${SPCXC.symbol}${stockQuote !== null ? ` · ≈${formatStock(stockQuote)}` : ""}`}
+                      : `Claim as ${AAPLC.symbol}${stockQuote !== null ? ` · ≈${formatStock(stockQuote)}` : ""}`}
                   </span>
                 </button>
               )}
               <p className="mt-3 text-xs" style={{ color: FAINT }}>
                 {isClaimReady
-                  ? `Take your share in ETH, or swap it into ${SPCXC.symbol} — tokenized SpaceX stock on Base — in the same transaction via Uniswap. `
+                  ? `Take your share in ETH, or swap it into ${AAPLC.symbol} — tokenized Apple stock on Base — in the same transaction via Uniswap. `
                   : ""}
                 Hold a VRNouns NFT? Daily sign to claim your share of the
                 daily vault. No lockup, no transfer.

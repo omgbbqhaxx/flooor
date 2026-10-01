@@ -7,7 +7,7 @@ import Footer from "@/app/components/Footer";
 import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
 import { bulkSignOrClaim, supportsAtomicBatch } from "@/app/lib/bulkSignOrClaim";
-import { SPCXC, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
+import { AAPLC, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
 import { awaitTx } from "@/app/lib/awaitTx";
 import WorkCard from "@/app/components/WorkCard";
 
@@ -254,8 +254,8 @@ const flushPendingChime = () => {
 };
 
 const CONTRACT_ADDR = "0x0c2d41b6896a7dde2641a0fe04165df180c43242" as const;
-// SpaceX siyahı; sadece "Claim as SPCXc" butonunda
-const SPACEX_BLACK = "#000000";
+// Apple siyahı; sadece "Claim as AAPLc" butonunda
+const APPLE_BLACK = "#000000";
 const COLLECTION_ADDR = "0x699727F9E01A822EFdcf7333073f0461e5914b4E" as const;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const IS_DEPLOYED = CONTRACT_ADDR.toLowerCase() !== ZERO_ADDRESS;
@@ -372,7 +372,7 @@ export default function WarpletsPage() {
   const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
   const [bulkBusy, setBulkBusy] = useState<boolean>(false);
   const [bulkStage, setBulkStage] = useState<string>("");
-  // "Claim as SPCXc" için ön izleme: bugünkü claim'in tamamı kaç hisse eder
+  // "Claim as AAPLc" için ön izleme: bugünkü claim'in tamamı kaç hisse eder
   const [stockQuote, setStockQuote] = useState<bigint | null>(null);
   const [isBidding, setIsBidding] = useState<boolean>(false);
   const [pendingSendTokenId, setPendingSendTokenId] = useState<bigint | null>(null);
@@ -1387,7 +1387,7 @@ export default function WarpletsPage() {
 
       const n = outcome.sequential ? (outcome.done ?? eligible.length) : eligible.length;
       const past = isSignPhase ? "signed" : "claimed";
-      const stockNote = stockOut !== null ? ` — ≈${formatStock(stockOut)} ${SPCXC.symbol} in your wallet` : "";
+      const stockNote = stockOut !== null ? ` — ≈${formatStock(stockOut)} ${AAPLC.symbol} in your wallet` : "";
       toast.success(
         n === 1
           ? `Warplet ${past}${stockNote}!`
@@ -1409,7 +1409,7 @@ export default function WarpletsPage() {
           type: "claim",
           text:
             stockOut !== null
-              ? `Claimed today's vault share on flooor.fun as ${formatStock(stockOut)} ${SPCXC.symbol} (${SPCXC.cashtag}) — SpaceX stock, onchain on Base 🚀\n\nMy Warplet earns yield every single day — no lockup, no transfer.`
+              ? `Claimed today's vault share on flooor.fun as ${formatStock(stockOut)} ${AAPLC.symbol} (${AAPLC.cashtag}) — Apple stock, onchain on Base 🍎\n\nMy Warplet earns yield every single day — no lockup, no transfer.`
               : `Claimed Ξ${fmtEth(totalEth)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun 💰\n\nMy Warplet earns yield every single day — no lockup, no transfer.`,
         });
       }
@@ -1447,7 +1447,7 @@ export default function WarpletsPage() {
     toUsd,
   ]);
 
-  // Claim hazırken ikinci seçeneğin altına "≈ X SPCXc" yazabilmek için quote.
+  // Claim hazırken ikinci seçeneğin altına "≈ X AAPLc" yazabilmek için quote.
   // Sadece gösterim; gerçek swap miktarı tıklama anında yeniden hesaplanıyor.
   const stockQuoteEligible = !isSignPhase && bulkEligibleCount > 0 && parseFloat(yieldPerSigner) > 0;
   useEffect(() => {
@@ -2068,8 +2068,8 @@ export default function WarpletsPage() {
                       style={{
                         ...smallCaps,
                         color: bulkButtonDisabled ? FAINT : "#fff",
-                        // SpaceX siyahı — buton hangi hisseye gittiğini renkten söylesin
-                        backgroundColor: bulkButtonDisabled ? IVORY : SPACEX_BLACK,
+                        // Apple siyahı — buton hangi hisseye gittiğini renkten söylesin
+                        backgroundColor: bulkButtonDisabled ? IVORY : APPLE_BLACK,
                         border: bulkButtonDisabled ? `1px solid ${HAIRLINE}` : "none",
                         cursor: bulkButtonDisabled ? "not-allowed" : "pointer",
                       }}
@@ -2083,13 +2083,13 @@ export default function WarpletsPage() {
                       <span>
                         {bulkBusy
                           ? `${bulkStage || "Working"}…`
-                          : `Claim as ${SPCXC.symbol}${stockQuote !== null ? ` · ≈${formatStock(stockQuote)}` : ""}`}
+                          : `Claim as ${AAPLC.symbol}${stockQuote !== null ? ` · ≈${formatStock(stockQuote)}` : ""}`}
                       </span>
                     </button>
                   )}
                   <p className="mt-3 text-xs" style={{ color: FAINT }}>
                     {bulkClaimReady
-                      ? `Take your share in ETH, or swap it into ${SPCXC.symbol} — tokenized SpaceX stock on Base — in the same transaction via Uniswap.`
+                      ? `Take your share in ETH, or swap it into ${AAPLC.symbol} — tokenized Apple stock on Base — in the same transaction via Uniswap.`
                       : ""}
                     {bulkClaimReady ? " " : ""}Hold Warplets? Daily sign to claim your share of the daily
                     vault — every work in your wallet, one tap. No lockup, no transfer.

@@ -7,7 +7,7 @@ import Footer from "@/app/components/Footer";
 import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
 import { bulkSignOrClaim, supportsAtomicBatch } from "@/app/lib/bulkSignOrClaim";
-import { SPCXC, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
+import { AAPLC, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
 import { awaitTx } from "@/app/lib/awaitTx";
 import WorkCard from "@/app/components/WorkCard";
 
@@ -260,8 +260,8 @@ const COLLECTION_ADDR = "0x1649CD37f4748807b4882FC48765bA0B2aFfa94a" as const;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const IS_DEPLOYED = CONTRACT_ADDR.toLowerCase() !== ZERO_ADDRESS;
 
-// SpaceX siyahı; sadece "Claim as SPCXc" butonunda
-const SPACEX_BLACK = "#000000";
+// Apple siyahı; sadece "Claim as AAPLc" butonunda
+const APPLE_BLACK = "#000000";
 
 // Loopers public mint (koleksiyon kontratı, LoopersUpgradeable). Mint açıkken
 // bid kutusu yerine mint butonları gösterilir; kapanınca/bitince bid'e dönülür.
@@ -411,7 +411,7 @@ export default function LoopersPage() {
   const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
   const [bulkBusy, setBulkBusy] = useState<boolean>(false);
   const [bulkStage, setBulkStage] = useState<string>("");
-  // "Claim as SPCXc" için ön izleme: bugünkü claim'in tamamı kaç hisse eder
+  // "Claim as AAPLc" için ön izleme: bugünkü claim'in tamamı kaç hisse eder
   const [stockQuote, setStockQuote] = useState<bigint | null>(null);
   const [isBidding, setIsBidding] = useState<boolean>(false);
   const [mintInfo, setMintInfo] = useState<MintInfo | null>(null);
@@ -1579,7 +1579,7 @@ export default function LoopersPage() {
 
       const n = outcome.sequential ? (outcome.done ?? eligible.length) : eligible.length;
       const past = isSignPhase ? "signed" : "claimed";
-      const stockNote = stockOut !== null ? ` — ≈${formatStock(stockOut)} ${SPCXC.symbol} in your wallet` : "";
+      const stockNote = stockOut !== null ? ` — ≈${formatStock(stockOut)} ${AAPLC.symbol} in your wallet` : "";
       toast.success(
         n === 1
           ? `Looper ${past}${stockNote}!`
@@ -1601,7 +1601,7 @@ export default function LoopersPage() {
           type: "claim",
           text:
             stockOut !== null
-              ? `Claimed today's vault share on flooor.fun as ${formatStock(stockOut)} ${SPCXC.symbol} (${SPCXC.cashtag}) — SpaceX stock, onchain on Base 🚀\n\nMy Looper earns yield every single day — no lockup, no transfer.`
+              ? `Claimed today's vault share on flooor.fun as ${formatStock(stockOut)} ${AAPLC.symbol} (${AAPLC.cashtag}) — Apple stock, onchain on Base 🍎\n\nMy Looper earns yield every single day — no lockup, no transfer.`
               : `Claimed Ξ${fmtEth(totalEth)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun 💰\n\nMy Looper earns yield every single day — no lockup, no transfer.`,
         });
       }
@@ -1638,7 +1638,7 @@ export default function LoopersPage() {
     toUsd,
   ]);
 
-  // Claim hazırken ikinci seçeneğin altına "≈ X SPCXc" yazabilmek için quote.
+  // Claim hazırken ikinci seçeneğin altına "≈ X AAPLc" yazabilmek için quote.
   // Sadece gösterim; gerçek swap miktarı tıklama anında yeniden hesaplanıyor.
   const stockQuoteEligible = !isSignPhase && bulkEligibleCount > 0 && parseFloat(yieldPerSigner) > 0;
   useEffect(() => {
@@ -2323,8 +2323,8 @@ export default function LoopersPage() {
                       style={{
                         ...smallCaps,
                         color: bulkButtonDisabled ? FAINT : "#fff",
-                        // SpaceX siyahı — buton hangi hisseye gittiğini renkten söylesin
-                        backgroundColor: bulkButtonDisabled ? IVORY : SPACEX_BLACK,
+                        // Apple siyahı — buton hangi hisseye gittiğini renkten söylesin
+                        backgroundColor: bulkButtonDisabled ? IVORY : APPLE_BLACK,
                         border: bulkButtonDisabled ? `1px solid ${HAIRLINE}` : "none",
                         cursor: bulkButtonDisabled ? "not-allowed" : "pointer",
                       }}
@@ -2338,13 +2338,13 @@ export default function LoopersPage() {
                       <span>
                         {bulkBusy
                           ? `${bulkStage || "Working"}…`
-                          : `Claim as ${SPCXC.symbol}${stockQuote !== null ? ` · ≈${formatStock(stockQuote)}` : ""}`}
+                          : `Claim as ${AAPLC.symbol}${stockQuote !== null ? ` · ≈${formatStock(stockQuote)}` : ""}`}
                       </span>
                     </button>
                   )}
                   <p className="mt-3 text-xs" style={{ color: FAINT }}>
                     {bulkClaimReady
-                      ? `Take your share in ETH, or swap it into ${SPCXC.symbol} — tokenized SpaceX stock on Base — in the same transaction via Uniswap.`
+                      ? `Take your share in ETH, or swap it into ${AAPLC.symbol} — tokenized Apple stock on Base — in the same transaction via Uniswap.`
                       : ""}
                     {bulkClaimReady ? " " : ""}Hold Loopers? Daily sign to claim your share of the daily
                     vault — every work in your wallet, one tap. No lockup, no transfer.
