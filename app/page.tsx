@@ -2699,6 +2699,12 @@ export default function BetaPage() {
                 href: "/gnars",
               },
               {
+                name: "Based Nouns",
+                sub: "Base · Nounish",
+                img: "/basednouns.png",
+                href: "/based-nouns",
+              },
+              {
                 name: "Based Onchain Dinos",
                 sub: "Base · Onchain",
                 img: "/onchdin.svg",
