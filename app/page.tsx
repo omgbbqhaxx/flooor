@@ -109,7 +109,7 @@ const formatCompactUsd = (n: number): string => {
 
 import MARKET_ABI from "@/app/abi/vrnouns.json";
 import NFT_ABI from "@/app/abi/nft.json";
-import { MINIMUM_BID_FOR_SELL } from "@/app/lib/minBid";
+import { MINIMUM_BID_FOR_SELL, readVrnounsMinBid } from "@/app/lib/minBid";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
 import { awaitTx } from "@/app/lib/awaitTx";
 import { bulkSignOrClaim } from "@/app/lib/bulkSignOrClaim";
@@ -363,6 +363,11 @@ export default function BetaPage() {
   // Bu fazda işlem bekleyen token'lar (sign fazında imzasızlar, claim
   // fazında imzalı ama claim edilmemişler) — toplu butonun kapsamı
   const [eligibleIds, setEligibleIds] = useState<bigint[]>([]);
+  // Taban fiyat zincirden (v2 minbidAM) — sabit yalnızca ilk render/yedek
+  const [minBidEth, setMinBidEth] = useState<number>(MINIMUM_BID_FOR_SELL);
+  // Kontratın kabul edeceği bir sonraki en düşük teklif (nextMinBid) —
+  // warplets'teki gibi tek otorite zincir; null = henüz okunmadı
+  const [chainNextMinBid, setChainNextMinBid] = useState<number | null>(null);
   const [userNFTs, setUserNFTs] = useState<bigint[]>([]);
   const [nftImages, setNftImages] = useState<{ [key: string]: string }>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -727,6 +732,25 @@ export default function BetaPage() {
     }
   }, [config]);
 
+  const getChainMinBid = useCallback(async () => {
+    const v = await readVrnounsMinBid(config);
+    if (v !== null) setMinBidEth(v);
+    try {
+      const next = (await retryWithBackoff(async () => {
+        return (await readContract(config, {
+          address: CONTRACT_ADDR,
+          abi: MARKET_ABI,
+          functionName: "nextMinBid",
+          args: [],
+          chainId: base.id,
+        })) as bigint;
+      })) as bigint;
+      setChainNextMinBid(parseFloat(formatEther(next)));
+    } catch (error) {
+      console.error("Error getting next min bid:", error);
+    }
+  }, [config]);
+
   const getCurrentBid = useCallback(async () => {
     try {
       const activeBidAmount = (await retryWithBackoff(async () => {
@@ -1033,6 +1057,7 @@ export default function BetaPage() {
         getDailyVault(),
         getCurrentBid(),
         getActiveBidder(),
+        getChainMinBid(),
         fetchOwnedTokenIds(),
         checkUserSignedStatus(),
         getUserNFTs(),
@@ -1048,6 +1073,7 @@ export default function BetaPage() {
     getDailyVault,
     getCurrentBid,
     getActiveBidder,
+    getChainMinBid,
     fetchOwnedTokenIds,
     checkUserSignedStatus,
     getUserNFTs,
@@ -1165,6 +1191,8 @@ export default function BetaPage() {
             sawStake = true;
           } else if (eventName === "Claimed") {
             sawClaim = true;
+          } else if (eventName === "MinBidUpdated") {
+            getChainMinBid();
           }
         }
         if (sawSale) {
@@ -1175,6 +1203,7 @@ export default function BetaPage() {
           getActiveBidder();
           getDailyVault();
           getUserNFTs();
+          getChainMinBid();
         } else if (lastBid) {
           // Yalnızca bid varsa son bid'in arg'ları anında yansıtılabilir
           if (typeof lastBid.amount === "bigint") {
@@ -1187,6 +1216,7 @@ export default function BetaPage() {
             );
           }
           getActiveBidder(); // basename çözümü için
+          getChainMinBid(); // nextMinBid yeni bid'le değişir
         }
         if (sawStake) getDailySigners();
         if (sawClaim) getDailyVault();
@@ -1205,6 +1235,7 @@ export default function BetaPage() {
     };
   }, [
     config,
+    getChainMinBid,
     address,
     getActiveBidder,
     getCurrentBid,
@@ -1246,7 +1277,7 @@ export default function BetaPage() {
   // minimum bid fiyatını (flooor'dan alım fiyatı) baz alır.
   const annualYieldEth = (parseFloat(yieldPerNFT) || 0) * 365;
   const projectedApr =
-    annualYieldEth > 0 ? (annualYieldEth / MINIMUM_BID_FOR_SELL) * 100 : 0;
+    annualYieldEth > 0 ? (annualYieldEth / minBidEth) * 100 : 0;
 
   // Toplu butonda kazanç, bu fazda işlem bekleyen token sayısıyla çarpılır
   const eligibleCount = eligibleIds.length;
@@ -1317,6 +1348,26 @@ export default function BetaPage() {
     [],
   );
 
+  // Zincirdeki gercek teklif
+  const chainBidNum = parseFloat(currentBid) || 0;
+  const chainHasBid =
+    !!activeBidder &&
+    activeBidder !== "0x0000000000000000000000000000000000000000" &&
+    chainBidNum > 0;
+
+  // Bir sonraki minimum teklif doğrudan kontratın nextMinBid'i. 6 haneye
+  // YUKARI yuvarlanır: aşağı yuvarlansa kontrat "Bid too low" ile revert eder.
+  // Yanında kontratın formülüyle (aktif teklif + %2) yerel bir alt sınır da
+  // tutulur: yeni bir teklif event'le anında yansır ama nextMinBid okuması
+  // birkaç saniye geride kalabilir — o arada eski (düşük) değer gösterilmesin.
+  const minOutbidAmount =
+    Math.ceil(
+      Math.max(
+        chainNextMinBid ?? 0,
+        chainHasBid ? chainBidNum * 1.02 : minBidEth,
+      ) * 1e6,
+    ) / 1e6;
+
   const handleBid = useCallback(async () => {
     if (isBidding) return;
     if (!address) {
@@ -1328,14 +1379,7 @@ export default function BetaPage() {
       return;
     }
     const trimmedInput = (bidInput || "").trim();
-    const currentBidNum = parseFloat(currentBid);
-    const hasActiveBid =
-      activeBidder &&
-      activeBidder !== "0x0000000000000000000000000000000000000000" &&
-      currentBidNum > 0;
-    const minRequired = hasActiveBid
-      ? Math.max(currentBidNum * 1.05, MINIMUM_BID_FOR_SELL)
-      : MINIMUM_BID_FOR_SELL;
+    const minRequired = minOutbidAmount;
     let effectiveBidInput = trimmedInput;
     if (!trimmedInput) {
       // No amount typed — auto-fill with the minimum required bid.
@@ -1386,6 +1430,7 @@ export default function BetaPage() {
       setTimeout(() => {
         getCurrentBid();
         getActiveBidder();
+        getChainMinBid();
       }, 2000);
     } catch (error) {
       if (isUserRejectedError(error)) {
@@ -1403,12 +1448,12 @@ export default function BetaPage() {
     }
   }, [
     config,
+    minOutbidAmount,
+    getChainMinBid,
     ensureBase,
     bidInput,
     address,
     connectedChain,
-    currentBid,
-    activeBidder,
     getCurrentBid,
     getActiveBidder,
     fmtEth,
@@ -1427,9 +1472,9 @@ export default function BetaPage() {
       try {
         await ensureBase();
         const currentBidNumber = parseFloat(currentBid);
-        if (currentBidNumber < MINIMUM_BID_FOR_SELL) {
+        if (currentBidNumber < minBidEth) {
           toast.error(
-            `Below the minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH — there is no valid bid to sell into.`,
+            `Below the minimum selling price of ${minBidEth} ETH — there is no valid bid to sell into.`,
           );
           return;
         }
@@ -1498,6 +1543,7 @@ export default function BetaPage() {
           getActiveBidder();
           getDailyVault();
           getUserNFTs();
+          getChainMinBid();
         }, 2000);
       } catch (error) {
         if (isUserRejectedError(error)) {
@@ -1517,10 +1563,12 @@ export default function BetaPage() {
     [
       config,
       ensureBase,
+      getChainMinBid,
       address,
       nftApprovalStatus,
       checkIndividualNFTApprovals,
       currentBid,
+      minBidEth,
       getCurrentBid,
       getActiveBidder,
       getDailyVault,
@@ -1540,9 +1588,9 @@ export default function BetaPage() {
         toast.warning("Please connect your wallet first");
         return;
       }
-      if (parseFloat(currentBid) < MINIMUM_BID_FOR_SELL) {
+      if (parseFloat(currentBid) < minBidEth) {
         toast.error(
-          `Below the minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH — there is no valid bid to sell into.`,
+          `Below the minimum selling price of ${minBidEth} ETH — there is no valid bid to sell into.`,
         );
         return;
       }
@@ -1553,7 +1601,7 @@ export default function BetaPage() {
         setArmedSell((prev) => ({ ...prev, [tokenIdStr]: false }));
       }, 5000);
     },
-    [address, currentBid],
+    [address, currentBid, minBidEth],
   );
 
   const confirmSellNFT = useCallback(
@@ -1933,37 +1981,26 @@ export default function BetaPage() {
         ? RED
         : GOLD;
 
-  // Zincirdeki gercek teklif — %5 outbid kurali her zaman bunun uzerinden isler
-  const chainBidNum = parseFloat(currentBid) || 0;
-  const chainHasBid =
-    !!activeBidder &&
-    activeBidder !== "0x0000000000000000000000000000000000000000" &&
-    chainBidNum > 0;
-
   // Taban fiyatin altindaki teklifler sitede hic gosterilmez — tutar da,
   // teklif veren de gizli. Zincirdeki deger yine de hesaba katiliyor.
-  const hasBid = chainHasBid && chainBidNum >= MINIMUM_BID_FOR_SELL;
+  const hasBid = chainHasBid && chainBidNum >= minBidEth;
   const displayBid = hasBid ? currentBid : "0";
 
-  const minOutbidAmount = Math.max(
-    chainHasBid ? chainBidNum * 1.05 : 0,
-    MINIMUM_BID_FOR_SELL,
-  );
   // Gizli bir teklif esigi yukari itmediyse sade taban fiyati goster
   const minBidLabel =
-    minOutbidAmount === MINIMUM_BID_FOR_SELL
-      ? `${MINIMUM_BID_FOR_SELL}`
+    minOutbidAmount === minBidEth
+      ? `${minBidEth}`
       : minOutbidAmount.toFixed(6);
 
   // Market cap = koleksiyonun toplam arzı × taban fiyat (min bid)
-  const marketCapEth = COLLECTION_TOTAL_SUPPLY * MINIMUM_BID_FOR_SELL;
+  const marketCapEth = COLLECTION_TOTAL_SUPPLY * minBidEth;
   const marketCapUsd = ethPrice ? marketCapEth * ethPrice : null;
   const marketCapDisplay =
     marketCapUsd !== null ? `$${formatCompactUsd(marketCapUsd)}` : "—";
   const marketCapEthDisplay = `Ξ${fmtEth(marketCapEth.toString())}`;
 
   // TVS (Total Value Signed) = bu epoch'ta imzalayan sayısı × taban fiyat (min bid)
-  const tvsEth = dailySigners * MINIMUM_BID_FOR_SELL;
+  const tvsEth = dailySigners * minBidEth;
   const tvsUsd = ethPrice ? tvsEth * ethPrice : null;
   const tvsUsdDisplay =
     tvsUsd !== null && tvsUsd > 0
@@ -1990,15 +2027,11 @@ export default function BetaPage() {
             />
             <p className="flex-1 min-w-0 text-[13px] leading-snug">
               <span style={{ ...smallCapsFor(GOLD), marginRight: 10 }}>
-                Contract upgrade · Live
+                Altai contract upgrade is live
               </span>
               <span style={{ ...SERIF, fontStyle: "italic", fontSize: 15 }}>
-                Every VRNoun now signs and claims on its own
-              </span>
-              <span style={{ color: "rgba(242,236,224,0.7)" }}>
-                {" "}— batch sign and claim your whole collection in a single
-                transaction.{" "}
-              </span>
+                You can now batch sign or claim.
+              </span>{" "}
               <a
                 href={`https://basescan.org/address/${CONTRACT_ADDR}#code`}
                 target="_blank"
@@ -2292,7 +2325,7 @@ export default function BetaPage() {
                   >
                     Current bid is Ξ {fmtEth(displayBid)} — you must bid at
                     least <strong>Ξ {minOutbidAmount.toFixed(6)}</strong> to
-                    outbid (5% above current).
+                    outbid.
                   </span>
                 </div>
               )}
@@ -3141,7 +3174,7 @@ export default function BetaPage() {
         </div>
       )}
 
-      <Footer contractAddr={CONTRACT_ADDR} contractVersion="v2.0" contractUpdate="Contract updated" />
+      <Footer contractAddr={CONTRACT_ADDR} contractVersion="v2.0 · Altai" contractUpdate="Altai upgrade" />
     </div>
   );
 }

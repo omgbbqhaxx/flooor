@@ -68,7 +68,7 @@ const retryWithBackoff = async (
 
 import MARKET_ABI from "@/app/abi/market.json";
 import NFT_ABI from "@/app/abi/nft.json";
-import { MINIMUM_BID_FOR_SELL } from "@/app/lib/minBid";
+import { MINIMUM_BID_FOR_SELL, readVrnounsMinBid } from "@/app/lib/minBid";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
 
 // Addresses
@@ -95,6 +95,8 @@ export default function Page() {
   const [dailySigners, setDailySigners] = useState<number>(0);
   const [dailyVault, setDailyVault] = useState<string>("0");
   const [currentBid, setCurrentBid] = useState<string>("0");
+  // Taban fiyat ana sayfayla aynı kaynaktan: VRNouns v2 kontratının minbidAM'i
+  const [minBidEth, setMinBidEth] = useState<number>(MINIMUM_BID_FOR_SELL);
   const [activeBidder, setActiveBidder] = useState<string>("");
   const [activeBidderName, setActiveBidderName] = useState<string>("");
   const [yieldPerNFT, setYieldPerNFT] = useState<string>("0");
@@ -364,6 +366,20 @@ export default function Page() {
   }, [config]);
 
   // Get current bid amount
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const v = await readVrnounsMinBid(config);
+      if (!cancelled && v !== null) setMinBidEth(v);
+    };
+    load();
+    const id = setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [config]);
+
   const getCurrentBid = useCallback(async () => {
     try {
       const activeBidAmount = (await retryWithBackoff(async () => {
@@ -806,9 +822,9 @@ export default function Page() {
 
       // Check if bid amount is below minimum
       const bidAmount = parseFloat(bidInput || "0");
-      if (bidAmount < MINIMUM_BID_FOR_SELL) {
+      if (bidAmount < minBidEth) {
         toast.error(
-          `Bid amount must be at least ${MINIMUM_BID_FOR_SELL} ETH. You cannot bid below this price.`,
+          `Bid amount must be at least ${minBidEth} ETH. You cannot bid below this price.`,
         );
         return;
       }
@@ -855,7 +871,7 @@ export default function Page() {
         });
       }
     }
-  }, [config, ensureBase, bidInput, address]);
+  }, [config, ensureBase, bidInput, address, minBidEth]);
 
   const handleSellNFT = useCallback(
     async (tokenId: bigint) => {
@@ -868,9 +884,9 @@ export default function Page() {
 
         // Check if current bid is below minimum price for selling
         const currentBidNumber = parseFloat(currentBid);
-        if (currentBidNumber < MINIMUM_BID_FOR_SELL) {
+        if (currentBidNumber < minBidEth) {
           toast.error(
-            `Below the minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH — there is no valid bid to sell into.`,
+            `Below the minimum selling price of ${minBidEth} ETH — there is no valid bid to sell into.`,
           );
           return;
         }
@@ -1026,6 +1042,7 @@ export default function Page() {
       checkIndividualNFTApprovals,
       currentBid,
       userNFTs,
+      minBidEth,
     ],
   );
 
@@ -1036,15 +1053,15 @@ export default function Page() {
         toast.warning("Please connect your wallet first");
         return;
       }
-      if (parseFloat(currentBid) < MINIMUM_BID_FOR_SELL) {
+      if (parseFloat(currentBid) < minBidEth) {
         toast.error(
-          `Below the minimum selling price of ${MINIMUM_BID_FOR_SELL} ETH — there is no valid bid to sell into.`,
+          `Below the minimum selling price of ${minBidEth} ETH — there is no valid bid to sell into.`,
         );
         return;
       }
       setPendingSellTokenId(tokenId);
     },
-    [address, currentBid],
+    [address, currentBid, minBidEth],
   );
 
   const confirmSellNFT = useCallback(() => {
@@ -1169,7 +1186,7 @@ export default function Page() {
   const bidVisible =
     !!activeBidder &&
     activeBidder !== "0x0000000000000000000000000000000000000000" &&
-    (parseFloat(currentBid) || 0) >= MINIMUM_BID_FOR_SELL;
+    (parseFloat(currentBid) || 0) >= minBidEth;
   const displayBid = bidVisible ? currentBid : "0";
 
   return (
@@ -1735,7 +1752,7 @@ export default function Page() {
                     <input
                       type="text"
                       inputMode="decimal"
-                      placeholder={`minimum Ξ ${MINIMUM_BID_FOR_SELL}`}
+                      placeholder={`minimum Ξ ${minBidEth}`}
                       className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg font-oldschool text-lg bg-[#F2ECE0] text-black placeholder-gray-400 caret-black focus:border-black focus:outline-none transition-colors"
                       value={bidInput}
                       onChange={handleBidInputChange}
