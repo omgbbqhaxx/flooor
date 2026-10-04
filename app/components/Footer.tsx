@@ -23,9 +23,17 @@ const linkStyle = {
 
 export default function Footer({
   contractAddr,
+  contractVersion = "v1.0",
+  contractUpdate,
 }: {
   contractAddr: string;
+  // Market kontratının sürümü — alt satırda gösterilir. Kontrat yükseltilmeyen
+  // sayfalar varsayılan v1.0'da kalır.
+  contractVersion?: string;
+  // Verilirse Contracts sütununda altın renkli bir "güncellendi" notu çıkar
+  contractUpdate?: string;
 }) {
+  const shortAddr = `${contractAddr.slice(0, 6)}…${contractAddr.slice(-4)}`;
   return (
     <footer style={{ borderTop: `1px solid ${HAIRLINE}`, marginTop: "80px" }}>
       <div className="max-w-6xl mx-auto px-5 sm:px-8 py-14 grid grid-cols-2 md:grid-cols-4 gap-10">
@@ -107,14 +115,31 @@ export default function Footer({
               VRNouns
             </a>
             <a
-              href={`https://basescan.org/address/${contractAddr}#readContract`}
+              href={`https://basescan.org/address/${contractAddr}#code`}
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-black transition-colors"
               style={linkStyle}
+              title={contractAddr}
             >
-              Flooor
+              Flooor {contractVersion}
+              <span
+                className="block mt-0.5 tabular-nums"
+                style={{ fontSize: "12px", color: FAINT, letterSpacing: "0.02em" }}
+              >
+                {shortAddr}
+              </span>
             </a>
+            {contractUpdate && (
+              <p className="flex items-center gap-2" style={{ ...smallCaps, color: GOLD }}>
+                <span
+                  aria-hidden="true"
+                  className="rounded-full"
+                  style={{ width: 5, height: 5, backgroundColor: GOLD }}
+                />
+                {contractUpdate}
+              </p>
+            )}
           </div>
         </div>
         <div>
@@ -183,7 +208,7 @@ export default function Footer({
           MMXXVI
         </p>
         <p className="mt-2 text-xs" style={{ color: FAINT }}>
-          © flooor.fun · CC0 Licensed · Front-end v{FRONTEND_VERSION} · Contract v1.0 ·
+          © flooor.fun · CC0 Licensed · Front-end v{FRONTEND_VERSION} · Contract {contractVersion} ·
           Beta · Crafted with Claude Fable 5
         </p>
         <Image

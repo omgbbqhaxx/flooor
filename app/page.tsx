@@ -7,7 +7,6 @@ import { useConfig, useAccount, useSwitchChain } from "wagmi";
 import {
   writeContract,
   readContract,
-  simulateContract,
   getBalance,
   getPublicClient,
 } from "wagmi/actions";
@@ -27,7 +26,7 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import Image from "next/image";
 import Link from "next/link";
 import SiteHeader from "@/app/components/SiteHeader";
-import { FAINT, GOLD, GREEN, HAIRLINE, INK, IVORY, MUTED, PLINTH, RED, SANS, SERIF, smallCaps } from "@/app/lib/theme";
+import { FAINT, GOLD, GREEN, HAIRLINE, INK, IVORY, MUTED, PLINTH, RED, SANS, SERIF, smallCaps, smallCapsFor } from "@/app/lib/theme";
 import Footer from "@/app/components/Footer";
 import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
 import WorkCard from "@/app/components/WorkCard";
@@ -108,7 +107,7 @@ const formatCompactUsd = (n: number): string => {
   return n.toFixed(0);
 };
 
-import MARKET_ABI from "@/app/abi/market.json";
+import MARKET_ABI from "@/app/abi/vrnouns.json";
 import NFT_ABI from "@/app/abi/nft.json";
 import { MINIMUM_BID_FOR_SELL } from "@/app/lib/minBid";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
@@ -116,8 +115,10 @@ import { awaitTx } from "@/app/lib/awaitTx";
 import { bulkSignOrClaim } from "@/app/lib/bulkSignOrClaim";
 import { AAPLC, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
 
-const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
+// v2 (token bazlı çoklu imza) — 2026-10-04. /genesis bilerek v1 0xF6B2…58fF'te kalıyor.
+const CONTRACT_ADDR = "0xD53292182A342953f446CD4D10Dc177776044306" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
+const UPGRADE_NOTICE_KEY = "flooor.vrnouns.v2Notice";
 // Apple siyahı; sadece "Claim as AAPLc" butonunda
 const APPLE_BLACK = "#000000";
 
@@ -354,7 +355,14 @@ export default function BetaPage() {
   const [yieldPerNFT, setYieldPerNFT] = useState<string>("0");
   const [userHasSigned, setUserHasSigned] = useState<boolean>(false);
   const [userHasClaimed, setUserHasClaimed] = useState<boolean>(false);
-  const [ownedTokenId, setOwnedTokenId] = useState<bigint | null>(null);
+  // v2 kontratında kilit token bazlı: cüzdandaki her VRNoun kendi imzasını
+  // atar ve kendi payını claim eder. Durum token başına tutuluyor.
+  const [ownedTokenIds, setOwnedTokenIds] = useState<bigint[]>([]);
+  const [nftSignedStatus, setNftSignedStatus] = useState<{ [key: string]: boolean }>({});
+  const [nftClaimedStatus, setNftClaimedStatus] = useState<{ [key: string]: boolean }>({});
+  // Bu fazda işlem bekleyen token'lar (sign fazında imzasızlar, claim
+  // fazında imzalı ama claim edilmemişler) — toplu butonun kapsamı
+  const [eligibleIds, setEligibleIds] = useState<bigint[]>([]);
   const [userNFTs, setUserNFTs] = useState<bigint[]>([]);
   const [nftImages, setNftImages] = useState<{ [key: string]: string }>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -383,6 +391,8 @@ export default function BetaPage() {
   const [stockQuote, setStockQuote] = useState<bigint | null>(null);
   // Hisse claim'i sırasında butonda gösterilen aşama ("Quoting", "Claiming")
   const [stockStage, setStockStage] = useState<string>("");
+  // ETH sign/claim akışındaki aşama ("Checking", "Signing 2 of 3"…) — ana butonda
+  const [signStage, setSignStage] = useState<string>("");
   const [isBidding, setIsBidding] = useState<boolean>(false);
   const [sharePrompt, setSharePrompt] = useState<{
     type: "sign" | "claim" | "bid" | "sell";
@@ -394,6 +404,23 @@ export default function BetaPage() {
   } | null>(null);
   const [collectionSupply, setCollectionSupply] = useState<number | null>(null);
   const [soundOn, setSoundOn] = useState(false);
+  // v2 yükseltme duyurusu — kapatılınca bu tarayıcıda bir daha görünmez
+  const [upgradeNoticeOpen, setUpgradeNoticeOpen] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(UPGRADE_NOTICE_KEY) !== "1") setUpgradeNoticeOpen(true);
+    } catch {
+      setUpgradeNoticeOpen(true);
+    }
+  }, []);
+  const dismissUpgradeNotice = useCallback(() => {
+    setUpgradeNoticeOpen(false);
+    try {
+      localStorage.setItem(UPGRADE_NOTICE_KEY, "1");
+    } catch {
+      // storage kapalıysa sadece bu oturumda kapanır
+    }
+  }, []);
   const config = useConfig();
 
   useEffect(() => {
@@ -585,9 +612,9 @@ export default function BetaPage() {
     }
   }, [userNFTs, checkApprovalStatus, checkIndividualNFTApprovals]);
 
-  const fetchOwnedTokenId = useCallback(async () => {
+  const fetchOwnedTokenIds = useCallback(async () => {
     if (!address) {
-      setOwnedTokenId(null);
+      setOwnedTokenIds([]);
       return;
     }
     try {
@@ -599,21 +626,20 @@ export default function BetaPage() {
           args: [address],
         })) as unknown as bigint[];
       })) as bigint[];
-      if (owned && owned.length > 0) {
-        const tokenId = owned.reduce((a, b) => (a > b ? a : b));
-        setOwnedTokenId(tokenId);
-      } else {
-        setOwnedTokenId(null);
-      }
+      const next = owned ? [...owned].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)) : [];
+      // Aynı liste yeniden gelince referansı koru — status kontrolünü boşuna tetiklemesin
+      setOwnedTokenIds((prev) =>
+        prev.length === next.length && prev.every((v, i) => v === next[i]) ? prev : next,
+      );
     } catch (error) {
-      // Geçici RPC hatasında mevcut token ID'yi koru
-      console.error("Error fetching owned token ID:", error);
+      // Geçici RPC hatasında mevcut listeyi koru
+      console.error("Error fetching owned token IDs:", error);
     }
   }, [config, address]);
 
   useEffect(() => {
-    fetchOwnedTokenId();
-  }, [fetchOwnedTokenId]);
+    fetchOwnedTokenIds();
+  }, [fetchOwnedTokenIds]);
 
   const getPhaseInfo = useCallback(async () => {
     try {
@@ -766,68 +792,68 @@ export default function BetaPage() {
   }, [config]);
 
   const checkUserSignedStatus = useCallback(async () => {
-    if (!address || !phaseInfo || !ownedTokenId) {
+    if (!address || !phaseInfo || ownedTokenIds.length === 0) {
       setUserHasSigned(false);
       setUserHasClaimed(false);
+      setNftSignedStatus({});
+      setNftClaimedStatus({});
+      setEligibleIds([]);
       return;
     }
     try {
-      const currentEpochStart = await retryWithBackoff(async () => {
+      const currentEpochStart = (await retryWithBackoff(async () => {
         return (await readContract(config, {
           address: CONTRACT_ADDR,
           abi: MARKET_ABI,
           functionName: "currentEpochStart",
           args: [],
         })) as bigint;
-      });
-      const signedTokenId = await retryWithBackoff(async () => {
-        return (await readContract(config, {
-          address: CONTRACT_ADDR,
-          abi: MARKET_ABI,
-          functionName: "mySignedToken",
-          args: [currentEpochStart, address],
-        })) as bigint;
-      });
-      const hasSigned = (signedTokenId as bigint) > BigInt(0);
-      setUserHasSigned(hasSigned);
-      const isSignPhase =
-        phaseInfo.currentPhase.toLowerCase().includes("sign") ||
-        phaseInfo.currentPhase.toLowerCase() === "signing" ||
-        phaseInfo.currentPhase.toLowerCase() === "sign_phase";
-      let claimedStatus = false;
-      if (hasSigned && !isSignPhase) {
-        try {
-          await simulateContract(config, {
-            address: CONTRACT_ADDR,
-            abi: MARKET_ABI,
-            functionName: "signOrClaim",
-            args: [BigInt(ownedTokenId)],
-            account: address,
-          });
-          claimedStatus = false;
-        } catch (error) {
-          // Geçici RPC/ağ hatası "claimed" değildir — mevcut durumu koru,
-          // yoksa kullanıcı claim edebilecekken buton "Next sign" gösteriyor.
-          const msg = (
-            error instanceof Error ? error.message : String(error)
-          ).toLowerCase();
-          const transient =
-            msg.includes("http request failed") ||
-            msg.includes("failed to fetch") ||
-            msg.includes("429") ||
-            msg.includes("too many requests") ||
-            msg.includes("timeout") ||
-            msg.includes("timed out") ||
-            msg.includes("load failed");
-          if (transient) return;
-          claimedStatus = true;
-        }
-      }
-      setUserHasClaimed(claimedStatus);
+      })) as bigint;
+      const signed: { [key: string]: boolean } = {};
+      const claimed: { [key: string]: boolean } = {};
+      await Promise.all(
+        ownedTokenIds.map(async (id) => {
+          const [s, c] = (await Promise.all([
+            retryWithBackoff(async () =>
+              readContract(config, {
+                address: CONTRACT_ADDR,
+                abi: MARKET_ABI,
+                functionName: "isTokenSigned",
+                args: [currentEpochStart, id],
+              }),
+            ),
+            retryWithBackoff(async () =>
+              readContract(config, {
+                address: CONTRACT_ADDR,
+                abi: MARKET_ABI,
+                functionName: "isTokenClaimed",
+                args: [currentEpochStart, id],
+              }),
+            ),
+          ])) as [boolean, boolean];
+          signed[id.toString()] = s;
+          claimed[id.toString()] = c;
+        }),
+      );
+      const isSignPhase = phaseInfo.currentPhase.toLowerCase().includes("sign");
+      const eligible = ownedTokenIds.filter((id) =>
+        isSignPhase
+          ? !signed[id.toString()]
+          : signed[id.toString()] && !claimed[id.toString()],
+      );
+      const anySigned = ownedTokenIds.some((id) => signed[id.toString()]);
+      setNftSignedStatus(signed);
+      setNftClaimedStatus(claimed);
+      setEligibleIds(eligible);
+      // Toplu buton için özet: sign fazında "hepsi imzalı", claim fazında
+      // "imzalı olanların hepsi claim edildi"
+      setUserHasSigned(isSignPhase ? eligible.length === 0 : anySigned);
+      setUserHasClaimed(!isSignPhase && anySigned && eligible.length === 0);
     } catch (error) {
+      // Geçici RPC hatasında mevcut durumu koru
       console.error("Error checking user signed status:", error);
     }
-  }, [config, address, phaseInfo, ownedTokenId]);
+  }, [config, address, phaseInfo, ownedTokenIds]);
 
   const calculateYieldPerNFT = useCallback(() => {
     const vaultAmount = parseFloat(dailyVault);
@@ -991,10 +1017,10 @@ export default function BetaPage() {
   }, [getUserNFTs]);
 
   useEffect(() => {
-    if (address && phaseInfo && ownedTokenId) {
+    if (address && phaseInfo) {
       checkUserSignedStatus();
     }
-  }, [address, phaseInfo, ownedTokenId, checkUserSignedStatus]);
+  }, [address, phaseInfo, ownedTokenIds, checkUserSignedStatus]);
 
   const fetchAllData = useCallback(async () => {
     if (fetchInFlight.current) return;
@@ -1007,6 +1033,7 @@ export default function BetaPage() {
         getDailyVault(),
         getCurrentBid(),
         getActiveBidder(),
+        fetchOwnedTokenIds(),
         checkUserSignedStatus(),
         getUserNFTs(),
         checkApprovalStatus(),
@@ -1021,6 +1048,7 @@ export default function BetaPage() {
     getDailyVault,
     getCurrentBid,
     getActiveBidder,
+    fetchOwnedTokenIds,
     checkUserSignedStatus,
     getUserNFTs,
     checkApprovalStatus,
@@ -1220,6 +1248,11 @@ export default function BetaPage() {
   const projectedApr =
     annualYieldEth > 0 ? (annualYieldEth / MINIMUM_BID_FOR_SELL) * 100 : 0;
 
+  // Toplu butonda kazanç, bu fazda işlem bekleyen token sayısıyla çarpılır
+  const eligibleCount = eligibleIds.length;
+  const bulkYieldUsd =
+    toUsd(String((parseFloat(yieldPerNFT) || 0) * Math.max(eligibleCount, 1))) ?? "$0.00";
+
   const getSignButtonText = useCallback(() => {
     if (!phaseInfo) return `Daily Sign · Earn ${yieldUsd}`;
     const isSignPhase =
@@ -1231,12 +1264,17 @@ export default function BetaPage() {
         if (remainingTimeDisplay < 60) return "Refreshing...";
         return `Claim opens ${formatTimeRemaining(remainingTimeDisplay)}`;
       } else {
-        return `Daily Sign · Earn ${yieldUsd}`;
+        return eligibleCount > 1
+          ? `Sign all ${eligibleCount} · Earn ${bulkYieldUsd}`
+          : `Daily Sign · Earn ${yieldUsd}`;
       }
     } else {
       if (userHasClaimed)
         return `Next sign ${formatTimeRemaining(remainingTimeDisplay)}`;
-      else if (userHasSigned) return `Claim ${yieldUsd}`;
+      else if (userHasSigned)
+        return eligibleCount > 1
+          ? `Claim all ${eligibleCount} · ${bulkYieldUsd}`
+          : `Claim ${yieldUsd}`;
       else return `Sign ended ${formatTimeRemaining(remainingTimeDisplay)}`;
     }
   }, [
@@ -1246,6 +1284,8 @@ export default function BetaPage() {
     remainingTimeDisplay,
     formatTimeRemaining,
     yieldUsd,
+    eligibleCount,
+    bulkYieldUsd,
   ]);
 
   const isSignButtonDisabled = useCallback(() => {
@@ -1393,10 +1433,6 @@ export default function BetaPage() {
           );
           return;
         }
-        if (userNFTs.length > 1) {
-          toast.error("You must hold only 1 NFT to sell.");
-          return;
-        }
         const isThisNFTApproved = nftApprovalStatus[tokenIdStr] === true;
         if (!isThisNFTApproved) {
           setNftLoadingStatus((prev) => ({ ...prev, [tokenIdStr]: true }));
@@ -1485,7 +1521,6 @@ export default function BetaPage() {
       nftApprovalStatus,
       checkIndividualNFTApprovals,
       currentBid,
-      userNFTs,
       getCurrentBid,
       getActiveBidder,
       getDailyVault,
@@ -1611,11 +1646,14 @@ export default function BetaPage() {
     if (tokenId !== null) handleSendNFT(tokenId, to as Address);
   }, [pendingSendTokenId, sendAddressInput, handleSendNFT]);
 
-  const handleSign = useCallback(async (asStock: boolean = false) => {
+  // onlyTokenId verilirse (kart butonu) sadece o token; verilmezse (ana buton)
+  // cüzdandaki tüm uygun VRNoun'lar tek pakette (EIP-5792) imzalanır/claim edilir.
+  const handleSign = useCallback(async (asStock: boolean = false, onlyTokenId?: bigint) => {
     if (!address) {
       toast.warning("Please connect your wallet first");
       return;
     }
+    const setStage = asStock ? setStockStage : setSignStage;
     try {
       await ensureBase();
       const owned: bigint[] = (await retryWithBackoff(async () => {
@@ -1630,55 +1668,96 @@ export default function BetaPage() {
         toast.error("No NFTs owned");
         return;
       }
-      if (owned.length > 1) {
-        toast.warning("You must hodl only 1 vrnouns in your wallet");
+      const candidates =
+        onlyTokenId !== undefined
+          ? owned.filter((id) => id === onlyTokenId)
+          : owned;
+      if (candidates.length === 0) {
+        toast.error("This VRNoun is no longer in your wallet.");
         return;
       }
-      const tokenId = owned.reduce((a, b) => (a > b ? a : b));
       const isSignPhase =
         phaseInfo?.currentPhase.toLowerCase().includes("sign") ||
         phaseInfo?.currentPhase.toLowerCase() === "signing" ||
         phaseInfo?.currentPhase.toLowerCase() === "sign_phase";
-      // Cuzdani ancak simulasyon temiz gecerse aciyoruz. Dogrulanamazsa da
-      // aciyoruz sanilmasin: guard fail-closed — belirsizlikte durur.
-      const guard = await guardSignOrClaim({
-        config,
-        contract: CONTRACT_ADDR,
-        abi: MARKET_ABI,
-        tokenId,
-        account: address,
-      });
-      if (!guard.ok) {
-        toast.warning(guard.message, { duration: 6000 });
+      // Her token'ı ayrı simüle ediyoruz: atomik pakette tek uygunsuz token
+      // (örn. bu epoch'ta zaten imzalı olan) hepsini geri sardırır. Cüzdanı
+      // sadece temiz geçenlerle açıyoruz; guard fail-closed — belirsizlikte durur.
+      setStage("Checking");
+      const checks = await Promise.all(
+        candidates.map(async (tokenId) => ({
+          tokenId,
+          guard: await guardSignOrClaim({
+            config,
+            contract: CONTRACT_ADDR,
+            abi: MARKET_ABI,
+            tokenId,
+            account: address,
+            chainId: base.id,
+          }),
+        })),
+      );
+      const eligible = checks.filter((c) => c.guard.ok).map((c) => c.tokenId);
+      if (eligible.length === 0) {
+        const first = checks.find((c) => !c.guard.ok);
+        toast.warning(
+          first && !first.guard.ok ? first.guard.message : "Nothing to sign or claim right now.",
+          { duration: 6000 },
+        );
         return;
       }
-      // Hisse olarak claim (Warplets'teki akışın tek token'lık hali): claim'in
-      // getireceği tam ETH'i kontrattan hesaplayıp o miktar için bir Uniswap
-      // swap call'ını aynı wallet_sendCalls paketinin sonuna ekliyoruz.
-      // Bir wei fazla istersek paket revert eder — frontend'in yuvarlanmış
-      // yield değeri değil, kontratın bölmesi kullanılıyor.
+      const n = eligible.length;
+      // Hisse olarak claim: claim'lerin getireceği tam ETH'i kontrattan
+      // hesaplayıp o miktar için bir Uniswap swap call'ını aynı
+      // wallet_sendCalls paketinin sonuna ekliyoruz. Bir wei fazla istersek
+      // paket revert eder — frontend'in yuvarlanmış yield değeri değil,
+      // kontratın bölmesi kullanılıyor.
       let stockOut: bigint | null = null;
       if (asStock && !isSignPhase) {
         setStockStage("Quoting");
         const share = await exactClaimShare({ config, contract: CONTRACT_ADDR, abi: MARKET_ABI, chainId: base.id });
-        if (share === BigInt(0)) {
+        const amountIn = share * BigInt(n);
+        if (amountIn === BigInt(0)) {
           toast.warning("Nothing to swap — today's share is zero.");
           return;
         }
-        stockOut = await quoteStock({ config, chainId: base.id, amountInWei: share });
+        stockOut = await quoteStock({ config, chainId: base.id, amountInWei: amountIn });
         setStockStage("Claiming");
         const outcome = await bulkSignOrClaim({
           config,
           contract: CONTRACT_ADDR,
           abi: MARKET_ABI,
-          tokenIds: [tokenId],
+          tokenIds: eligible,
           account: address,
           chainId: base.id,
           dataSuffix: DATA_SUFFIX,
-          trailingCalls: [buildStockSwapCall({ recipient: address, amountInWei: share, quotedOut: stockOut })],
+          trailingCalls: [buildStockSwapCall({ recipient: address, amountInWei: amountIn, quotedOut: stockOut })],
           onSequentialFallback: () => {
             toast.warning(
-              "MetaMask and older wallets don't support batch transactions — you'll confirm the claim and the swap one by one.",
+              `MetaMask and older wallets don't support batch transactions — you'll confirm ${n + 1} transactions one by one.`,
+              { duration: 8000 },
+            );
+          },
+        });
+        if (!outcome.ok) {
+          toast.error(outcome.message, { duration: 6000 });
+          return;
+        }
+      } else if (n > 1) {
+        const verb = isSignPhase ? "Signing" : "Claiming";
+        setStage(verb);
+        const outcome = await bulkSignOrClaim({
+          config,
+          contract: CONTRACT_ADDR,
+          abi: MARKET_ABI,
+          tokenIds: eligible,
+          account: address,
+          chainId: base.id,
+          dataSuffix: DATA_SUFFIX,
+          onProgress: (done, total) => setStage(`${verb} ${done + 1} of ${total}`),
+          onSequentialFallback: () => {
+            toast.warning(
+              `MetaMask and older wallets don't support batch transactions — you'll confirm ${n} transactions one by one.`,
               { duration: 8000 },
             );
           },
@@ -1692,10 +1771,11 @@ export default function BetaPage() {
           address: CONTRACT_ADDR,
           abi: MARKET_ABI,
           functionName: "signOrClaim",
-          args: [tokenId],
+          args: [eligible[0]],
           // Simulasyon bu hesapla dogrulandi — gonderim de ayni hesaptan olmali.
           // Pinlenmezse cuzdan baska bir hesaptan imzalayip "Not owner" alabiliyor.
           account: address,
+          chainId: base.id,
           dataSuffix: DATA_SUFFIX,
         });
         // Hash ≠ onay: iptal/revert'te başarı akışı (share, konfeti) çalışmasın
@@ -1704,31 +1784,36 @@ export default function BetaPage() {
       playChime();
       fireConfetti();
       if (isSignPhase) {
-        setUserHasSigned(true);
-        toast.success("Sign successful!");
+        toast.success(n > 1 ? `${n} VRNouns signed in one go!` : "Sign successful!");
         setSharePrompt({
           type: "sign",
-          text: `Just signed my VRNoun on flooor.fun 🖊️\n\n${dailySigners + 1} signers sharing today's vault of Ξ${fmtEth(dailyVault)}.\n\nSign daily, earn daily. Royalties to the community.`,
+          text: `Just signed ${n > 1 ? `${n} VRNouns` : "my VRNoun"} on flooor.fun 🖊️\n\n${dailySigners + n} signers sharing today's vault of Ξ${fmtEth(dailyVault)}.\n\nSign daily, earn daily. Royalties to the community.`,
         });
       } else {
-        setUserHasClaimed(true);
         toast.success(
           stockOut !== null
             ? `Claimed — ≈${formatStock(stockOut)} ${AAPLC.symbol} in your wallet!`
-            : "Claim successful!",
+            : n > 1
+              ? `${n} VRNouns claimed in one go!`
+              : "Claim successful!",
         );
-        const claimedUsd = toUsd(yieldPerNFT);
+        const claimedEth = String((parseFloat(yieldPerNFT) || 0) * n);
+        const claimedUsd = toUsd(claimedEth);
         setSharePrompt({
           type: "claim",
           text:
             stockOut !== null
               ? `Claimed today's vault share on flooor.fun as ${formatStock(stockOut)} ${AAPLC.symbol} (${AAPLC.cashtag}) — Apple stock, onchain on Base 🍎\n\nMy VRNoun earns yield every single day — no lockup, no transfer.`
-              : `Claimed Ξ${fmtEth(yieldPerNFT)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun 💰\n\nMy VRNoun earns yield every single day — no lockup, no transfer.`,
+              : `Claimed Ξ${fmtEth(claimedEth)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun 💰\n\nMy VRNoun earns yield every single day — no lockup, no transfer.`,
         });
       }
+      // Ekrandaki durumu tahmin etmiyoruz: atomik olmayan cüzdanda paketin
+      // bir kısmı geçmiş olabilir, doğru cevap zincirde.
+      checkUserSignedStatus();
       setTimeout(() => {
         checkUserSignedStatus();
         getPhaseInfo();
+        getDailySigners();
       }, 2000);
     } catch (error) {
       if (isUserRejectedError(error)) {
@@ -1739,10 +1824,10 @@ export default function BetaPage() {
         error instanceof Error ? error.message : String(error);
       toast.error(`Sign/Claim failed: ${errorMessage}`, {
         duration: 5000,
-        action: { label: "Retry", onClick: () => handleSign(asStock) },
+        action: { label: "Retry", onClick: () => handleSign(asStock, onlyTokenId) },
       });
     } finally {
-      setStockStage("");
+      setStage("");
     }
   }, [
     config,
@@ -1751,6 +1836,7 @@ export default function BetaPage() {
     address,
     checkUserSignedStatus,
     getPhaseInfo,
+    getDailySigners,
     dailySigners,
     dailyVault,
     yieldPerNFT,
@@ -1772,11 +1858,12 @@ export default function BetaPage() {
       return;
     }
     let cancelled = false;
-    quoteStock({ config, chainId: base.id, amountInWei: parseEther(yieldPerNFT as `${string}`) })
+    const amountIn = parseEther(yieldPerNFT as `${string}`) * BigInt(Math.max(eligibleCount, 1));
+    quoteStock({ config, chainId: base.id, amountInWei: amountIn })
       .then((out) => { if (!cancelled) setStockQuote(out); })
       .catch(() => { if (!cancelled) setStockQuote(null); });
     return () => { cancelled = true; };
-  }, [config, stockQuoteEligible, yieldPerNFT]);
+  }, [config, stockQuoteEligible, yieldPerNFT, eligibleCount]);
 
   const handleShare = useCallback(
     async (platform: "x" | "farcaster") => {
@@ -1891,6 +1978,50 @@ export default function BetaPage() {
     >
       {/* Header */}
       <SiteHeader soundOn={soundOn} onToggleSound={toggleSound} />
+
+      {/* v2 contract upgrade notice */}
+      {upgradeNoticeOpen && (
+        <div style={{ backgroundColor: INK, color: "#F2ECE0" }}>
+          <div className="max-w-6xl mx-auto px-5 sm:px-8 py-3 flex items-center gap-4">
+            <span
+              aria-hidden="true"
+              className="shrink-0 rounded-full animate-pulse"
+              style={{ width: 6, height: 6, backgroundColor: GOLD }}
+            />
+            <p className="flex-1 min-w-0 text-[13px] leading-snug">
+              <span style={{ ...smallCapsFor(GOLD), marginRight: 10 }}>
+                Contract upgrade · Live
+              </span>
+              <span style={{ ...SERIF, fontStyle: "italic", fontSize: 15 }}>
+                Every VRNoun now signs and claims on its own
+              </span>
+              <span style={{ color: "rgba(242,236,224,0.7)" }}>
+                {" "}— batch sign and claim your whole collection in a single
+                transaction.{" "}
+              </span>
+              <a
+                href={`https://basescan.org/address/${CONTRACT_ADDR}#code`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="whitespace-nowrap underline underline-offset-4 decoration-1 hover:opacity-80 transition-opacity"
+                style={{ textDecorationColor: GOLD }}
+              >
+                View contract
+              </a>
+            </p>
+            <button
+              onClick={dismissUpgradeNotice}
+              aria-label="Dismiss notice"
+              className="shrink-0 -mr-2 p-2 hover:opacity-70 transition-opacity"
+              style={{ color: "rgba(242,236,224,0.7)" }}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Network Gate — full-screen block until on Base */}
       {isWrongNetwork && (
@@ -2331,7 +2462,7 @@ export default function BetaPage() {
             >
               <button
                 onClick={() => handleSign(false)}
-                disabled={isSignButtonDisabled()}
+                disabled={isSignButtonDisabled() || signStage !== ""}
                 className="w-full px-12 py-4 transition-opacity enabled:hover:opacity-85"
                 style={{
                   ...smallCaps,
@@ -2347,7 +2478,7 @@ export default function BetaPage() {
                   cursor: isSignButtonDisabled() ? "not-allowed" : "pointer",
                 }}
               >
-                {getSignButtonText()}
+                {signStage ? `${signStage}…` : getSignButtonText()}
               </button>
               {/* İkinci claim yolu: aynı paket, sonunda Uniswap swap'ı.
                   Sadece claim hazırken görünür; sign fazında anlamı yok. */}
@@ -2382,8 +2513,9 @@ export default function BetaPage() {
                 {isClaimReady
                   ? `Take your share in ETH, or swap it into ${AAPLC.symbol} — tokenized Apple stock on Base — in the same transaction via Uniswap. `
                   : ""}
-                Hold a VRNouns NFT? Daily sign to claim your share of the
-                daily vault. No lockup, no transfer.
+                Every VRNoun you hold earns its own share of the daily vault —
+                sign and claim them all in a single transaction. No lockup, no
+                transfer.
               </p>
             </div>
           </div>
@@ -2413,7 +2545,8 @@ export default function BetaPage() {
             Works in your wallet
           </h2>
           <p className="mt-2 text-sm" style={{ color: MUTED }}>
-            Sign daily from each card below, or tap More to send or sell.
+            Each work signs and claims on its own — use the button above for all
+            at once, or a card for just one. Tap More to send or sell.
             {isCheckingApproval ? " Checking approval…" : ""}
           </p>
 
@@ -2440,11 +2573,27 @@ export default function BetaPage() {
                 const isSignPhaseNow =
                   phaseInfo?.currentPhase.toLowerCase().includes("sign") ??
                   false;
-                const signedWaitingForClaim = isSignPhaseNow && userHasSigned;
-                const primaryDisabled = isSignButtonDisabled();
-                const primaryLabel = signedWaitingForClaim
-                  ? `Signed — Epoch ${phaseInfo ? phaseInfo.eid.toString() : "—"}`
-                  : getSignButtonText();
+                // v2: her kartın durumu kendi token'ından okunur
+                const tokenSigned = nftSignedStatus[tokenIdStr] === true;
+                const tokenClaimed = nftClaimedStatus[tokenIdStr] === true;
+                const signedWaitingForClaim = isSignPhaseNow && tokenSigned;
+                const tokenClaimReady = !!phaseInfo && !isSignPhaseNow && tokenSigned && !tokenClaimed;
+                const primaryDisabled =
+                  !phaseInfo ||
+                  !address ||
+                  signStage !== "" ||
+                  (isSignPhaseNow ? tokenSigned : !tokenClaimReady);
+                const primaryLabel = !phaseInfo
+                  ? `Daily Sign · Earn ${yieldUsd}`
+                  : isSignPhaseNow
+                    ? tokenSigned
+                      ? `Signed — Epoch ${phaseInfo.eid.toString()}`
+                      : `Daily Sign · Earn ${yieldUsd}`
+                    : tokenClaimed
+                      ? `Next sign ${formatTimeRemaining(remainingTimeDisplay)}`
+                      : tokenSigned
+                        ? `Claim ${yieldUsd}`
+                        : `Sign ended ${formatTimeRemaining(remainingTimeDisplay)}`;
 
                 return (
                   <WorkCard
@@ -2458,11 +2607,11 @@ export default function BetaPage() {
                     primaryTone={
                       signedWaitingForClaim
                         ? "waiting"
-                        : isClaimReady
+                        : tokenClaimReady
                           ? "ready"
                           : "default"
                     }
-                    onPrimaryClick={() => handleSign(false)}
+                    onPrimaryClick={() => handleSign(false, tokenId)}
                     isExpanded={isExpanded}
                     onToggleExpand={() => toggleCardExpanded(tokenId)}
                     busy={busy || nftLoadingStatus[tokenIdStr] === true}
@@ -2992,7 +3141,7 @@ export default function BetaPage() {
         </div>
       )}
 
-      <Footer contractAddr={CONTRACT_ADDR} />
+      <Footer contractAddr={CONTRACT_ADDR} contractVersion="v2.0" contractUpdate="Contract updated" />
     </div>
   );
 }
