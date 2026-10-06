@@ -70,6 +70,7 @@ import MARKET_ABI from "@/app/abi/market.json";
 import NFT_ABI from "@/app/abi/nft.json";
 import { MINIMUM_BID_FOR_SELL, readVrnounsMinBid } from "@/app/lib/minBid";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
+import { batchApproveAndSell } from "@/app/lib/approveAndSell";
 
 // Addresses
 const CONTRACT_ADDR = "0xF6B2C2411a101Db46c8513dDAef10b11184c58fF" as const;
@@ -912,93 +913,109 @@ export default function Page() {
         console.log("Current nftApprovalStatus:", nftApprovalStatus);
         console.log("Current nftLoadingStatus:", nftLoadingStatus);
 
-        // If not approved, automatically approve first
-        if (!isThisNFTApproved) {
-          // Set loading state for this specific NFT
-          setNftLoadingStatus((prev) => ({
-            ...prev,
-            [tokenIdStr]: true,
-          }));
-
-          toast.info(
-            `Approval required for Noun #${tokenIdStr}. Approving automatically...`,
-          );
-
-          try {
-            await retryWithBackoff(
-              async () => {
-                return await writeContract(config, {
-                  address: COLLECTION_ADDR,
-                  abi: NFT_ABI,
-                  functionName: "setApprovalForAll",
-                  args: [CONTRACT_ADDR, true],
-                  dataSuffix: DATA_SUFFIX,
-                });
-              },
-              5,
-              2000,
-            ); // 5 retry, 2 second base delay
-
-            toast.info(
-              "Approval transaction sent. Waiting for confirmation...",
-            );
-
-            // Wait for approval transaction to be confirmed
-            await new Promise((resolve) => setTimeout(resolve, 5000));
-
-            // Verify approval is actually set
-            const isActuallyApproved = await retryWithBackoff(async () => {
-              return await readContract(config, {
-                address: COLLECTION_ADDR,
-                abi: NFT_ABI,
-                functionName: "isApprovedForAll",
-                args: [address, CONTRACT_ADDR],
-              });
+        // Onaysız token: approve + satış tek pakette (EIP-5792); cüzdan
+        // desteklemiyorsa null döner ve klasik iki adımlı akış çalışır
+        const batched = isThisNFTApproved
+          ? null
+          : await batchApproveAndSell({
+              config,
+              account: address,
+              chainId: base.id,
+              collection: COLLECTION_ADDR,
+              market: CONTRACT_ADDR,
+              tokenId,
+              dataSuffix: DATA_SUFFIX,
             });
-
-            if (isActuallyApproved) {
-              toast.success("Approval confirmed! ✅");
-
-              // Update the specific NFT's approval status
-              setNftApprovalStatus((prev) => ({
-                ...prev,
-                [tokenIdStr]: true,
-              }));
-
-              // Update all NFT approval statuses
-              await checkIndividualNFTApprovals();
-            } else {
-              throw new Error("Approval not confirmed on blockchain");
-            }
-          } catch (error) {
-            console.error("Approval failed:", error);
-            if (
-              error instanceof Error &&
-              error.message.includes("rate limited")
-            ) {
-              toast.error("Rate limited. Please wait a moment and try again.");
-            } else {
-              toast.error("Approval failed. Please try again.");
-            }
-            throw error;
-          } finally {
-            // Clear loading state
+        if (batched === false) return;
+        if (batched === null) {
+          // If not approved, automatically approve first
+          if (!isThisNFTApproved) {
+            // Set loading state for this specific NFT
             setNftLoadingStatus((prev) => ({
               ...prev,
-              [tokenIdStr]: false,
+              [tokenIdStr]: true,
             }));
-          }
-        }
 
-        // Sell the specific NFT
-        toast.info(`Selling Noun #${tokenIdStr}...`);
-        await writeContract(config, {
-          address: CONTRACT_ADDR,
-          abi: MARKET_ABI,
-          functionName: "sellToHighest",
-          args: [tokenId],
-          dataSuffix: DATA_SUFFIX,
-        });
+            toast.info(
+              `Approval required for Noun #${tokenIdStr}. Approving automatically...`,
+            );
+
+            try {
+              await retryWithBackoff(
+                async () => {
+                  return await writeContract(config, {
+                    address: COLLECTION_ADDR,
+                    abi: NFT_ABI,
+                    functionName: "setApprovalForAll",
+                    args: [CONTRACT_ADDR, true],
+                    dataSuffix: DATA_SUFFIX,
+                  });
+                },
+                5,
+                2000,
+              ); // 5 retry, 2 second base delay
+
+              toast.info(
+                "Approval transaction sent. Waiting for confirmation...",
+              );
+
+              // Wait for approval transaction to be confirmed
+              await new Promise((resolve) => setTimeout(resolve, 5000));
+
+              // Verify approval is actually set
+              const isActuallyApproved = await retryWithBackoff(async () => {
+                return await readContract(config, {
+                  address: COLLECTION_ADDR,
+                  abi: NFT_ABI,
+                  functionName: "isApprovedForAll",
+                  args: [address, CONTRACT_ADDR],
+                });
+              });
+
+              if (isActuallyApproved) {
+                toast.success("Approval confirmed! ✅");
+
+                // Update the specific NFT's approval status
+                setNftApprovalStatus((prev) => ({
+                  ...prev,
+                  [tokenIdStr]: true,
+                }));
+
+                // Update all NFT approval statuses
+                await checkIndividualNFTApprovals();
+              } else {
+                throw new Error("Approval not confirmed on blockchain");
+              }
+            } catch (error) {
+              console.error("Approval failed:", error);
+              if (
+                error instanceof Error &&
+                error.message.includes("rate limited")
+              ) {
+                toast.error("Rate limited. Please wait a moment and try again.");
+              } else {
+                toast.error("Approval failed. Please try again.");
+              }
+              throw error;
+            } finally {
+              // Clear loading state
+              setNftLoadingStatus((prev) => ({
+                ...prev,
+                [tokenIdStr]: false,
+              }));
+            }
+          }
+
+          // Sell the specific NFT
+          toast.info(`Selling Noun #${tokenIdStr}...`);
+          await writeContract(config, {
+            address: CONTRACT_ADDR,
+            abi: MARKET_ABI,
+            functionName: "sellToHighest",
+            args: [tokenId],
+            dataSuffix: DATA_SUFFIX,
+          });
+        }
         toast.success(`Noun #${tokenIdStr} sold successfully! 🎉`);
       } catch (error) {
         if (error instanceof Error && error.message.includes("network")) {

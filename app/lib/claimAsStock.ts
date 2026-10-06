@@ -1,42 +1,52 @@
-// Claim'i ETH yerine AAPLc (Coinbase'in Base'deki tokenize Apple hissesi)
-// olarak alma yolu. Önceki kampanyalar AMZNc, SPCXc idi; token adresi/sembolü/
-// havuz ücreti tek yerde.
+// Claim'i ETH yerine AMDc (Coinbase'in Base'deki tokenize AMD hissesi)
+// olarak alma yolu. Önceki kampanyalar AMZNc, SPCXc, AAPLc idi; token
+// adresi/sembolü/havuzu tek yerde.
 //
 // Kontrat claim'de ETH'i cüzdana yollar; biz aynı wallet_sendCalls paketinin
-// sonuna bir Uniswap V3 swap call'ı ekliyoruz. Paket atomik cüzdanda tek
-// işlemde koşar: claim'ler ETH'i getirir, son call o ETH'i AAPLc'ye çevirir.
+// sonuna bir swap call'ı ekliyoruz. Paket atomik cüzdanda tek işlemde koşar:
+// claim'ler ETH'i getirir, son call o ETH'i AMDc'ye çevirir.
 //
-// Base app'in kendi swap'ı CDP Trade API'ye gidiyor (sunucu anahtarı ister,
-// statik siteye konmaz). Onun yerine doğrudan zincirdeki havuzları kullanıyoruz:
-// ETH → USDC (0.05%, derin) → AAPLc (0.3%, Coinbase hisse havuzu). Claim
-// boyutlarında (birkaç dolar – birkaç yüz dolar) kayma ihmal edilebilir.
+// Base app'in kendi swap'ı CDP Trade API'ye (0x) gidiyor (sunucu anahtarı
+// ister, statik siteye konmaz). Onun yerine doğrudan zincirdeki havuzları
+// kullanıyoruz. AMDc'nin Uniswap V3 havuzu yok; likidite Aerodrome Slipstream'de
+// (CLFactory 0xf8f2…61Ef). Router/quoter o factory'ye bağlı olanlar olmalı,
+// Aerodrome'un eski Slipstream router'ları bu havuzları görmez.
+// ETH → USDC (tickSpacing 50, derin) → AMDc (tickSpacing 1, 0.01%).
 import { simulateContract, readContract } from "wagmi/actions";
 import type { Config } from "wagmi";
 import { encodeFunctionData, encodePacked, parseAbi, type Abi, type Address, type Hex } from "viem";
 
-export const AAPLC: { address: Address; symbol: string; decimals: number; cashtag: string; poolFee: number } = {
-  address: "0xb200000000000000000000c2e324d24d7eecd1fb",
-  symbol: "AAPLc",
+export const STOCK: { address: Address; symbol: string; name: string; decimals: number; cashtag: string; tickSpacing: number } = {
+  address: "0xb2000000000000000000000d8ce462e99ee7a47b",
+  symbol: "AMDc",
+  // Metinlerde "tokenized AMD stock"
+  name: "AMD",
   decimals: 8,
   // X paylaşımında hisse etiketi
-  cashtag: "$AAPL",
-  // USDC/AAPLc likit havuzu 0.3%'lük olan; 1%'lik havuz boş (quote revert eder).
-  // Token değişince bunu zincirde kontrol et.
-  poolFee: 3000,
+  cashtag: "$AMD",
+  // USDC/AMDc likit havuzu tickSpacing 1 olan (0x821b…4D13); tickSpacing 10
+  // havuzunda aktif likidite yok. Token değişince bunu zincirde kontrol et.
+  tickSpacing: 1,
 };
 
 const WETH: Address = "0x4200000000000000000000000000000000000006";
 const USDC: Address = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-const SWAP_ROUTER_02: Address = "0x2626664c2603336E57B271c5C0b26F421741e481";
-const QUOTER_V2: Address = "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a";
+// WETH/USDC tickSpacing 50 havuzu bu factory'nin en derini
+const WETH_USDC_TICK_SPACING = 50;
+const SWAP_ROUTER: Address = "0x698Cb2b6dd822994581fEa6eA4Fc755d1363A92F";
+const QUOTER_V2: Address = "0x514c8B5f54112481E28028F1166Bd78501089259";
 
 // Kaymaya tolerans — havuz ücreti quote'un içinde, bu sadece quote ile
 // gerçekleşme arasındaki fiyat hareketi için.
 const SLIPPAGE_BPS = BigInt(300);
 
+// Slipstream router'ı deadline ister; imza ekranında beklemeye pay.
+const DEADLINE_SECONDS = 60 * 60;
+
+// Slipstream path'i fee yerine int24 tickSpacing taşır.
 const PATH: Hex = encodePacked(
-  ["address", "uint24", "address", "uint24", "address"],
-  [WETH, 500, USDC, AAPLC.poolFee, AAPLC.address],
+  ["address", "int24", "address", "int24", "address"],
+  [WETH, WETH_USDC_TICK_SPACING, USDC, STOCK.tickSpacing, STOCK.address],
 );
 
 const QUOTER_ABI = parseAbi([
@@ -44,13 +54,13 @@ const QUOTER_ABI = parseAbi([
 ]);
 
 const ROUTER_ABI = parseAbi([
-  "struct ExactInputParams { bytes path; address recipient; uint256 amountIn; uint256 amountOutMinimum; }",
+  "struct ExactInputParams { bytes path; address recipient; uint256 deadline; uint256 amountIn; uint256 amountOutMinimum; }",
   "function exactInput(ExactInputParams params) payable returns (uint256 amountOut)",
 ]);
 
 export type StockCall = { to: Address; data: Hex; value: bigint };
 
-// Bu kadar ETH kaç AAPLc eder? (8 decimals)
+// Bu kadar ETH kaç AMDc eder? (8 decimals)
 export const quoteStock = async (opts: {
   config: Config;
   chainId: number;
@@ -68,7 +78,7 @@ export const quoteStock = async (opts: {
 };
 
 export const formatStock = (units: bigint): string => {
-  const n = Number(units) / 10 ** AAPLC.decimals;
+  const n = Number(units) / 10 ** STOCK.decimals;
   if (n === 0) return "0";
   if (n < 0.0001) return n.toFixed(8);
   if (n < 1) return n.toFixed(5);
@@ -84,13 +94,14 @@ export const buildStockSwapCall = (opts: {
 }): StockCall => {
   const { recipient, amountInWei, quotedOut } = opts;
   const minOut = (quotedOut * (BigInt(10_000) - SLIPPAGE_BPS)) / BigInt(10_000);
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + DEADLINE_SECONDS);
   return {
-    to: SWAP_ROUTER_02,
+    to: SWAP_ROUTER,
     value: amountInWei,
     data: encodeFunctionData({
       abi: ROUTER_ABI,
       functionName: "exactInput",
-      args: [{ path: PATH, recipient, amountIn: amountInWei, amountOutMinimum: minOut }],
+      args: [{ path: PATH, recipient, deadline, amountIn: amountInWei, amountOutMinimum: minOut }],
     }),
   };
 };

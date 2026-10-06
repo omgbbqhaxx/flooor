@@ -33,6 +33,7 @@ import { scanOwnedTokenIds } from "@/app/lib/scanOwnedTokenIds";
 import { FRONTEND_VERSION } from "@/app/lib/version";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
 import { awaitTx } from "@/app/lib/awaitTx";
+import { batchApproveAndSell } from "@/app/lib/approveAndSell";
 import { HoloFrame } from "@/app/components/HoloFrame";
 import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
 
@@ -1284,31 +1285,47 @@ export default function RhMachinesPage() {
         }
         setNftBusy((prev) => ({ ...prev, [idStr]: true }));
         const isApproved = nftApprovalStatus[idStr] === true;
-        if (!isApproved) {
-          toast.info(`Approving token #${idStr}...`);
-          await retryWithBackoff(async () => {
-            return await writeContract(config, {
+        // Onaysız token: approve + satış tek pakette (EIP-5792); cüzdan
+        // desteklemiyorsa null döner ve klasik iki adımlı akış çalışır
+        const batched = isApproved
+          ? null
+          : await batchApproveAndSell({
+              config,
+              account: address,
               chainId: robinhoodChain.id,
-              address: COLLECTION_ADDR,
-              abi: NFT_ABI,
-              functionName: "setApprovalForAll",
-              args: [CONTRACT_ADDR, true],
+              collection: COLLECTION_ADDR,
+              market: CONTRACT_ADDR,
+              tokenId,
               dataSuffix: DATA_SUFFIX,
             });
-          }, 5, 2000);
-          await new Promise((resolve) => setTimeout(resolve, 5000));
-          await checkApprovalStatus();
+        if (batched === false) return;
+        if (batched === null) {
+          if (!isApproved) {
+            toast.info(`Approving token #${idStr}...`);
+            await retryWithBackoff(async () => {
+              return await writeContract(config, {
+                chainId: robinhoodChain.id,
+                address: COLLECTION_ADDR,
+                abi: NFT_ABI,
+                functionName: "setApprovalForAll",
+                args: [CONTRACT_ADDR, true],
+                dataSuffix: DATA_SUFFIX,
+              });
+            }, 5, 2000);
+            await new Promise((resolve) => setTimeout(resolve, 5000));
+            await checkApprovalStatus();
+          }
+          const txHash = await writeContract(config, {
+            chainId: robinhoodChain.id,
+            address: CONTRACT_ADDR,
+            abi: ROBINHOOD_ABI,
+            functionName: "sellToHighest",
+            args: [tokenId],
+            dataSuffix: DATA_SUFFIX,
+          });
+          // Hash ≠ onay: iptal/revert'te başarı akışı (share, konfeti) çalışmasın
+          if (!(await awaitTx(config, txHash, robinhoodChain.id))) return;
         }
-        const txHash = await writeContract(config, {
-          chainId: robinhoodChain.id,
-          address: CONTRACT_ADDR,
-          abi: ROBINHOOD_ABI,
-          functionName: "sellToHighest",
-          args: [tokenId],
-          dataSuffix: DATA_SUFFIX,
-        });
-        // Hash ≠ onay: iptal/revert'te başarı akışı (share, konfeti) çalışmasın
-        if (!(await awaitTx(config, txHash, robinhoodChain.id))) return;
         toast.success(`Token #${idStr} sold successfully!`);
         fireConfetti();
         const soldUsd = toUsd(currentBid);

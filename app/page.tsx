@@ -113,14 +113,15 @@ import { MINIMUM_BID_FOR_SELL, readVrnounsMinBid } from "@/app/lib/minBid";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
 import { awaitTx } from "@/app/lib/awaitTx";
 import { bulkSignOrClaim } from "@/app/lib/bulkSignOrClaim";
-import { AAPLC, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
+import { batchApproveAndSell } from "@/app/lib/approveAndSell";
+import { STOCK, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
 
 // v2 (token bazlı çoklu imza) — 2026-10-04. /genesis bilerek v1 0xF6B2…58fF'te kalıyor.
 const CONTRACT_ADDR = "0xD53292182A342953f446CD4D10Dc177776044306" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
 const UPGRADE_NOTICE_KEY = "flooor.vrnouns.v2Notice";
-// Apple siyahı; sadece "Claim as AAPLc" butonunda
-const APPLE_BLACK = "#000000";
+// Hisse butonu siyahı; sadece "Claim as <hisse>" butonunda
+const STOCK_BLACK = "#000000";
 
 // Market cap hesabında kullanılan koleksiyon toplam arzı (mint edilmiş adet değil)
 const COLLECTION_TOTAL_SUPPLY = 5000;
@@ -392,7 +393,7 @@ export default function BetaPage() {
   const [sendAddressInput, setSendAddressInput] = useState("");
   const [sendAddressError, setSendAddressError] = useState(false);
   const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
-  // "Claim as AAPLc" için ön izleme: bugünkü claim kaç hisse eder
+  // "Claim as <hisse>" için ön izleme: bugünkü claim kaç hisse eder
   const [stockQuote, setStockQuote] = useState<bigint | null>(null);
   // Hisse claim'i sırasında butonda gösterilen aşama ("Quoting", "Claiming")
   const [stockStage, setStockStage] = useState<string>("");
@@ -1479,57 +1480,73 @@ export default function BetaPage() {
           return;
         }
         const isThisNFTApproved = nftApprovalStatus[tokenIdStr] === true;
-        if (!isThisNFTApproved) {
-          setNftLoadingStatus((prev) => ({ ...prev, [tokenIdStr]: true }));
-          toast.info(`Approving Noun #${tokenIdStr}...`);
-          try {
-            await retryWithBackoff(
-              async () => {
-                return await writeContract(config, {
+        // Onaysız token: approve + satış tek pakette (EIP-5792); cüzdan
+        // desteklemiyorsa null döner ve klasik iki adımlı akış çalışır
+        const batched = isThisNFTApproved
+          ? null
+          : await batchApproveAndSell({
+              config,
+              account: address,
+              chainId: base.id,
+              collection: COLLECTION_ADDR,
+              market: CONTRACT_ADDR,
+              tokenId,
+              dataSuffix: DATA_SUFFIX,
+            });
+        if (batched === false) return;
+        if (batched === null) {
+          if (!isThisNFTApproved) {
+            setNftLoadingStatus((prev) => ({ ...prev, [tokenIdStr]: true }));
+            toast.info(`Approving Noun #${tokenIdStr}...`);
+            try {
+              await retryWithBackoff(
+                async () => {
+                  return await writeContract(config, {
+                    address: COLLECTION_ADDR,
+                    abi: NFT_ABI,
+                    functionName: "setApprovalForAll",
+                    args: [CONTRACT_ADDR, true],
+                    dataSuffix: DATA_SUFFIX,
+                  });
+                },
+                5,
+                2000,
+              );
+              await new Promise((resolve) => setTimeout(resolve, 5000));
+              const isActuallyApproved = await retryWithBackoff(async () => {
+                return await readContract(config, {
                   address: COLLECTION_ADDR,
                   abi: NFT_ABI,
-                  functionName: "setApprovalForAll",
-                  args: [CONTRACT_ADDR, true],
-                  dataSuffix: DATA_SUFFIX,
+                  functionName: "isApprovedForAll",
+                  args: [address, CONTRACT_ADDR],
                 });
-              },
-              5,
-              2000,
-            );
-            await new Promise((resolve) => setTimeout(resolve, 5000));
-            const isActuallyApproved = await retryWithBackoff(async () => {
-              return await readContract(config, {
-                address: COLLECTION_ADDR,
-                abi: NFT_ABI,
-                functionName: "isApprovedForAll",
-                args: [address, CONTRACT_ADDR],
               });
-            });
-            if (isActuallyApproved) {
-              toast.success("Approval confirmed!");
-              setNftApprovalStatus((prev) => ({ ...prev, [tokenIdStr]: true }));
-              await checkIndividualNFTApprovals();
-            } else {
-              throw new Error("Approval not confirmed on blockchain");
+              if (isActuallyApproved) {
+                toast.success("Approval confirmed!");
+                setNftApprovalStatus((prev) => ({ ...prev, [tokenIdStr]: true }));
+                await checkIndividualNFTApprovals();
+              } else {
+                throw new Error("Approval not confirmed on blockchain");
+              }
+            } catch (error) {
+              if (!isUserRejectedError(error)) {
+                toast.error("Approval failed. Please try again.");
+              }
+              throw error;
+            } finally {
+              setNftLoadingStatus((prev) => ({ ...prev, [tokenIdStr]: false }));
             }
-          } catch (error) {
-            if (!isUserRejectedError(error)) {
-              toast.error("Approval failed. Please try again.");
-            }
-            throw error;
-          } finally {
-            setNftLoadingStatus((prev) => ({ ...prev, [tokenIdStr]: false }));
           }
+          const txHash = await writeContract(config, {
+            address: CONTRACT_ADDR,
+            abi: MARKET_ABI,
+            functionName: "sellToHighest",
+            args: [tokenId],
+            dataSuffix: DATA_SUFFIX,
+          });
+          // Hash ≠ onay: iptal/revert'te başarı akışı (share, konfeti) çalışmasın
+          if (!(await awaitTx(config, txHash, base.id))) return;
         }
-        const txHash = await writeContract(config, {
-          address: CONTRACT_ADDR,
-          abi: MARKET_ABI,
-          functionName: "sellToHighest",
-          args: [tokenId],
-          dataSuffix: DATA_SUFFIX,
-        });
-        // Hash ≠ onay: iptal/revert'te başarı akışı (share, konfeti) çalışmasın
-        if (!(await awaitTx(config, txHash, base.id))) return;
         toast.success(`Noun #${tokenIdStr} sold successfully!`);
         fireConfetti();
         const soldUsd = toUsd(currentBid);
@@ -1756,7 +1773,7 @@ export default function BetaPage() {
       }
       const n = eligible.length;
       // Hisse olarak claim: claim'lerin getireceği tam ETH'i kontrattan
-      // hesaplayıp o miktar için bir Uniswap swap call'ını aynı
+      // hesaplayıp o miktar için bir Aerodrome swap call'ını aynı
       // wallet_sendCalls paketinin sonuna ekliyoruz. Bir wei fazla istersek
       // paket revert eder — frontend'in yuvarlanmış yield değeri değil,
       // kontratın bölmesi kullanılıyor.
@@ -1840,7 +1857,7 @@ export default function BetaPage() {
       } else {
         toast.success(
           stockOut !== null
-            ? `Claimed — ≈${formatStock(stockOut)} ${AAPLC.symbol} in your wallet!`
+            ? `Claimed — ≈${formatStock(stockOut)} ${STOCK.symbol} in your wallet!`
             : n > 1
               ? `${n} VRNouns claimed in one go!`
               : "Claim successful!",
@@ -1851,7 +1868,7 @@ export default function BetaPage() {
           type: "claim",
           text:
             stockOut !== null
-              ? `Claimed today's vault share on flooor.fun as ${formatStock(stockOut)} ${AAPLC.symbol} (${AAPLC.cashtag}) — Apple stock, onchain on Base 🍎\n\nMy VRNoun earns yield every single day — no lockup, no transfer.`
+              ? `Claimed today's vault share on flooor.fun as ${formatStock(stockOut)} ${STOCK.symbol} (${STOCK.cashtag}) — ${STOCK.name} stock, onchain on Base\n\nMy VRNoun earns yield every single day — no lockup, no transfer.`
               : `Claimed Ξ${fmtEth(claimedEth)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun 💰\n\nMy VRNoun earns yield every single day — no lockup, no transfer.`,
         });
       }
@@ -1892,7 +1909,7 @@ export default function BetaPage() {
     toUsd,
   ]);
 
-  // Claim hazırken ikinci seçeneğin altına "≈ X AAPLc" yazabilmek için quote.
+  // Claim hazırken ikinci seçeneğin altına "≈ X <hisse>" yazabilmek için quote.
   // Sadece gösterim; gerçek swap miktarı tıklama anında yeniden hesaplanıyor.
   const stockQuoteEligible =
     !!phaseInfo &&
@@ -2196,11 +2213,11 @@ export default function BetaPage() {
                       </div>
                     }
                   >
-                    {/* AAPLc kampanyası boyunca eser plakasında kampanya görseli;
+                    {/* AMDc kampanyası boyunca eser plakasında kampanya görseli;
                         bitince /vrnounz.svg'ye geri dön */}
                     <Image
-                      src="/aaplc-promo.png"
-                      alt="Claim AAPLc daily as a VRNouns holder"
+                      src="/amdc-promo.png"
+                      alt="Claim AMDc daily as a VRNouns holder"
                       width={1254}
                       height={1254}
                       priority
@@ -2513,7 +2530,7 @@ export default function BetaPage() {
               >
                 {signStage ? `${signStage}…` : getSignButtonText()}
               </button>
-              {/* İkinci claim yolu: aynı paket, sonunda Uniswap swap'ı.
+              {/* İkinci claim yolu: aynı paket, sonunda Aerodrome swap'ı.
                   Sadece claim hazırken görünür; sign fazında anlamı yok. */}
               {isClaimReady && (
                 <button
@@ -2523,8 +2540,8 @@ export default function BetaPage() {
                   style={{
                     ...smallCaps,
                     color: isSignButtonDisabled() ? FAINT : "#fff",
-                    // Apple siyahı — buton hangi hisseye gittiğini renkten söylesin
-                    backgroundColor: isSignButtonDisabled() ? IVORY : APPLE_BLACK,
+                    // Hisse siyahı — buton hangi hisseye gittiğini renkten söylesin
+                    backgroundColor: isSignButtonDisabled() ? IVORY : STOCK_BLACK,
                     border: isSignButtonDisabled() ? `1px solid ${HAIRLINE}` : "none",
                     cursor: isSignButtonDisabled() ? "not-allowed" : "pointer",
                   }}
@@ -2538,13 +2555,13 @@ export default function BetaPage() {
                   <span>
                     {stockStage
                       ? `${stockStage}…`
-                      : `Claim as ${AAPLC.symbol}${stockQuote !== null ? ` · ≈${formatStock(stockQuote)}` : ""}`}
+                      : `Claim as ${STOCK.symbol}${stockQuote !== null ? ` · ≈${formatStock(stockQuote)}` : ""}`}
                   </span>
                 </button>
               )}
               <p className="mt-3 text-xs" style={{ color: FAINT }}>
                 {isClaimReady
-                  ? `Take your share in ETH, or swap it into ${AAPLC.symbol} — tokenized Apple stock on Base — in the same transaction via Uniswap. `
+                  ? `Take your share in ETH, or swap it into ${STOCK.symbol} — tokenized ${STOCK.name} stock on Base — in the same transaction via Aerodrome. `
                   : ""}
                 Every VRNoun you hold earns its own share of the daily vault —
                 sign and claim them all in a single transaction. No lockup, no

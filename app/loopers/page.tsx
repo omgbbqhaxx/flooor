@@ -7,8 +7,9 @@ import Footer from "@/app/components/Footer";
 import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
 import { bulkSignOrClaim, supportsAtomicBatch } from "@/app/lib/bulkSignOrClaim";
-import { AAPLC, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
+import { STOCK, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
 import { awaitTx } from "@/app/lib/awaitTx";
+import { batchApproveAndSell } from "@/app/lib/approveAndSell";
 import WorkCard from "@/app/components/WorkCard";
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
@@ -260,8 +261,8 @@ const COLLECTION_ADDR = "0x1649CD37f4748807b4882FC48765bA0B2aFfa94a" as const;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const IS_DEPLOYED = CONTRACT_ADDR.toLowerCase() !== ZERO_ADDRESS;
 
-// Apple siyahı; sadece "Claim as AAPLc" butonunda
-const APPLE_BLACK = "#000000";
+// Hisse butonu siyahı; sadece "Claim as <hisse>" butonunda
+const STOCK_BLACK = "#000000";
 
 // Loopers public mint (koleksiyon kontratı, LoopersUpgradeable). Mint açıkken
 // bid kutusu yerine mint butonları gösterilir; kapanınca/bitince bid'e dönülür.
@@ -411,7 +412,7 @@ export default function LoopersPage() {
   const [nftBusy, setNftBusy] = useState<{ [key: string]: boolean }>({});
   const [bulkBusy, setBulkBusy] = useState<boolean>(false);
   const [bulkStage, setBulkStage] = useState<string>("");
-  // "Claim as AAPLc" için ön izleme: bugünkü claim'in tamamı kaç hisse eder
+  // "Claim as <hisse>" için ön izleme: bugünkü claim'in tamamı kaç hisse eder
   const [stockQuote, setStockQuote] = useState<bigint | null>(null);
   const [isBidding, setIsBidding] = useState<boolean>(false);
   const [mintInfo, setMintInfo] = useState<MintInfo | null>(null);
@@ -1532,7 +1533,7 @@ export default function LoopersPage() {
 
       setBulkStage(isSignPhase ? "Signing" : "Claiming");
       // Hisse olarak claim: claim'lerin getireceği tam ETH'i kontrattan
-      // hesaplayıp o miktar için bir Uniswap swap call'ı paketin sonuna
+      // hesaplayıp o miktar için bir Aerodrome swap call'ı paketin sonuna
       // ekliyoruz. Bir wei fazla istersek paket revert eder, o yüzden
       // frontend'deki yuvarlanmış "yield per signer" değil, kontratın bölmesi.
       let trailingCalls: { to: `0x${string}`; data: `0x${string}`; value: bigint }[] = [];
@@ -1579,7 +1580,7 @@ export default function LoopersPage() {
 
       const n = outcome.sequential ? (outcome.done ?? eligible.length) : eligible.length;
       const past = isSignPhase ? "signed" : "claimed";
-      const stockNote = stockOut !== null ? ` — ≈${formatStock(stockOut)} ${AAPLC.symbol} in your wallet` : "";
+      const stockNote = stockOut !== null ? ` — ≈${formatStock(stockOut)} ${STOCK.symbol} in your wallet` : "";
       toast.success(
         n === 1
           ? `Looper ${past}${stockNote}!`
@@ -1601,7 +1602,7 @@ export default function LoopersPage() {
           type: "claim",
           text:
             stockOut !== null
-              ? `Claimed today's vault share on flooor.fun as ${formatStock(stockOut)} ${AAPLC.symbol} (${AAPLC.cashtag}) — Apple stock, onchain on Base 🍎\n\nMy Looper earns yield every single day — no lockup, no transfer.`
+              ? `Claimed today's vault share on flooor.fun as ${formatStock(stockOut)} ${STOCK.symbol} (${STOCK.cashtag}) — ${STOCK.name} stock, onchain on Base\n\nMy Looper earns yield every single day — no lockup, no transfer.`
               : `Claimed Ξ${fmtEth(totalEth)}${claimedUsd ? ` (${claimedUsd})` : ""} from today's vault on flooor.fun 💰\n\nMy Looper earns yield every single day — no lockup, no transfer.`,
         });
       }
@@ -1638,7 +1639,7 @@ export default function LoopersPage() {
     toUsd,
   ]);
 
-  // Claim hazırken ikinci seçeneğin altına "≈ X AAPLc" yazabilmek için quote.
+  // Claim hazırken ikinci seçeneğin altına "≈ X <hisse>" yazabilmek için quote.
   // Sadece gösterim; gerçek swap miktarı tıklama anında yeniden hesaplanıyor.
   const stockQuoteEligible = !isSignPhase && bulkEligibleCount > 0 && parseFloat(yieldPerSigner) > 0;
   useEffect(() => {
@@ -1736,29 +1737,45 @@ export default function LoopersPage() {
         }
         setNftBusy((prev) => ({ ...prev, [idStr]: true }));
         const isApproved = nftApprovalStatus[idStr] === true;
-        if (!isApproved) {
-          toast.info(`Approving token #${idStr}...`);
-          await retryWithBackoff(async () => {
-            return await writeContract(config, {
-              address: COLLECTION_ADDR,
-              abi: NFT_ABI,
-              functionName: "setApprovalForAll",
-              args: [CONTRACT_ADDR, true],
+        // Onaysız token: approve + satış tek pakette (EIP-5792); cüzdan
+        // desteklemiyorsa null döner ve klasik iki adımlı akış çalışır
+        const batched = isApproved
+          ? null
+          : await batchApproveAndSell({
+              config,
+              account: address,
+              chainId: base.id,
+              collection: COLLECTION_ADDR,
+              market: CONTRACT_ADDR,
+              tokenId,
               dataSuffix: DATA_SUFFIX,
             });
-          }, 5, 2000);
-          await new Promise((resolve) => setTimeout(resolve, 5000));
-          await checkApprovalStatus();
+        if (batched === false) return;
+        if (batched === null) {
+          if (!isApproved) {
+            toast.info(`Approving token #${idStr}...`);
+            await retryWithBackoff(async () => {
+              return await writeContract(config, {
+                address: COLLECTION_ADDR,
+                abi: NFT_ABI,
+                functionName: "setApprovalForAll",
+                args: [CONTRACT_ADDR, true],
+                dataSuffix: DATA_SUFFIX,
+              });
+            }, 5, 2000);
+            await new Promise((resolve) => setTimeout(resolve, 5000));
+            await checkApprovalStatus();
+          }
+          const txHash = await writeContract(config, {
+            address: CONTRACT_ADDR,
+            abi: LOOPERS_ABI,
+            functionName: "sellToHighest",
+            args: [tokenId],
+            dataSuffix: DATA_SUFFIX,
+          });
+          // Hash ≠ onay: iptal/revert'te başarı akışı (share, konfeti) çalışmasın
+          if (!(await awaitTx(config, txHash, base.id))) return;
         }
-        const txHash = await writeContract(config, {
-          address: CONTRACT_ADDR,
-          abi: LOOPERS_ABI,
-          functionName: "sellToHighest",
-          args: [tokenId],
-          dataSuffix: DATA_SUFFIX,
-        });
-        // Hash ≠ onay: iptal/revert'te başarı akışı (share, konfeti) çalışmasın
-        if (!(await awaitTx(config, txHash, base.id))) return;
         toast.success(`Token #${idStr} sold successfully!`);
         fireConfetti();
         const soldUsd = toUsd(currentBid);
@@ -2313,7 +2330,7 @@ export default function LoopersPage() {
                   >
                     {bulkButtonText}
                   </button>
-                  {/* İkinci claim yolu: aynı paket, sonunda Uniswap swap'ı.
+                  {/* İkinci claim yolu: aynı paket, sonunda Aerodrome swap'ı.
                       Sadece claim hazırken görünür; sign fazında anlamı yok. */}
                   {bulkClaimReady && (
                     <button
@@ -2323,8 +2340,8 @@ export default function LoopersPage() {
                       style={{
                         ...smallCaps,
                         color: bulkButtonDisabled ? FAINT : "#fff",
-                        // Apple siyahı — buton hangi hisseye gittiğini renkten söylesin
-                        backgroundColor: bulkButtonDisabled ? IVORY : APPLE_BLACK,
+                        // Hisse siyahı — buton hangi hisseye gittiğini renkten söylesin
+                        backgroundColor: bulkButtonDisabled ? IVORY : STOCK_BLACK,
                         border: bulkButtonDisabled ? `1px solid ${HAIRLINE}` : "none",
                         cursor: bulkButtonDisabled ? "not-allowed" : "pointer",
                       }}
@@ -2338,13 +2355,13 @@ export default function LoopersPage() {
                       <span>
                         {bulkBusy
                           ? `${bulkStage || "Working"}…`
-                          : `Claim as ${AAPLC.symbol}${stockQuote !== null ? ` · ≈${formatStock(stockQuote)}` : ""}`}
+                          : `Claim as ${STOCK.symbol}${stockQuote !== null ? ` · ≈${formatStock(stockQuote)}` : ""}`}
                       </span>
                     </button>
                   )}
                   <p className="mt-3 text-xs" style={{ color: FAINT }}>
                     {bulkClaimReady
-                      ? `Take your share in ETH, or swap it into ${AAPLC.symbol} — tokenized Apple stock on Base — in the same transaction via Uniswap.`
+                      ? `Take your share in ETH, or swap it into ${STOCK.symbol} — tokenized ${STOCK.name} stock on Base — in the same transaction via Aerodrome.`
                       : ""}
                     {bulkClaimReady ? " " : ""}Hold Loopers? Daily sign to claim your share of the daily
                     vault — every work in your wallet, one tap. No lockup, no transfer.
