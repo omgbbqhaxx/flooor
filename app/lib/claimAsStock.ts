@@ -1,32 +1,33 @@
-// Claim'i ETH yerine AMDc (Coinbase'in Base'deki tokenize AMD hissesi)
-// olarak alma yolu. Önceki kampanyalar AMZNc, SPCXc, AAPLc idi; token
+// Claim'i ETH yerine TSLAc (Coinbase'in Base'deki tokenize Tesla hissesi)
+// olarak alma yolu. Önceki kampanyalar AMZNc, SPCXc, AAPLc, AMDc idi (AMDc
+// havuzu boşalınca swap revert etti, likiditesi derin TSLAc'ye geçildi); token
 // adresi/sembolü/havuzu tek yerde.
 //
 // Kontrat claim'de ETH'i cüzdana yollar; biz aynı wallet_sendCalls paketinin
 // sonuna bir swap call'ı ekliyoruz. Paket atomik cüzdanda tek işlemde koşar:
-// claim'ler ETH'i getirir, son call o ETH'i AMDc'ye çevirir.
+// claim'ler ETH'i getirir, son call o ETH'i TSLAc'ye çevirir.
 //
 // Base app'in kendi swap'ı CDP Trade API'ye (0x) gidiyor (sunucu anahtarı
 // ister, statik siteye konmaz). Onun yerine doğrudan zincirdeki havuzları
-// kullanıyoruz. AMDc'nin Uniswap V3 havuzu yok; likidite Aerodrome Slipstream'de
+// kullanıyoruz. TSLAc'nin Uniswap V3 havuzu yok; likidite Aerodrome Slipstream'de
 // (CLFactory 0xf8f2…61Ef). Router/quoter o factory'ye bağlı olanlar olmalı,
 // Aerodrome'un eski Slipstream router'ları bu havuzları görmez.
-// ETH → USDC (tickSpacing 50, derin) → AMDc (tickSpacing 1, 0.01%).
+// ETH → USDC (tickSpacing 50, derin) → TSLAc (tickSpacing 10).
 import { simulateContract, readContract } from "wagmi/actions";
 import type { Config } from "wagmi";
 import { encodeFunctionData, encodePacked, parseAbi, type Abi, type Address, type Hex } from "viem";
 
 export const STOCK: { address: Address; symbol: string; name: string; decimals: number; cashtag: string; tickSpacing: number } = {
-  address: "0xb2000000000000000000000d8ce462e99ee7a47b",
-  symbol: "AMDc",
-  // Metinlerde "tokenized AMD stock"
-  name: "AMD",
+  address: "0xb2000000000000000000001e800a7f5189430cd0",
+  symbol: "TSLAc",
+  // Metinlerde "tokenized Tesla stock"
+  name: "Tesla",
   decimals: 8,
   // X paylaşımında hisse etiketi
-  cashtag: "$AMD",
-  // USDC/AMDc likit havuzu tickSpacing 1 olan (0x821b…4D13); tickSpacing 10
-  // havuzunda aktif likidite yok. Token değişince bunu zincirde kontrol et.
-  tickSpacing: 1,
+  cashtag: "$TSLA",
+  // USDC/TSLAc likit havuzu tickSpacing 10 olan (0x4693…a7BB, ~515k USDC).
+  // Token değişince bunu zincirde kontrol et.
+  tickSpacing: 10,
 };
 
 const WETH: Address = "0x4200000000000000000000000000000000000006";
@@ -60,7 +61,7 @@ const ROUTER_ABI = parseAbi([
 
 export type StockCall = { to: Address; data: Hex; value: bigint };
 
-// Bu kadar ETH kaç AMDc eder? (8 decimals)
+// Bu kadar ETH kaç TSLAc eder? (8 decimals)
 export const quoteStock = async (opts: {
   config: Config;
   chainId: number;

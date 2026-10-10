@@ -2213,11 +2213,11 @@ export default function BetaPage() {
                       </div>
                     }
                   >
-                    {/* AMDc kampanyası boyunca eser plakasında kampanya görseli;
+                    {/* TSLAc kampanyası boyunca eser plakasında kampanya görseli;
                         bitince /vrnounz.svg'ye geri dön */}
                     <Image
-                      src="/amdc-promo.png"
-                      alt="Claim AMDc daily as a VRNouns holder"
+                      src="/tslac-promo.png"
+                      alt="Claim TSLAc daily as a VRNouns holder"
                       width={1254}
                       height={1254}
                       priority
