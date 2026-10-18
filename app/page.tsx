@@ -1,6 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useConfig, useAccount, useSwitchChain } from "wagmi";
@@ -26,10 +27,11 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import Image from "next/image";
 import Link from "next/link";
 import SiteHeader from "@/app/components/SiteHeader";
-import { FAINT, GOLD, GREEN, HAIRLINE, INK, IVORY, MUTED, PLINTH, RED, SANS, SERIF, smallCaps, smallCapsFor } from "@/app/lib/theme";
+import { FAINT, GOLD, GREEN, HAIRLINE, INK, IVORY, MUTED, PLINTH, RED, SANS, SERIF, smallCaps } from "@/app/lib/theme";
 import Footer from "@/app/components/Footer";
 import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
 import WorkCard from "@/app/components/WorkCard";
+import { EpochTimeline } from "@/app/components/EpochTimeline";
 import { Playfair_Display, Inter } from "next/font/google";
 import confetti from "canvas-confetti";
 import { HoloFrame } from "@/app/components/HoloFrame";
@@ -109,7 +111,7 @@ const formatCompactUsd = (n: number): string => {
 
 import MARKET_ABI from "@/app/abi/vrnouns.json";
 import NFT_ABI from "@/app/abi/nft.json";
-import { MINIMUM_BID_FOR_SELL, readVrnounsMinBid } from "@/app/lib/minBid";
+import { readVrnounsMinBid } from "@/app/lib/minBid";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
 import { awaitTx } from "@/app/lib/awaitTx";
 import { bulkSignOrClaim } from "@/app/lib/bulkSignOrClaim";
@@ -119,7 +121,6 @@ import { STOCK, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } f
 // v2 (token bazlı çoklu imza) — 2026-10-04. /genesis bilerek v1 0xF6B2…58fF'te kalıyor.
 const CONTRACT_ADDR = "0xD53292182A342953f446CD4D10Dc177776044306" as const;
 const COLLECTION_ADDR = "0xbB56a9359DF63014B3347585565d6F80Ac6305fd" as const;
-const UPGRADE_NOTICE_KEY = "flooor.vrnouns.v2Notice";
 // Hisse butonu siyahı; sadece "Claim as <hisse>" butonunda
 const STOCK_BLACK = "#000000";
 
@@ -333,6 +334,7 @@ const convertReverseNodeToBytes = (address: Address, chainId: number) => {
 
 
 export default function BetaPage() {
+  const { openConnectModal } = useConnectModal();
   const [bidInput, setBidInput] = useState("");
   const [bidError, setBidError] = useState(false);
   const [isCheckingApproval, setIsCheckingApproval] = useState(false);
@@ -364,11 +366,13 @@ export default function BetaPage() {
   // Bu fazda işlem bekleyen token'lar (sign fazında imzasızlar, claim
   // fazında imzalı ama claim edilmemişler) — toplu butonun kapsamı
   const [eligibleIds, setEligibleIds] = useState<bigint[]>([]);
-  // Taban fiyat zincirden (v2 minbidAM) — sabit yalnızca ilk render/yedek
-  const [minBidEth, setMinBidEth] = useState<number>(MINIMUM_BID_FOR_SELL);
+  // Taban fiyat okunana kadar teklif alanı yükleniyor durumunda kalır.
+  const [contractMinBid, setMinBidEth] = useState<number | null>(null);
+  const minBidEth = contractMinBid ?? 0;
   // Kontratın kabul edeceği bir sonraki en düşük teklif (nextMinBid) —
   // warplets'teki gibi tek otorite zincir; null = henüz okunmadı
   const [chainNextMinBid, setChainNextMinBid] = useState<number | null>(null);
+  const minBidReady = contractMinBid !== null && chainNextMinBid !== null;
   const [userNFTs, setUserNFTs] = useState<bigint[]>([]);
   const [nftImages, setNftImages] = useState<{ [key: string]: string }>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -410,23 +414,6 @@ export default function BetaPage() {
   } | null>(null);
   const [collectionSupply, setCollectionSupply] = useState<number | null>(null);
   const [soundOn, setSoundOn] = useState(false);
-  // v2 yükseltme duyurusu — kapatılınca bu tarayıcıda bir daha görünmez
-  const [upgradeNoticeOpen, setUpgradeNoticeOpen] = useState(false);
-  useEffect(() => {
-    try {
-      if (localStorage.getItem(UPGRADE_NOTICE_KEY) !== "1") setUpgradeNoticeOpen(true);
-    } catch {
-      setUpgradeNoticeOpen(true);
-    }
-  }, []);
-  const dismissUpgradeNotice = useCallback(() => {
-    setUpgradeNoticeOpen(false);
-    try {
-      localStorage.setItem(UPGRADE_NOTICE_KEY, "1");
-    } catch {
-      // storage kapalıysa sadece bu oturumda kapanır
-    }
-  }, []);
   const config = useConfig();
 
   useEffect(() => {
@@ -1278,7 +1265,7 @@ export default function BetaPage() {
   // minimum bid fiyatını (flooor'dan alım fiyatı) baz alır.
   const annualYieldEth = (parseFloat(yieldPerNFT) || 0) * 365;
   const projectedApr =
-    annualYieldEth > 0 ? (annualYieldEth / minBidEth) * 100 : 0;
+    minBidEth > 0 && annualYieldEth > 0 ? (annualYieldEth / minBidEth) * 100 : 0;
 
   // Toplu butonda kazanç, bu fazda işlem bekleyen token sayısıyla çarpılır
   const eligibleCount = eligibleIds.length;
@@ -1370,7 +1357,7 @@ export default function BetaPage() {
     ) / 1e6;
 
   const handleBid = useCallback(async () => {
-    if (isBidding) return;
+    if (isBidding || !minBidReady) return;
     if (!address) {
       toast.warning("Please connect your wallet first");
       return;
@@ -1450,6 +1437,7 @@ export default function BetaPage() {
   }, [
     config,
     minOutbidAmount,
+    minBidReady,
     getChainMinBid,
     ensureBase,
     bidInput,
@@ -2000,21 +1988,21 @@ export default function BetaPage() {
 
   // Taban fiyatin altindaki teklifler sitede hic gosterilmez — tutar da,
   // teklif veren de gizli. Zincirdeki deger yine de hesaba katiliyor.
-  const hasBid = chainHasBid && chainBidNum >= minBidEth;
+  const hasBid = minBidReady && chainHasBid && chainBidNum >= minBidEth;
   const displayBid = hasBid ? currentBid : "0";
 
   // Gizli bir teklif esigi yukari itmediyse sade taban fiyati goster
-  const minBidLabel =
+  const minBidLabel = !minBidReady ? "—" :
     minOutbidAmount === minBidEth
       ? `${minBidEth}`
       : minOutbidAmount.toFixed(6);
 
   // Market cap = koleksiyonun toplam arzı × taban fiyat (min bid)
   const marketCapEth = COLLECTION_TOTAL_SUPPLY * minBidEth;
-  const marketCapUsd = ethPrice ? marketCapEth * ethPrice : null;
+  const marketCapUsd = contractMinBid !== null && ethPrice ? marketCapEth * ethPrice : null;
   const marketCapDisplay =
     marketCapUsd !== null ? `$${formatCompactUsd(marketCapUsd)}` : "—";
-  const marketCapEthDisplay = `Ξ${fmtEth(marketCapEth.toString())}`;
+  const marketCapEthDisplay = contractMinBid === null ? "—" : `Ξ${fmtEth(marketCapEth.toString())}`;
 
   // TVS (Total Value Signed) = bu epoch'ta imzalayan sayısı × taban fiyat (min bid)
   const tvsEth = dailySigners * minBidEth;
@@ -2032,46 +2020,6 @@ export default function BetaPage() {
     >
       {/* Header */}
       <SiteHeader soundOn={soundOn} onToggleSound={toggleSound} />
-
-      {/* v2 contract upgrade notice */}
-      {upgradeNoticeOpen && (
-        <div style={{ backgroundColor: INK, color: "#F2ECE0" }}>
-          <div className="max-w-6xl mx-auto px-5 sm:px-8 py-3 flex items-center gap-4">
-            <span
-              aria-hidden="true"
-              className="shrink-0 rounded-full animate-pulse"
-              style={{ width: 6, height: 6, backgroundColor: GOLD }}
-            />
-            <p className="flex-1 min-w-0 text-[13px] leading-snug">
-              <span style={{ ...smallCapsFor(GOLD), marginRight: 10 }}>
-                Altai contract upgrade is live
-              </span>
-              <span style={{ ...SERIF, fontStyle: "italic", fontSize: 15 }}>
-                You can now batch sign or claim.
-              </span>{" "}
-              <a
-                href={`https://basescan.org/address/${CONTRACT_ADDR}#code`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="whitespace-nowrap underline underline-offset-4 decoration-1 hover:opacity-80 transition-opacity"
-                style={{ textDecorationColor: GOLD }}
-              >
-                View contract
-              </a>
-            </p>
-            <button
-              onClick={dismissUpgradeNotice}
-              aria-label="Dismiss notice"
-              className="shrink-0 -mr-2 p-2 hover:opacity-70 transition-opacity"
-              style={{ color: "rgba(242,236,224,0.7)" }}
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Network Gate — full-screen block until on Base */}
       {isWrongNetwork && (
@@ -2146,19 +2094,15 @@ export default function BetaPage() {
       )}
 
       <main className="max-w-6xl mx-auto px-5 sm:px-8">
-        {/* Lot hero */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1.12fr_1fr] gap-12 lg:gap-16 pt-12 lg:pt-16 items-start">
-          {/* Artwork */}
-          <div className="lg:sticky lg:top-28">
-            <div className="flex items-center justify-center">
-              {/* Lot plate — matches the "Your Collection" card design below */}
+        {/* Bid first on mobile; artwork and bid above vault and sign on desktop. */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1.12fr_1fr] gap-6 lg:gap-x-10 pt-7 lg:pt-10 items-start">
               <article
-                className="w-full max-w-[560px] fade-in-soft"
+                className="order-1 lg:order-none lg:col-start-1 lg:row-start-1 w-full min-w-0 fade-in-soft rounded-lg overflow-hidden"
                 style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "#F2ECE0" }}
               >
                 {/* Lot line */}
                 <div
-                  className="flex items-center justify-between px-3.5 py-2.5"
+                  className="flex items-center justify-between px-5 py-4"
                   style={{ borderBottom: `1px solid ${HAIRLINE}` }}
                 >
                   <span className="flex items-center gap-1.5">
@@ -2169,7 +2113,7 @@ export default function BetaPage() {
                       />
                       <path fill="#fff" d="M9.6 14.9L6.3 11.6l1.1-1.1 2.2 2.2 5-5 1.1 1.1z" />
                     </svg>
-                    <span style={{ ...SERIF, fontWeight: 500, fontSize: 19, color: INK }}>
+                    <span style={{ ...SERIF, fontWeight: 500, fontSize: 26, color: INK }}>
                       VRNouns
                     </span>
                   </span>
@@ -2178,54 +2122,19 @@ export default function BetaPage() {
                   </span>
                 </div>
 
-                {/* Art plate */}
-                <div
-                  className="p-4"
-                  style={{ backgroundColor: IVORY, borderBottom: `1px solid ${HAIRLINE}` }}
-                >
-                  <HoloFrame
-                    className="w-full"
-                    overlay={
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: 10,
-                          right: 10,
-                          bottom: 10,
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <span
-                          style={{
-                            ...smallCaps,
-                            color: "#fff",
-                            fontSize: 9,
-                            padding: "4px 9px",
-                            backgroundColor: "rgba(5,12,28,0.42)",
-                            backdropFilter: "blur(6px)",
-                            border: "1px solid rgba(255,255,255,0.22)",
-                          }}
-                        >
-                          Market Cap {marketCapDisplay} · {marketCapEthDisplay}
-                        </span>
-                      </div>
-                    }
-                  >
-                    {/* TSLAc kampanyası boyunca eser plakasında kampanya görseli;
-                        bitince /vrnounz.svg'ye geri dön */}
-                    <Image
-                      src="/tslac-promo.png"
-                      alt="Claim TSLAc daily as a VRNouns holder"
-                      width={1254}
-                      height={1254}
-                      priority
-                      className="w-full h-auto"
-                    />
-                  </HoloFrame>
+                {/* Full-width campaign artwork — preserve the complete composition. */}
+                <div className="px-4 py-4">
+                  <Image
+                    src="/tslac-promo-wide.jpg"
+                    alt="Silver Tesla Cybertruck — TSLAc, claim as tokenized Tesla"
+                    width={1774}
+                    height={887}
+                    priority
+                    sizes="(min-width: 1152px) 550px, (min-width: 1024px) 50vw, 100vw"
+                    className="w-full h-auto rounded-lg"
+                  />
                 </div>
-
+                <p className="px-5 pb-3" style={{ ...smallCaps, fontSize: 9 }}>Market cap {marketCapDisplay} · {marketCapEthDisplay}</p>
                 {/* Community fee band */}
                 <div
                   className="px-3.5 py-2.5 flex items-center justify-center"
@@ -2264,62 +2173,18 @@ export default function BetaPage() {
                   </a>
                 </div>
               </article>
-            </div>
-          </div>
-
-          {/* Lot details — stretches to the artwork card so both columns end on the same line */}
-          <div className="lg:self-stretch lg:flex lg:flex-col">
+          <div className="contents lg:flex lg:flex-col lg:gap-6 lg:col-start-2 lg:row-start-1 lg:row-span-2 min-w-0">
             {/* Current bid */}
-            <div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
-                <div>
+            <section className="order-2 lg:order-none min-w-0 rounded-lg p-5 sm:p-7 lg:p-8" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
+              <div className="min-w-0">
+                <div className={`min-w-0 ${hasBid ? "active-bid-aura" : ""}`}>
                   <p style={smallCaps}>Current Bid</p>
-                  <p
-                    className="mt-2 tabular-nums"
-                    style={{
-                      ...SERIF,
-                      fontWeight: 500,
-                      fontSize: "clamp(28px, 3.4vw, 44px)",
-                      lineHeight: 1.1,
-                    }}
-                  >
-                    Ξ {fmtEth(displayBid)}
-                  </p>
-                  <p className="mt-1.5 text-sm" style={{ color: MUTED }}>
-                    {hasBid ? (
-                      <>
-                        {toUsd(displayBid) ? `${toUsd(displayBid)} · ` : ""}
-                        <a
-                          href={`https://basescan.org/address/${activeBidder}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="hover:text-black transition-colors underline underline-offset-4"
-                          style={{ textDecorationColor: HAIRLINE }}
-                        >
-                          {activeBidderName ||
-                            `${activeBidder.slice(0, 6)}…${activeBidder.slice(-4)}`}
-                        </a>
-                      </>
-                    ) : (
-                      "No bids yet — place the first."
-                    )}
-                  </p>
-                </div>
-                <div>
-                  <p style={smallCaps}>
-                    {isSignPhase ? "Sign Closes In" : "Claim Closes In"}
-                  </p>
-                  <p
-                    className="mt-2 tabular-nums"
-                    style={{
-                      ...SERIF,
-                      fontWeight: 500,
-                      fontSize: "clamp(28px, 3.4vw, 44px)",
-                      lineHeight: 1.1,
-                    }}
-                  >
-                    {formatTimeRemaining(remainingTimeDisplay)}
-                  </p>
+                  <p className={`mt-2 tabular-nums leading-tight ${hasBid ? "active-bid-amount" : ""}`} style={{ ...SERIF, fontSize: "clamp(30px, 4vw, 52px)", overflowWrap: "anywhere" }}>Ξ {fmtEth(displayBid)}</p>
+                  {hasBid && toUsd(displayBid) && <p className="mt-1 text-xs" style={{ color: MUTED }}>{toUsd(displayBid)}</p>}
+                  {hasBid && <a href={`https://basescan.org/address/${activeBidder}`} target="_blank" rel="noopener noreferrer"
+                    className="text-xs underline underline-offset-4" style={{ color: MUTED }}>
+                    {activeBidderName || `${activeBidder.slice(0, 6)}…${activeBidder.slice(-4)}`}
+                  </a>}
                 </div>
               </div>
 
@@ -2350,7 +2215,7 @@ export default function BetaPage() {
               {/* Bid — tam çerçeveli kutu */}
               <div
                 className={
-                  hasBid ? "mt-3 flex items-stretch" : "mt-8 flex items-stretch"
+                  hasBid ? "mt-3 flex items-stretch" : "mt-5 flex items-stretch"
                 }
                 style={{
                   border: `1px solid ${bidError ? "#9B1C1C" : INK}`,
@@ -2359,8 +2224,10 @@ export default function BetaPage() {
                 <input
                   type="text"
                   inputMode="decimal"
+                  aria-label="Bid amount in ETH"
+                  disabled={!minBidReady}
                   placeholder={
-                    bidError
+                    !minBidReady ? "Loading minimum bid…" : bidError
                       ? `Minimum Ξ ${minOutbidAmount.toFixed(6)}`
                       : hasBid
                         ? `Ξ ${minOutbidAmount.toFixed(6)} or more`
@@ -2378,7 +2245,7 @@ export default function BetaPage() {
                 />
                 <button
                   onClick={handleBid}
-                  disabled={isBidding}
+                  disabled={isBidding || !minBidReady}
                   className="px-5 sm:px-10 whitespace-nowrap transition-opacity hover:opacity-80 disabled:hover:opacity-100"
                   style={{
                     ...smallCaps,
@@ -2392,7 +2259,7 @@ export default function BetaPage() {
                 </button>
               </div>
               <p className="mt-3 text-xs" style={{ color: FAINT }}>
-                {hasBid ? (
+                {!minBidReady ? "Loading minimum bid…" : hasBid ? (
                   <>
                     Minimum outbid Ξ{" "}
                     <button
@@ -2426,109 +2293,39 @@ export default function BetaPage() {
                   </>
                 )}
               </p>
-            </div>
-
-            {/* Details — signers, TVS, vault, yield */}
-            <div className="mt-10">
-              {[
-                {
-                  label: "Signers",
-                  value: `${dailySigners}`,
-                  sub: null,
-                  green: false,
-                  rainbow: false,
-                },
-                {
-                  label: "TVS — Total Value Signed",
-                  value: tvsUsdDisplay,
-                  sub: tvsEthDisplay,
-                  green: false,
-                  rainbow: false,
-                },
-                {
-                  label: "Daily Vault",
-                  value: `Ξ ${fmtEth(dailyVault)}`,
-                  sub: toUsd(dailyVault),
-                  green: false,
-                  rainbow: false,
-                },
-                {
-                  label: "Yield per NFT",
-                  value: `Ξ ${fmtEth(yieldPerNFT)}`,
-                  sub: toUsd(yieldPerNFT),
-                  green: true,
-                  rainbow: false,
-                },
-                {
-                  label: "Projected APR",
-                  value:
-                    projectedApr > 0
-                      ? `${projectedApr >= 10 ? projectedApr.toFixed(0) : projectedApr.toFixed(1)}%${
-                          toUsd(String(annualYieldEth))
-                            ? ` ~ ${toUsd(String(annualYieldEth))}`
-                            : ""
-                        }`
-                      : "—",
-                  sub: null,
-                  green: false,
-                  rainbow: true,
-                },
-              ].map((row) => (
-                <div
-                  key={row.label}
-                  className="flex items-baseline justify-between py-3.5"
-                  style={{ borderTop: `1px solid ${HAIRLINE}` }}
-                >
-                  <span style={smallCaps}>{row.label}</span>
-                  <span
-                    className="tabular-nums text-base"
-                    style={{
-                      ...SANS,
-                      fontWeight: 500,
-                      color: row.green ? GREEN : INK,
-                    }}
-                  >
-                    {/* Tayf yalnızca değerin kendisine uygulanır; alt bilgi soluk kalır */}
-                    {row.rainbow ? (
-                      <span className="apr-rainbow">{row.value}</span>
-                    ) : (
-                      row.value
-                    )}
-                    {row.sub ? (
-                      <span style={{ color: FAINT, fontWeight: 400 }}>
-                        {" "}
-                        · {row.sub}
-                      </span>
-                    ) : null}
-                  </span>
+            </section>
+          <section className="order-4 lg:order-none min-w-0 rounded-lg p-5 sm:p-7" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
+            <div className="w-full">
+              <p style={smallCaps}>{isClaimReady ? "Claim your daily share" : "Sign & earn"}</p>
+              <h2 className="mt-3 mb-6" style={{ ...SERIF, fontWeight: 500, fontSize: "clamp(26px, 3vw, 34px)" }}>{isClaimReady ? "Your share is ready." : "Sign your NFTs. Claim daily ETH."}</h2>
+              <div className="mb-5">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span style={{ color: MUTED }}>{!phaseInfo ? "Loading phase" : isSignPhase ? "Sign closes in" : "Claim closes in"}</span>
+                  <span className="tabular-nums" style={{ color: isPhaseUrgent ? RED : INK }}>{phaseInfo ? formatTimeRemaining(remainingTimeDisplay) : "Syncing…"}</span>
                 </div>
-              ))}
-            </div>
-
-            {/* Daily sign — pinned to the bottom of the column on desktop */}
-            <div
-              className="mt-10 lg:mt-auto pt-8 lg:pt-6"
-              style={{ borderTop: `1px solid ${HAIRLINE}` }}
-            >
+                <EpochTimeline phase={phaseInfo ? isSignPhase ? "sign" : "claim" : null} remainingSeconds={remainingTimeDisplay} />
+              </div>
+            {/* Daily sign and claim actions */}
+            <div className="w-full">
               <button
-                onClick={() => handleSign(false)}
-                disabled={isSignButtonDisabled() || signStage !== ""}
+                onClick={() => address ? handleSign(false) : openConnectModal?.()}
+                disabled={!!address && (isSignButtonDisabled() || signStage !== "")}
                 className="w-full px-12 py-4 transition-opacity enabled:hover:opacity-85"
                 style={{
                   ...smallCaps,
-                  color: isSignButtonDisabled() ? FAINT : "#fff",
-                  backgroundColor: isSignButtonDisabled()
+                  color: address && isSignButtonDisabled() ? MUTED : "#fff",
+                  backgroundColor: address && isSignButtonDisabled()
                     ? IVORY
                     : isClaimReady
                       ? GREEN
                       : INK,
-                  border: isSignButtonDisabled()
+                  border: address && isSignButtonDisabled()
                     ? `1px solid ${HAIRLINE}`
                     : "none",
-                  cursor: isSignButtonDisabled() ? "not-allowed" : "pointer",
+                  cursor: address && isSignButtonDisabled() ? "not-allowed" : "pointer",
                 }}
               >
-                {signStage ? `${signStage}…` : getSignButtonText()}
+                {!address ? "Connect to sign & earn →" : signStage ? `${signStage}…` : getSignButtonText()}
               </button>
               {/* İkinci claim yolu: aynı paket, sonunda Aerodrome swap'ı.
                   Sadece claim hazırken görünür; sign fazında anlamı yok. */}
@@ -2559,20 +2356,40 @@ export default function BetaPage() {
                   </span>
                 </button>
               )}
-              <p className="mt-3 text-xs" style={{ color: FAINT }}>
+              <p className="mt-3 text-xs leading-relaxed text-center" style={{ color: MUTED }}>
                 {isClaimReady
                   ? `Take your share in ETH, or swap it into ${STOCK.symbol} — tokenized ${STOCK.name} stock on Base — in the same transaction via Aerodrome. `
                   : ""}
-                Every VRNoun you hold earns its own share of the daily vault —
-                sign and claim them all in a single transaction. No lockup, no
-                transfer.
+                Every VRNoun you sign earns its own share of the daily vault.
+                Sign your NFTs during the sign phase, then claim your ETH during
+                the claim phase. Batch sign or batch claim in a single transaction.
+                No staking. Your NFTs stay in your wallet.
               </p>
             </div>
+            </div>
+          </section>
           </div>
+            <section className="order-3 lg:order-none lg:col-start-1 lg:row-start-2 min-w-0 rounded-lg p-5 sm:p-7" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
+              <p style={smallCaps}>Today’s community vault</p>
+              <p className="mt-3 tabular-nums" style={{ ...SERIF, fontSize: "clamp(42px, 6vw, 64px)", lineHeight: 1.1 }}>Ξ {fmtEth(dailyVault)}</p>
+              <p className="mt-3 text-sm" style={{ color: MUTED }}>{dailySigners.toLocaleString()} signers sharing today’s vault{toUsd(dailyVault) ? ` · ${toUsd(dailyVault)}` : ""}.</p>
+              <div className="grid grid-cols-3 gap-3 mt-6 pt-5" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
+                {[
+                  { label: "Per NFT", value: `Ξ ${fmtEth(yieldPerNFT)}`, sub: toUsd(yieldPerNFT), green: true },
+                  { label: "Projected APR", value: projectedApr > 0 ? `${projectedApr >= 10 ? projectedApr.toFixed(0) : projectedApr.toFixed(1)}%` : "—", sub: toUsd(String(annualYieldEth)), green: true },
+                  { label: "Total signed", value: tvsEthDisplay || "—", sub: tvsUsdDisplay, green: false },
+                ].map((metric) => <div key={metric.label} className="min-w-0">
+                  <p style={{ ...smallCaps, fontSize: 9, letterSpacing: "0.1em" }}>{metric.label}</p>
+                  <p className="mt-2 text-sm sm:text-base tabular-nums break-words" style={{ color: metric.green ? GREEN : INK, fontWeight: 500 }}>{metric.value}</p>
+                  {metric.sub && <p className="mt-1 text-xs" style={{ color: MUTED }}>{metric.sub}</p>}
+                </div>)}
+              </div>
+            </section>
+
         </div>
 
         {/* Your collection */}
-        <div className="mt-20">
+        <div className="mt-12 sm:mt-16">
           <div className="flex items-baseline justify-between gap-4">
             <p style={smallCaps}>Your Collection</p>
             <button
@@ -2602,15 +2419,17 @@ export default function BetaPage() {
 
           {!address ? (
             <div
-              className="mt-8 py-14 text-center"
+              className="mt-6 px-5 py-10 text-center rounded-lg"
               style={{ border: `1px solid ${HAIRLINE}` }}
             >
               <p
                 style={{ ...SERIF, fontStyle: "italic", color: MUTED }}
                 className="text-lg"
               >
-                Connect your wallet to view your collection.
+                Your collection starts here.
               </p>
+              <p className="mt-3 text-sm" style={{ color: MUTED }}>Connect your wallet to see your works.</p>
+              <button onClick={openConnectModal} className="mt-5 text-xs underline underline-offset-4" style={smallCaps}>Connect wallet →</button>
             </div>
           ) : userNFTs.length > 0 ? (
             <div className="mt-8 works-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -2694,8 +2513,8 @@ export default function BetaPage() {
           className="mt-20 pt-14"
           style={{ borderTop: `1px solid ${HAIRLINE}` }}
         >
-          <p style={smallCaps}>Other Collections</p>
-          <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
+          <h2 style={{ ...SERIF, fontSize: "clamp(26px, 3vw, 36px)", fontWeight: 500 }}>Explore other collections</h2>
+          <div className="mt-8 grid grid-cols-2 md:grid-cols-3 gap-5 sm:gap-7">
             {[
               {
                 name: "Loopers",

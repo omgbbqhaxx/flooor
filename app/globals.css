@@ -138,3 +138,37 @@ body {
   align-items: center;
   animation: new-badge-glow 2.2s ease-out infinite;
 }
+
+/* A quiet aurora appears only while a valid bid is active. */
+.active-bid-aura {
+  position: relative;
+  isolation: isolate;
+}
+.active-bid-aura::before {
+  content: "";
+  position: absolute;
+  inset: -12px -10px;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 18px;
+  background: radial-gradient(ellipse at 18% 55%, rgba(164, 134, 61, .17), transparent 58%),
+              radial-gradient(ellipse at 74% 40%, rgba(30, 123, 79, .12), transparent 60%);
+  opacity: .65;
+  animation: bid-aura-breathe 6s ease-in-out infinite;
+}
+.active-bid-amount {
+  color: #27634d;
+  text-shadow: 0 0 20px rgba(164, 134, 61, .15);
+  animation: bid-color-drift 9s ease-in-out infinite;
+}
+@keyframes bid-aura-breathe {
+  0%, 100% { opacity: .45; transform: translateX(-3px); }
+  50% { opacity: .9; transform: translateX(3px); }
+}
+@keyframes bid-color-drift {
+  0%, 100% { color: #27634d; }
+  50% { color: #876d30; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .active-bid-aura::before, .active-bid-amount { animation: none; }
+}
