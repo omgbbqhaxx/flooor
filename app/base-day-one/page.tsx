@@ -121,7 +121,7 @@ let chimeBufferPromise: Promise<void> | null = null;
 const ensureChimeEl = (): HTMLAudioElement | null => {
   if (typeof window === "undefined") return null;
   if (!chimeEl) {
-    chimeEl = new Audio("/chime.mp3");
+    chimeEl = new Audio("/chime.mp3?v=2");
     chimeEl.preload = "auto";
     (chimeEl as unknown as { playsInline?: boolean }).playsInline = true;
   }
@@ -143,7 +143,7 @@ const ensureAudioCtx = (): AudioContext | null => {
 
 const loadChimeBuffer = (ctx: AudioContext) => {
   if (!chimeBufferPromise) {
-    chimeBufferPromise = fetch("/chime.mp3")
+    chimeBufferPromise = fetch("/chime.mp3?v=2")
       .then((r) => r.arrayBuffer())
       .then((buf) => ctx.decodeAudioData(buf))
       .then((decoded) => {
@@ -1348,6 +1348,7 @@ export default function BaseDayOnePage() {
           if (!(await awaitTx(config, txHash, base.id))) return;
         }
         toast.success(`Token #${idStr} sold successfully!`);
+        playChime();
         fireConfetti();
         const soldUsd = toUsd(currentBid);
         setSharePrompt({
