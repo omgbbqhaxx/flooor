@@ -2124,15 +2124,22 @@ export default function BetaPage() {
 
                 {/* Full-width campaign artwork — preserve the complete composition. */}
                 <div className="px-4 py-4">
-                  <Image
-                    src="/tslac-promo-wide.jpg"
-                    alt="Silver Tesla Cybertruck — TSLAc, claim as tokenized Tesla"
-                    width={1774}
-                    height={887}
-                    priority
-                    sizes="(min-width: 1152px) 550px, (min-width: 1024px) 50vw, 100vw"
-                    className="w-full h-auto rounded-lg"
-                  />
+                  <a
+                    href="https://www.mexc.com/campaigns/Vrnouns-35U-OCT"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block"
+                  >
+                    <Image
+                      src="/maxcpromo.png"
+                      alt="flooor.fun × MEXC — 35 USDT withdrawable reward for the first 100 people"
+                      width={1774}
+                      height={887}
+                      priority
+                      sizes="(min-width: 1152px) 550px, (min-width: 1024px) 50vw, 100vw"
+                      className="w-full h-auto rounded-lg"
+                    />
+                  </a>
                 </div>
                 <p className="px-5 pb-3" style={{ ...smallCaps, fontSize: 9 }}>Market cap {marketCapDisplay} · {marketCapEthDisplay}</p>
                 {/* Community fee band */}
