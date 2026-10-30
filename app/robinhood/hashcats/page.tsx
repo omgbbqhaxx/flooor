@@ -2142,7 +2142,7 @@ export default function HashcatsPage() {
       )}
 
       {/* Footer — dark/neon variant, distinct from the shared light Footer used on other pages */}
-      {/* /robinhood ana sayfası Hashcats'i gösterir; diğer Robinhood Chain
+      {/* Diğer Robinhood Chain
           koleksiyonları buradan ulaşılabilir kalsın */}
       <section
         className="max-w-6xl mx-auto px-5 sm:px-8 py-12"
