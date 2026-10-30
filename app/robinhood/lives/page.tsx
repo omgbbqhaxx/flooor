@@ -1735,7 +1735,7 @@ export default function LivesPage() {
                         <>
                           {toUsd(currentBid) ? `${toUsd(currentBid)} · ` : ""}
                           <a
-                            href={`https://robinscan.io/address/${activeBidder}`}
+                            href={`https://robinhoodchain.blockscout.com/address/${activeBidder}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="hover:opacity-70 transition-colors underline underline-offset-4"
@@ -2259,7 +2259,7 @@ export default function LivesPage() {
                 Robinhood Chain · ID 4663
               </span>
               <a
-                href={`https://robinscan.io/address/${CONTRACT_ADDR}?tab=contract`}
+                href={`https://robinhoodchain.blockscout.com/address/${CONTRACT_ADDR}?tab=contract`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm hover:opacity-70 transition-colors"
