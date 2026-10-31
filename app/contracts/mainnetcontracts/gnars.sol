@@ -256,7 +256,9 @@ contract flooordotfungnar {
     function sweepETH(uint256 amt) external onlyOwner nonReentrant {
     // Borçlar: havuz (claim edecekler) + aktif teklif (escrow)
     uint256 poolLiab = poolAccrued;
-    uint256 cur  = currentEpochStart();
+    // Last epoch whose sign phase ran: its unclaimed shares stay owed until the next
+    // rollover moves them back to poolAccrued, even after that epoch has ended.
+    uint256 cur  = lastEpochRoll;
     uint256 snap = poolSnap[cur];
     if (snap > 0) {                                   // snap>0 ⇒ partCount[cur]>0 garanti
         uint256 perShare  = snap / partCount[cur];
