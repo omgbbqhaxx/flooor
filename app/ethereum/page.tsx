@@ -32,6 +32,7 @@ import { EpochTimeline } from "@/app/components/EpochTimeline";
 import { Playfair_Display, Inter } from "next/font/google";
 import confetti from "canvas-confetti";
 import { HoloFrame } from "@/app/components/HoloFrame";
+import EthereumCollections from "@/app/ethereum/EthereumCollections";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -2404,13 +2405,7 @@ export default function EthereumPage() {
           )}
         </div>
 
-        {/* Other Ethereum collections — şimdilik boş */}
-        <div
-          className="mt-20 pt-14"
-          style={{ borderTop: `1px solid ${HAIRLINE}` }}
-        >
-          <h2 style={{ ...SERIF, fontSize: "clamp(26px, 3vw, 36px)", fontWeight: 500 }}>Explore other Ethereum collections</h2>
-        </div>
+        <EthereumCollections current="/ethereum" />
 
         {/* How it works */}
         <div
