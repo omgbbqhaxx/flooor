@@ -803,8 +803,11 @@ export default function BetaPage() {
     }
   }, [config]);
 
+  const signPhaseName = phaseInfo?.currentPhase;
+  const signPhaseEpoch = phaseInfo?.eid;
+
   const checkUserSignedStatus = useCallback(async () => {
-    if (!address || !phaseInfo || ownedTokenIds.length === 0) {
+    if (!address || !signPhaseName || ownedTokenIds.length === 0) {
       setUserHasSigned(false);
       setUserHasClaimed(false);
       setNftSignedStatus({});
@@ -847,7 +850,7 @@ export default function BetaPage() {
           claimed[id.toString()] = c;
         }),
       );
-      const isSignPhase = phaseInfo.currentPhase.toLowerCase().includes("sign");
+      const isSignPhase = signPhaseName.toLowerCase().includes("sign");
       const eligible = ownedTokenIds.filter((id) =>
         isSignPhase
           ? !signed[id.toString()]
@@ -865,7 +868,7 @@ export default function BetaPage() {
       // Geçici RPC hatasında mevcut durumu koru
       console.error("Error checking user signed status:", error);
     }
-  }, [config, address, phaseInfo, ownedTokenIds]);
+  }, [config, address, signPhaseName, ownedTokenIds]);
 
   const calculateYieldPerNFT = useCallback(() => {
     const vaultAmount = parseFloat(dailyVault);
@@ -1029,10 +1032,10 @@ export default function BetaPage() {
   }, [getUserNFTs]);
 
   useEffect(() => {
-    if (address && phaseInfo) {
+    if (address && signPhaseName) {
       checkUserSignedStatus();
     }
-  }, [address, phaseInfo, ownedTokenIds, checkUserSignedStatus]);
+  }, [address, signPhaseName, signPhaseEpoch, ownedTokenIds, checkUserSignedStatus]);
 
   const fetchAllData = useCallback(async () => {
     if (fetchInFlight.current) return;
@@ -2125,22 +2128,15 @@ export default function BetaPage() {
 
                 {/* Full-width campaign artwork — preserve the complete composition. */}
                 <div className="px-4 py-4">
-                  <a
-                    href="https://www.mexc.com/campaigns/Vrnouns-35U-OCT"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block"
-                  >
-                    <Image
-                      src="/maxcpromo.png"
-                      alt="flooor.fun × MEXC — 35 USDT withdrawable reward for the first 100 people"
-                      width={1774}
-                      height={887}
-                      priority
-                      sizes="(min-width: 1152px) 550px, (min-width: 1024px) 50vw, 100vw"
-                      className="w-full h-auto rounded-lg"
-                    />
-                  </a>
+                  <Image
+                    src="/spcxc-promo-wide.png"
+                    alt="Stainless steel rocket — SPCXc, claim as tokenized SpaceX"
+                    width={1774}
+                    height={887}
+                    priority
+                    sizes="(min-width: 1152px) 550px, (min-width: 1024px) 50vw, 100vw"
+                    className="w-full h-auto rounded-lg"
+                  />
                 </div>
                 <p className="px-5 pb-3" style={{ ...smallCaps, fontSize: 9 }}>Market cap {marketCapDisplay} · {marketCapEthDisplay}</p>
                 {/* Community fee band */}

@@ -1,31 +1,31 @@
-// Claim'i ETH yerine TSLAc (Coinbase'in Base'deki tokenize Tesla hissesi)
-// olarak alma yolu. Önceki kampanyalar AMZNc, SPCXc, AAPLc, AMDc idi (AMDc
-// havuzu boşalınca swap revert etti, likiditesi derin TSLAc'ye geçildi); token
-// adresi/sembolü/havuzu tek yerde.
+// Claim'i ETH yerine SPCXc (Coinbase'in Base'deki tokenize SpaceX hissesi)
+// olarak alma yolu. Önceki kampanyalar AMZNc, SPCXc, AAPLc, AMDc, TSLAc idi
+// (AMDc havuzu boşalınca swap revert etti); token adresi/sembolü/havuzu tek yerde.
 //
 // Kontrat claim'de ETH'i cüzdana yollar; biz aynı wallet_sendCalls paketinin
 // sonuna bir swap call'ı ekliyoruz. Paket atomik cüzdanda tek işlemde koşar:
-// claim'ler ETH'i getirir, son call o ETH'i TSLAc'ye çevirir.
+// claim'ler ETH'i getirir, son call o ETH'i SPCXc'ye çevirir.
 //
 // Base app'in kendi swap'ı CDP Trade API'ye (0x) gidiyor (sunucu anahtarı
 // ister, statik siteye konmaz). Onun yerine doğrudan zincirdeki havuzları
-// kullanıyoruz. TSLAc'nin Uniswap V3 havuzu yok; likidite Aerodrome Slipstream'de
-// (CLFactory 0xf8f2…61Ef). Router/quoter o factory'ye bağlı olanlar olmalı,
-// Aerodrome'un eski Slipstream router'ları bu havuzları görmez.
-// ETH → USDC (tickSpacing 50, derin) → TSLAc (tickSpacing 10).
+// kullanıyoruz. SPCXc'nin en derin havuzu Aerodrome Slipstream'de (Uniswap V3
+// %1 havuzu sığ); CLFactory 0xf8f2…61Ef. Router/quoter o factory'ye bağlı
+// olanlar olmalı, Aerodrome'un eski Slipstream router'ları bu havuzları görmez.
+// ETH → USDC (tickSpacing 50, derin) → SPCXc (tickSpacing 10).
 import { simulateContract, readContract } from "wagmi/actions";
 import type { Config } from "wagmi";
 import { encodeFunctionData, encodePacked, parseAbi, type Abi, type Address, type Hex } from "viem";
 
 export const STOCK: { address: Address; symbol: string; name: string; decimals: number; cashtag: string; tickSpacing: number } = {
-  address: "0xb2000000000000000000001e800a7f5189430cd0",
-  symbol: "TSLAc",
-  // Metinlerde "tokenized Tesla stock"
-  name: "Tesla",
+  address: "0xb2000000000000000000007b9fcbd005511acbd5",
+  symbol: "SPCXc",
+  // Metinlerde "tokenized SpaceX stock"
+  name: "SpaceX",
   decimals: 8,
   // X paylaşımında hisse etiketi
-  cashtag: "$TSLA",
-  // USDC/TSLAc likit havuzu tickSpacing 10 olan (0x4693…a7BB, ~515k USDC).
+  cashtag: "$SPCX",
+  // USDC/SPCXc likit havuzu tickSpacing 10 olan (0x0bf5…8c0E, ~12.6k USDC +
+  // ~900 SPCXc; 0.5 ETH'de ~%1.6 kayma).
   // Token değişince bunu zincirde kontrol et.
   tickSpacing: 10,
 };
@@ -61,7 +61,7 @@ const ROUTER_ABI = parseAbi([
 
 export type StockCall = { to: Address; data: Hex; value: bigint };
 
-// Bu kadar ETH kaç TSLAc eder? (8 decimals)
+// Bu kadar ETH kaç SPCXc eder? (8 decimals)
 export const quoteStock = async (opts: {
   config: Config;
   chainId: number;

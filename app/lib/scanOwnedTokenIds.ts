@@ -1,11 +1,63 @@
 import type { Config } from "wagmi";
-import { getPublicClient, readContract, readContracts } from "wagmi/actions";
+import type { Abi } from "viem";
+import { getPublicClient, readContract } from "wagmi/actions";
 
 type RetryFn = (
   fn: () => Promise<unknown>,
   maxRetries?: number,
   baseDelay?: number,
 ) => Promise<unknown>;
+
+// Coalesce only concurrent scans. Never cache ownership across transactions.
+const pendingScans = new WeakMap<Config, Map<string, Promise<bigint[]>>>();
+
+function hasRpcCode(error: unknown, codes: number[]): boolean {
+  const seen = new Set<unknown>();
+  let current = error;
+  while (current && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    const value = current as { code?: number; cause?: unknown };
+    if (value.code !== undefined && codes.includes(value.code)) return true;
+    current = value.cause;
+  }
+  return false;
+}
+
+// ownerOf may legitimately revert for burned/unminted IDs. Transport failures
+// must propagate: returning a partial list would incorrectly remove owned NFTs.
+function isMissingToken(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  let current = error;
+  while (current && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    const value = current as { name?: string; cause?: unknown };
+    if (value.name === "ContractFunctionRevertedError") return true;
+    current = value.cause;
+  }
+  return false;
+}
+
+type OwnershipContract = {
+  address: `0x${string}`;
+  abi: Abi;
+  functionName: string;
+  args: readonly unknown[];
+};
+
+async function readOwners(config: Config, chainId: number | undefined, contracts: unknown) {
+  const client = getPublicClient(config, chainId ? { chainId } : undefined);
+  if (!client) throw new Error("no public client");
+  // Direct multicall deliberately avoids wagmi readContracts' individual-call
+  // fallback during an RPC outage (hundreds of requests per failed chunk).
+  const results = await client.multicall({
+    contracts: contracts as readonly OwnershipContract[],
+    allowFailure: true,
+  });
+  for (const result of results) {
+    if (result.status === "failure" && !isMissingToken(result.error)) throw result.error;
+  }
+  return results;
+}
 
 type AlchemyAssetTransfer = { tokenId?: string; erc721TokenId?: string };
 type AlchemyAssetTransfersResponse = {
@@ -38,16 +90,16 @@ async function verifyCurrentOwnership({
     try {
       const results = (await retryWithBackoff(
         async () =>
-          readContracts(config, {
-            contracts: chunk.map((tokenId) => ({
+          readOwners(
+            config,
+            chainId,
+            chunk.map((tokenId) => ({
               address: collectionAddress,
               abi: abi as never,
               functionName: "ownerOf",
               args: [tokenId],
-            })) as never,
-            allowFailure: true,
-            ...(chainId ? { chainId } : {}),
-          }),
+            })),
+          ),
         5,
         1200,
       )) as { status: "success" | "failure"; result?: unknown }[];
@@ -61,7 +113,7 @@ async function verifyCurrentOwnership({
         }
       });
     } catch (error) {
-      console.error("verifyCurrentOwnership: chunk failed", error);
+      throw error;
     }
   }
   return owned;
@@ -118,6 +170,7 @@ async function scanViaAlchemyTransfers({
     pages += 1;
   } while (pageKey && pages < 50); // güvenlik sınırı
 
+  if (pageKey) throw new Error("Transfer history exceeds scan page limit");
   return [...candidateIds].map((id) => BigInt(id));
 }
 
@@ -175,16 +228,16 @@ async function scanViaBruteForceRange({
     try {
       const results = (await retryWithBackoff(
         async () =>
-          readContracts(config, {
-            contracts: chunk.map((tokenId) => ({
+          readOwners(
+            config,
+            chainId,
+            chunk.map((tokenId) => ({
               address: collectionAddress,
               abi: abi as never,
               functionName: "ownerOf",
               args: [tokenId],
-            })) as never,
-            allowFailure: true,
-            ...(chainId ? { chainId } : {}),
-          }),
+            })),
+          ),
         5,
         1200,
       )) as { status: "success" | "failure"; result?: unknown }[];
@@ -198,15 +251,14 @@ async function scanViaBruteForceRange({
         }
       });
     } catch (error) {
-      // Bu parça tüm retry denemelerine rağmen başarısız oldu — atla,
-      // diğer parçalardan toplanan sonuçları kaybetme.
-      console.error("scanViaBruteForceRange: chunk failed", error);
+      // A partial scan must not replace a previously complete ownership list.
+      throw error;
     }
   }
   return ids;
 }
 
-export async function scanOwnedTokenIds({
+async function scanOwnedTokenIdsUnshared({
   config,
   collectionAddress,
   abi,
@@ -226,27 +278,18 @@ export async function scanOwnedTokenIds({
   /** totalSupply sunmayan koleksiyonlarda taranacak en yüksek tokenId. */
   fallbackMaxTokenId?: number;
 }): Promise<bigint[]> {
+  let candidateIds: bigint[];
   try {
-    const candidateIds = await scanViaAlchemyTransfers({
+    candidateIds = await scanViaAlchemyTransfers({
       config,
       collectionAddress,
       owner,
-      chainId,
-    });
-    return await verifyCurrentOwnership({
-      config,
-      collectionAddress,
-      abi,
-      owner,
-      candidateIds,
-      retryWithBackoff,
       chainId,
     });
   } catch (error) {
-    console.error(
-      "scanOwnedTokenIds: alchemy_getAssetTransfers failed, falling back to range scan",
-      error,
-    );
+    // Only an explicitly unsupported indexed API justifies the expensive
+    // compatibility scan. 429/timeouts/outages preserve the caller's old list.
+    if (!hasRpcCode(error, [-32601, -32004])) throw error;
     return scanViaBruteForceRange({
       config,
       collectionAddress,
@@ -258,4 +301,22 @@ export async function scanOwnedTokenIds({
       fallbackMaxTokenId,
     });
   }
+  return verifyCurrentOwnership({
+    config, collectionAddress, abi, owner, candidateIds, retryWithBackoff, chainId,
+  });
+}
+
+export function scanOwnedTokenIds(options: Parameters<typeof scanOwnedTokenIdsUnshared>[0]): Promise<bigint[]> {
+  let pending = pendingScans.get(options.config);
+  if (!pending) {
+    pending = new Map();
+    pendingScans.set(options.config, pending);
+  }
+  const chainId = options.chainId ?? options.config.state.chainId;
+  const key = `${chainId}:${options.collectionAddress.toLowerCase()}:${options.owner.toLowerCase()}:${options.chunkSize ?? 250}:${options.fallbackMaxTokenId ?? ""}`;
+  const existing = pending.get(key);
+  if (existing) return existing;
+  const task = scanOwnedTokenIdsUnshared({ ...options, chainId }).finally(() => pending!.delete(key));
+  pending.set(key, task);
+  return task;
 }
