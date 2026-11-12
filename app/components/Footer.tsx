@@ -25,6 +25,7 @@ export default function Footer({
   contractAddr,
   contractVersion = "v1.0",
   contractUpdate,
+  explorer = "https://basescan.org",
 }: {
   contractAddr: string;
   // Market kontratının sürümü — alt satırda gösterilir. Kontrat yükseltilmeyen
@@ -32,6 +33,9 @@ export default function Footer({
   contractVersion?: string;
   // Verilirse Contracts sütununda altın renkli bir "güncellendi" notu çıkar
   contractUpdate?: string;
+  // Market kontratının explorer'ı — Base dışı sayfalar (örn. /ethereum) kendi
+  // explorer'ını verir; VRNouns linki her zaman Base'de kalır.
+  explorer?: string;
 }) {
   const shortAddr = `${contractAddr.slice(0, 6)}…${contractAddr.slice(-4)}`;
   return (
@@ -115,7 +119,7 @@ export default function Footer({
               VRNouns
             </a>
             <a
-              href={`https://basescan.org/address/${contractAddr}#code`}
+              href={`${explorer}/address/${contractAddr}#code`}
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-black transition-colors"

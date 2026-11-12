@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Ethereum · flooor.fun — the Nouns market is live",
+  title: "Nouns · flooor.fun — Royalties to the community",
   description:
     "Flooor is live on Ethereum mainnet with Nouns. Bid on the floor, sell instantly, and share 5% of every sale as a holder who signs daily. Royalties to the community.",
   alternates: {
