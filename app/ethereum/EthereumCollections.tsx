@@ -26,6 +26,13 @@ const COLLECTIONS = [
     href: "/ethereum/mayc",
     pixelated: false,
   },
+  {
+    name: "Bored Ape Yacht Club",
+    sub: "Ethereum · Yuga Labs",
+    img: "/bayc/ape-1.png",
+    href: "/ethereum/bayc",
+    pixelated: false,
+  },
 ];
 
 export default function EthereumCollections({ current }: { current: string }) {
