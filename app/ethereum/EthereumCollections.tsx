@@ -19,6 +19,13 @@ const COLLECTIONS = [
     href: "/ethereum/loot",
     pixelated: false,
   },
+  {
+    name: "Mutant Ape Yacht Club",
+    sub: "Ethereum · Yuga Labs",
+    img: "/mayc/mutant-1.png",
+    href: "/ethereum/mayc",
+    pixelated: false,
+  },
 ];
 
 export default function EthereumCollections({ current }: { current: string }) {
