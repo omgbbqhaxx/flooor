@@ -40,6 +40,13 @@ const COLLECTIONS = [
     href: "/ethereum/afrens",
     pixelated: false,
   },
+  {
+    name: "CryptoPunks",
+    sub: "Ethereum · Larva Labs",
+    img: "/punks/punk-0.svg",
+    href: "/ethereum/punks",
+    pixelated: true,
+  },
 ];
 
 export default function EthereumCollections({ current }: { current: string }) {

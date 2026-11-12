@@ -21,6 +21,8 @@ import { toast } from "sonner";
 
 const APPROVE_ABI = parseAbi(["function approve(address to, uint256 tokenId)"]);
 const SELL_ABI = parseAbi(["function sellToHighest(uint256 tokenId)"]);
+// CryptoPunks ERC721 değil: onay yerine punk sadece market'e 0 fiyatla teklif edilir
+const PUNK_OFFER_ABI = parseAbi(["function offerPunkForSaleToAddress(uint256 punkIndex, uint256 minSalePriceInWei, address toAddress)"]);
 
 const isUserRejected = (error: unknown): boolean => {
   const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
@@ -47,9 +49,14 @@ export const batchApproveAndSell = async (opts: {
   // writeContract'taki builder attribution'ı batch'te de koruyoruz; sendCalls
   // dataSuffix almadığı için calldata'nın sonuna elle ekliyoruz.
   dataSuffix?: Hex;
+  // true → collection CryptoPunks; approve yerine offerPunkForSaleToAddress
+  punks?: boolean;
 }): Promise<boolean | null> => {
-  const { config, account, chainId, collection, market, tokenId, dataSuffix } = opts;
+  const { config, account, chainId, collection, market, tokenId, dataSuffix, punks } = opts;
   const suffix = dataSuffix ? dataSuffix.slice(2) : "";
+  const approveData = punks
+    ? encodeFunctionData({ abi: PUNK_OFFER_ABI, functionName: "offerPunkForSaleToAddress", args: [tokenId, BigInt(0), market] })
+    : encodeFunctionData({ abi: APPROVE_ABI, functionName: "approve", args: [market, tokenId] });
 
   let id: string;
   try {
@@ -62,7 +69,7 @@ export const batchApproveAndSell = async (opts: {
       calls: [
         {
           to: collection,
-          data: (encodeFunctionData({ abi: APPROVE_ABI, functionName: "approve", args: [market, tokenId] }) + suffix) as Hex,
+          data: (approveData + suffix) as Hex,
         },
         {
           to: market,
