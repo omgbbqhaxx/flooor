@@ -33,6 +33,13 @@ const COLLECTIONS = [
     href: "/ethereum/bayc",
     pixelated: false,
   },
+  {
+    name: "Alien Frens",
+    sub: "Ethereum · Planet Fren",
+    img: "/afrens/fren-1.png",
+    href: "/ethereum/afrens",
+    pixelated: false,
+  },
 ];
 
 export default function EthereumCollections({ current }: { current: string }) {
