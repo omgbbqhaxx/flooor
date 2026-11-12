@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Playfair_Display, Inter } from "next/font/google";
 import SiteHeader from "@/app/components/SiteHeader";
 import Footer from "@/app/components/Footer";
 import { HoloFrame } from "@/app/components/HoloFrame";
+import NounsMarket from "./NounsMarket";
+import { EYEBROW, FAINT, HEADLINE, LINK, LIVE_GREEN, NOUNS_TOKEN, SANS, SNOW, SUBTLE, TEXT, WHITE } from "./palette";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -24,24 +26,11 @@ const inter = Inter({
 const SF_STACK =
   '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", var(--font-inter), sans-serif';
 
-// Nouns on Ethereum mainnet (nouns.wtf). The artwork in /public/nouns-eth is
-// the on-chain SVG returned by this contract's tokenURI.
-const NOUNS_TOKEN = "0x9C8fF314C9Bc7F6e59A9d9225Fb22946427eDC03" as const;
-// Footer still points at the live Base market until the Ethereum contract ships.
+// The artwork in /public/nouns-eth is the on-chain SVG returned by the Nouns
+// token's tokenURI. The shared Footer links its contract to basescan, so it
+// keeps pointing at the Base market; the Ethereum contract is linked from the
+// market section instead.
 const BASE_CONTRACT_ADDR = "0xD53292182A342953f446CD4D10Dc177776044306" as const;
-const LAUNCH_AT = Date.UTC(2026, 10, 12, 0, 0, 0); // 12 Nov 2026, 00:00 UTC
-
-// Apple-style palette, scoped to this page only.
-const WHITE = "#FFFFFF";
-const SNOW = "#F5F5F7";
-const TEXT = "#1D1D1F";
-const SUBTLE = "#6E6E73";
-const FAINT = "#86868B";
-const LINK = "#0071E3";
-
-const SANS = { fontFamily: "var(--font-sans)" } as const;
-const HEADLINE = { ...SANS, fontWeight: 600, letterSpacing: "-0.025em", lineHeight: 1.06 } as const;
-const EYEBROW = { ...SANS, fontSize: "14px", fontWeight: 600, color: SUBTLE } as const;
 
 const GALLERY = [0, 1, 2, 3, 7];
 
@@ -63,24 +52,6 @@ const STEPS = [
   },
 ];
 
-function useCountdown(target: number) {
-  const [now, setNow] = useState<number | null>(null);
-  useEffect(() => {
-    setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  if (now === null) return null;
-  const diff = Math.max(0, target - now);
-  return {
-    live: diff === 0,
-    days: Math.floor(diff / 86_400_000),
-    hours: Math.floor(diff / 3_600_000) % 24,
-    minutes: Math.floor(diff / 60_000) % 60,
-    seconds: Math.floor(diff / 1000) % 60,
-  };
-}
-
 function Chevron() {
   return (
     <svg width="8" height="12" viewBox="0 0 8 12" fill="none" aria-hidden="true" className="inline-block ml-1 -mt-px">
@@ -92,14 +63,6 @@ function Chevron() {
 export default function EthereumPage() {
   const [soundOn, setSoundOn] = useState(false);
   const toggleSound = useCallback(() => setSoundOn((v) => !v), []);
-  const countdown = useCountdown(LAUNCH_AT);
-
-  const units = [
-    { label: "Days", value: countdown?.days },
-    { label: "Hours", value: countdown?.hours },
-    { label: "Minutes", value: countdown?.minutes },
-    { label: "Seconds", value: countdown?.seconds },
-  ];
 
   return (
     <div
@@ -127,12 +90,12 @@ export default function EthereumPage() {
         {/* Hero */}
         <section className="grid grid-cols-1 lg:grid-cols-[1.12fr_1fr] gap-12 lg:gap-16 pt-12 lg:pt-16 items-start">
           <div className="order-2">
-            <p className="flex items-center gap-2" style={{ ...EYEBROW, color: LINK }}>
-              <span aria-hidden="true" className="rounded-full" style={{ width: 7, height: 7, backgroundColor: LINK }} />
-              Ethereum Mainnet · Coming 12 November
+            <p className="flex items-center gap-2" style={{ ...EYEBROW, color: LIVE_GREEN }}>
+              <span aria-hidden="true" className="rounded-full" style={{ width: 7, height: 7, backgroundColor: LIVE_GREEN }} />
+              Ethereum Mainnet · Live
             </p>
             <h1 className="mt-4" style={{ ...HEADLINE, fontSize: "clamp(44px, 6vw, 72px)" }}>
-              Flooor arrives
+              Flooor is live
               <br />
               on Ethereum.
             </h1>
@@ -144,40 +107,23 @@ export default function EthereumPage() {
               Royalties to the community.
             </p>
 
-            {/* Countdown */}
-            <div className="mt-10">
-              {countdown?.live ? (
-                <div className="rounded-[22px] px-6 py-6" style={{ backgroundColor: SNOW }}>
-                  <p style={{ ...HEADLINE, fontSize: "28px", color: "#1E7B4F" }}>The Nouns market is live.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-4 gap-2 sm:gap-3">
-                  {units.map((u) => (
-                    <div key={u.label} className="rounded-[20px] py-5 text-center" style={{ backgroundColor: SNOW }}>
-                      <p className="tabular-nums" style={{ ...HEADLINE, fontSize: "clamp(28px, 4vw, 42px)", lineHeight: 1 }}>
-                        {u.value === undefined ? "--" : String(u.value).padStart(2, "0")}
-                      </p>
-                      <p className="mt-2" style={{ fontSize: "12px", color: FAINT }}>
-                        {u.label}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <p className="mt-3" style={{ fontSize: "13px", color: FAINT }}>
-              Thursday, 12 November 2026 · 00:00 UTC
-            </p>
-
             <div className="mt-8 flex flex-wrap items-center gap-x-7 gap-y-4">
+              <a
+                href="#market"
+                className="rounded-full transition-opacity hover:opacity-85"
+                style={{ backgroundColor: LINK, color: WHITE, fontSize: "17px", padding: "12px 24px" }}
+              >
+                Bid on a Noun
+              </a>
               <a
                 href="https://nouns.wtf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-full transition-opacity hover:opacity-85"
-                style={{ backgroundColor: LINK, color: WHITE, fontSize: "17px", padding: "12px 24px" }}
+                className="hover:underline"
+                style={{ color: LINK, fontSize: "17px" }}
               >
                 Explore Nouns
+                <Chevron />
               </a>
               <Link href="/" className="hover:underline" style={{ color: LINK, fontSize: "17px" }}>
                 Live market on Base
@@ -223,6 +169,8 @@ export default function EthereumPage() {
             </div>
           </div>
         </section>
+
+        <NounsMarket />
 
         {/* How it works */}
         <section className="mt-28">

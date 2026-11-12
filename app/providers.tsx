@@ -1,6 +1,6 @@
 "use client";
 
-import { base } from "wagmi/chains";
+import { base, mainnet } from "wagmi/chains";
 import { defineChain } from "viem";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
@@ -59,6 +59,15 @@ const robinhoodTransport = http(
   "https://robinhood-mainnet.g.alchemy.com/v2/R11AN4bze2Uyhg3V6KZ7m",
 );
 
+// Ethereum mainnet — sadece /ethereum (Nouns market). Alchemy app'inde
+// ETH_MAINNET kapalı, o yüzden public RPC'ler. chains[0] Base kalmalı:
+// chainId verilmeyen çağrılar oraya düşüyor.
+const mainnetTransport = fallback([
+  http("https://ethereum-rpc.publicnode.com"),
+  http("https://eth.llamarpc.com"),
+  http("https://cloudflare-eth.com"),
+]);
+
 // 1️⃣ Project ID
 const projectId =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
@@ -85,9 +94,9 @@ const connectors = connectorsForWallets(
 
 // 3️⃣ Wagmi config
 const config = createConfig({
-  chains: [base, robinhoodChain],
+  chains: [base, robinhoodChain, mainnet],
   connectors: [...connectors, farcasterMiniApp()],
-  transports: { [base.id]: rpcTransports, [robinhoodChain.id]: robinhoodTransport },
+  transports: { [base.id]: rpcTransports, [robinhoodChain.id]: robinhoodTransport, [mainnet.id]: mainnetTransport },
   // Aynı anda fırlayan eth_call'ları tek Multicall3 çağrısında toplar —
   // RPC compute unit tüketimini ve 429 burst'lerini ciddi azaltır
   batch: { multicall: { wait: 16 } },
@@ -102,7 +111,11 @@ export function Providers({ children }: { children: ReactNode }) {
   // önereceği/zorlayacağı ağ Base değil Robinhood Chain olmalı, diğer tüm
   // sayfalarda olduğu gibi "direkt doğru ağa bağlan" davranışı için.
   const pathname = usePathname();
-  const initialChain = pathname?.startsWith("/robinhood") ? robinhoodChain : base;
+  const initialChain = pathname?.startsWith("/robinhood")
+    ? robinhoodChain
+    : pathname?.startsWith("/ethereum")
+      ? mainnet
+      : base;
 
   // Farcaster/Base mini-app splash ekranını kapat. Render sırasında değil,
   // içerik gerçekten BOYANDIKTAN sonra çağırıyoruz — erken çağrılırsa host

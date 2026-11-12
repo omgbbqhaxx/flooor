@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Usage: generate.sh --<0xCollectionAddress> --<contractName> --<base|rh|robinhood>   (order-independent)
+# Usage: generate.sh --<0xCollectionAddress> --<contractName> --<base|rh|robinhood|eth>   (order-independent)
 # Copies the v2 template (ronks.sol) into a new .sol with the given contract name and collection address.
-# chain: base (default) | robinhood — only affects the WETH header comment; WETH itself is a constructor arg at deploy.
+# chain: base (default) | robinhood | eth — only affects the WETH header comment; WETH itself is a constructor arg at deploy.
 set -euo pipefail
 
 # Argümanlar sıra bağımsız, her biri --önekli (tek - veya öneksiz de kabul edilir):
 #   --0x<40hex>            koleksiyon adresi
-#   --base | --rh | --robinhood   ağ
+#   --base | --rh | --robinhood | --eth | --ethereum   ağ
 #   --<diğer>              kontrat adı
 ADDR=""; NAME=""; CHAIN=""
 for raw in "$@"; do
@@ -16,7 +16,7 @@ for raw in "$@"; do
   if [[ "$tok" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
     [[ -n "$ADDR" ]] && { echo "error: iki adres verildi ($ADDR, $tok)" >&2; exit 1; }
     ADDR="$tok"
-  elif [[ "$low" == "base" || "$low" == "rh" || "$low" == "robinhood" ]]; then
+  elif [[ "$low" == "base" || "$low" == "rh" || "$low" == "robinhood" || "$low" == "eth" || "$low" == "ethereum" ]]; then
     [[ -n "$CHAIN" ]] && { echo "error: iki ağ verildi ($CHAIN, $low)" >&2; exit 1; }
     CHAIN="$low"
   else
@@ -27,13 +27,14 @@ done
 CHAIN="${CHAIN:-base}"
 
 if [[ -z "$ADDR" || -z "$NAME" ]]; then
-  echo "usage: generate.sh --0x<CollectionAddress> --<contractName> --<base|rh|robinhood>" >&2; exit 1
+  echo "usage: generate.sh --0x<CollectionAddress> --<contractName> --<base|rh|robinhood|eth>" >&2; exit 1
 fi
 
 case "$CHAIN" in
   base)      WETH="0x4200000000000000000000000000000000000006"; CHAIN_LABEL="BASE (chainId 8453)" ;;
   robinhood|rh) WETH="0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"; CHAIN_LABEL="ROBINHOOD CHAIN (chainId 4663)" ;;
-  *) echo "error: unknown chain '$CHAIN' (base|rh|robinhood)" >&2; exit 1 ;;
+  ethereum|eth) WETH="0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"; CHAIN_LABEL="ETHEREUM MAINNET (chainId 1)" ;;
+  *) echo "error: unknown chain '$CHAIN' (base|rh|robinhood|eth)" >&2; exit 1 ;;
 esac
 if ! [[ "$ADDR" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
   echo "error: '$ADDR' is not a 40-hex address" >&2; exit 1

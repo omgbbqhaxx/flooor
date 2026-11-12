@@ -3,7 +3,7 @@ name: contract
 description: Yeni bir koleksiyon için v2 (token bazlı çoklu imza) Flooor market kontratı üretir. Kullanım: /contract --<0xKoleksiyonAdresi> --<kontratAdi> --<rh|base> (sıra serbest). Örn. /contract --0x8c71d170fbd94bcba93bb08fc2cfd0e8620cd9ce --flooorrhmachines --rh
 ---
 
-Kullanıcı `/contract --<adres> --<isim> --<ağ>` yazdığında **soru sormadan** hemen yeni .sol dosyasını üret. Üç argüman da `--` önekli, sıra önemsiz: `0x` ile başlayan 40 hex → adres, `base`/`rh`/`robinhood` → ağ, geri kalan → kontrat adı.
+Kullanıcı `/contract --<adres> --<isim> --<ağ>` yazdığında **soru sormadan** hemen yeni .sol dosyasını üret. Üç argüman da `--` önekli, sıra önemsiz: `0x` ile başlayan 40 hex → adres, `base`/`rh`/`robinhood`/`eth`/`ethereum` → ağ, geri kalan → kontrat adı.
 
 ## Ne yapar
 
@@ -11,7 +11,7 @@ Kullanıcı `/contract --<adres> --<isim> --<ağ>` yazdığında **soru sormadan
 - Sadece iki şey değişir: `contract flooordotfunronks {` → `contract <isim> {` ve `collectionId` sabiti → verilen adres. Başka hiçbir satıra dokunulmaz.
 - Dosya adı: kontrat adının başındaki `flooordotfun` / `flooor` öneki atılıp küçük harfe çevrilmiş hali. `flooorrhmachines` → `rhmachines.sol`. Kontrat adı ise verildiği gibi kalır.
 - Var olan bir dosyanın üzerine yazmaz, hata verir.
-- Chain (varsayılan `base`): kaynak koddaki WETH satırını değiştirir ve deploy'da verilecek `_weth` constructor argümanını yazdırır. Kullanıcı sona `rh` (veya `robinhood`) yazarsa Robinhood, `base` yazarsa Base. Chain yazılmadıysa `base` varsayılır; koleksiyonun Robinhood'da olduğu belliyse `rh` geç.
+- Chain (varsayılan `base`): kaynak koddaki WETH satırını değiştirir ve deploy'da verilecek `_weth` constructor argümanını yazdırır. Kullanıcı sona `rh` (veya `robinhood`) yazarsa Robinhood, `eth` (veya `ethereum`) yazarsa Ethereum mainnet, `base` yazarsa Base. Chain yazılmadıysa `base` varsayılır; koleksiyonun Robinhood'da olduğu belliyse `rh` geç.
 
 ## WETH neden önemli
 
@@ -21,6 +21,7 @@ Kullanıcı `/contract --<adres> --<isim> --<ağ>` yazdığında **soru sormadan
 |---|---|---|
 | Base | 8453 | `0x4200000000000000000000000000000000000006` |
 | Robinhood Chain | 4663 | `0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73` |
+| Ethereum mainnet | 1 | `0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2` |
 
 Robinhood adresi docs.robinhood.com/chain/contracts'tan ve canlı Ronks kontratının (`0xe439…2cbc`) `WETH()` çağrısından doğrulandı (2026-09-09). Base'in `0x4200…0006` adresinde Robinhood'da kod YOK.
 
