@@ -55,6 +55,13 @@ const COLLECTIONS = [
     pixelated: false,
   },
   {
+    name: "Milady Maker",
+    sub: "Ethereum · Remilia",
+    img: "/milady/milady-1.jpg",
+    href: "/ethereum/milady",
+    pixelated: false,
+  },
+  {
     name: "Nouns",
     sub: "Ethereum · Nouns DAO",
     img: "/nouns-eth/noun-0.svg",
