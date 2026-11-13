@@ -24,7 +24,6 @@ import {
 } from "viem";
 import { Attribution } from "ox/erc8021";
 import { sdk } from "@farcaster/miniapp-sdk";
-import Image from "next/image";
 import Link from "next/link";
 import SiteHeader from "@/app/components/SiteHeader";
 import { FAINT, GOLD, GREEN, HAIRLINE, INK, IVORY, MUTED, PLINTH, RED, SANS, SERIF, smallCaps } from "@/app/lib/theme";
@@ -2128,17 +2127,19 @@ export default function BetaPage() {
                   </span>
                 </div>
 
-                {/* Full-width campaign artwork — preserve the complete composition. */}
+                {/* Günün eseri: en son mint edilen VRNoun (zincir üstü SVG) — diğer koleksiyon sayfalarıyla aynı */}
                 <div className="px-4 py-4">
-                  <Image
-                    src="/spcxc-promo-wide.png"
-                    alt="Stainless steel rocket — SPCXc, claim as tokenized SpaceX"
-                    width={1774}
-                    height={887}
-                    priority
-                    sizes="(min-width: 1152px) 550px, (min-width: 1024px) 50vw, 100vw"
-                    className="w-full h-auto rounded-lg"
-                  />
+                  <HoloFrame className="rounded-lg overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={heroToken?.image ?? "/vrnounz.svg"}
+                      alt={heroToken ? `VRNoun ${heroToken.id}` : "VRNoun"}
+                      width={320}
+                      height={320}
+                      className="block w-full h-auto"
+                      style={{ imageRendering: "pixelated" }}
+                    />
+                  </HoloFrame>
                 </div>
                 <p className="px-5 pb-3" style={{ ...smallCaps, fontSize: 9 }}>Market cap {marketCapDisplay} · {marketCapEthDisplay}</p>
                 {/* Community fee band */}
