@@ -1241,7 +1241,7 @@ export default function QuotronsPage() {
       const mentions =
         platform === "farcaster"
           ? "@farcaster /flooor"
-          : "@vrnouns";
+          : "@flooorfun";
       const text = `${sharePrompt.text}\n\n${mentions}`;
       const url = "https://flooor.fun/robinhood/quotrons";
       setSharePrompt(null);

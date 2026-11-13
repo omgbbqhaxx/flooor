@@ -1261,7 +1261,7 @@ export default function OkComputersPage() {
       const mentions =
         platform === "farcaster"
           ? "@farcaster /flooor"
-          : "@vrnouns @base @CoinbaseWallet @dailofrog";
+          : "@flooorfun @base @CoinbaseWallet @dailofrog";
       const text = `${sharePrompt.text}\n\n${mentions}`;
       const url = "https://flooor.fun/ok-computers";
       setSharePrompt(null);

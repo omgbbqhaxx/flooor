@@ -1498,7 +1498,7 @@ export default function WarpletsPage() {
       const mentions =
         platform === "farcaster"
           ? "@farcaster /flooor"
-          : "@vrnouns @base @CoinbaseWallet";
+          : "@flooorfun @base @CoinbaseWallet";
       const text = `${sharePrompt.text}\n\n${mentions}`;
       const url = "https://flooor.fun/warplets";
       setSharePrompt(null);

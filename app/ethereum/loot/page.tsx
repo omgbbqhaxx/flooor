@@ -1853,7 +1853,7 @@ export default function EthereumPage() {
       const mentions =
         platform === "farcaster"
           ? "@farcaster /flooor"
-          : "@vrnouns @lootproject";
+          : "@flooorfun @lootproject";
       const text = `${sharePrompt.text}\n\n${mentions}`;
       const url = "https://flooor.fun/ethereum/loot";
       setSharePrompt(null);

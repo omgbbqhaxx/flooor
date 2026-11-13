@@ -1690,7 +1690,7 @@ export default function LoopersPage() {
       const mentions =
         platform === "farcaster"
           ? "@farcaster /flooor"
-          : "@vrnouns @base @CoinbaseWallet";
+          : "@flooorfun @base @CoinbaseWallet";
       const text = `${sharePrompt.text}\n\n${mentions}`;
       const url = "https://flooor.fun/loopers";
       setSharePrompt(null);

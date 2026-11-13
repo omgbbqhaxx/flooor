@@ -1794,7 +1794,7 @@ export default function EthereumPage() {
       const mentions =
         platform === "farcaster"
           ? "@farcaster /flooor"
-          : "@vrnouns";
+          : "@flooorfun";
       const text = `${sharePrompt.text}\n\n${mentions}`;
       const url = "https://flooor.fun/ethereum/punks";
       setSharePrompt(null);
