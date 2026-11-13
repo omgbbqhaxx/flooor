@@ -36,6 +36,7 @@ import { guardSignOrClaim } from "@/app/lib/signGuard";
 import { awaitTx } from "@/app/lib/awaitTx";
 import { batchApproveAndSell } from "@/app/lib/approveAndSell";
 import { HoloFrame } from "@/app/components/HoloFrame";
+import NetworkSwitcher from "@/app/components/NetworkSwitcher";
 import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
 
 const playfair = Playfair_Display({
@@ -1576,6 +1577,7 @@ export default function LivesPage() {
       )}
 
       <main className="max-w-6xl mx-auto px-5 sm:px-8">
+        <NetworkSwitcher current="robinhood" variant="dark" />
         {/* Lot hero */}
         <div className="grid grid-cols-1 lg:grid-cols-[1.12fr_1fr] gap-12 lg:gap-16 pt-12 lg:pt-16 items-start">
           {/* Artwork */}

@@ -35,6 +35,7 @@ import { EpochTimeline } from "@/app/components/EpochTimeline";
 import { Playfair_Display, Inter } from "next/font/google";
 import confetti from "canvas-confetti";
 import { HoloFrame } from "@/app/components/HoloFrame";
+import NetworkSwitcher from "@/app/components/NetworkSwitcher";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -2098,6 +2099,7 @@ export default function BetaPage() {
       )}
 
       <main className="max-w-6xl mx-auto px-5 sm:px-8">
+        <NetworkSwitcher current="base" />
         {/* Bid first on mobile; artwork and bid above vault and sign on desktop. */}
         <div className="grid grid-cols-1 lg:grid-cols-[1.12fr_1fr] gap-6 lg:gap-x-10 pt-7 lg:pt-10 items-start">
               <article
