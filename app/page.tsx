@@ -2560,104 +2560,26 @@ export default function BetaPage() {
               },
             ].map((col: { name: string; sub: string; img: string; href?: string; chain?: string }) => {
               const isLive = Boolean(col.href);
-              const isFeatured = col.name === "Loopers";
               const card = (
                 <>
+                  {/* Galeri kaidesi: etiketsiz eser, ince çerçeve, gölge yok.
+                      Tüm koleksiyonlar aynı kaidede. */}
                   <div
                     className="relative aspect-square overflow-hidden"
                     style={{
-                      backgroundColor: isFeatured ? "#f6efe3" : PLINTH,
-                      border: `1px solid ${isFeatured ? GREEN : HAIRLINE}`,
-                      borderRadius: 16,
-                      boxShadow: isFeatured
-                        ? "0 0 0 4px rgba(30,123,79,0.14), 0 18px 38px rgba(26, 26, 26, 0.12)"
-                        : "0 6px 18px rgba(26, 26, 26, 0.05)",
+                      backgroundColor: PLINTH,
+                      border: `1px solid ${HAIRLINE}`,
+                      borderRadius: 4,
                     }}
                   >
-                    <HoloFrame
-                      className="w-full h-full"
-                      overlay={
-                        <>
-                          <div className="absolute left-3 top-3">
-                            <span
-                              style={{
-                                ...smallCaps,
-                                color: "#fff",
-                                fontSize: 9,
-                                padding: "4px 9px",
-                                backgroundColor: "rgba(5,12,28,0.42)",
-                                backdropFilter: "blur(6px)",
-                                border: "1px solid rgba(255,255,255,0.22)",
-                              }}
-                            >
-                              {col.chain ?? "Base"}
-                            </span>
-                          </div>
-                          {isFeatured ? (
-                            <div className="absolute right-3 top-3">
-                              <span
-                                className="new-badge"
-                                style={{
-                                  ...smallCaps,
-                                  color: "#fff",
-                                  fontSize: 11,
-                                  fontWeight: 600,
-                                  padding: "7px 14px",
-                                  backgroundColor: GREEN,
-                                  letterSpacing: "0.2em",
-                                  border: "1px solid rgba(255,255,255,0.45)",
-                                }}
-                              >
-                                <span className="live-dot" style={{ background: "#fff", marginRight: 7 }} />
-                                New
-                              </span>
-                            </div>
-                          ) : null}
-                          <div className="absolute inset-x-3 bottom-3 flex justify-end">
-                            <span
-                              style={{
-                                ...smallCaps,
-                                color: "#fff",
-                                fontSize: 9,
-                                padding: "4px 9px",
-                                backgroundColor: isLive
-                                  ? "rgba(30,123,79,0.85)"
-                                  : "rgba(26,26,26,0.65)",
-                                backdropFilter: "blur(6px)",
-                              }}
-                            >
-                              {isLive ? "Live →" : "Soon"}
-                            </span>
-                          </div>
-                        </>
-                      }
-                    >
-                      {isFeatured ? (
-                        <div
-                          className="absolute inset-0"
-                          style={{
-                            background:
-                              "linear-gradient(135deg, rgba(255,255,255,0.8), rgba(255,255,255,0.05) 45%, rgba(26,26,26,0.06))",
-                            pointerEvents: "none",
-                            zIndex: 1,
-                          }}
-                        />
-                      ) : null}
+                    <HoloFrame className="w-full h-full">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={col.img}
                         alt={col.name}
                         className="w-full h-full"
                         style={
-                          isFeatured
-                            ? {
-                                objectFit: "contain",
-                                padding: "26px",
-                                transform: "scale(1.04)",
-                                filter:
-                                  "drop-shadow(0 8px 18px rgba(0,0,0,0.12))",
-                              }
-                            : isLive
+                          isLive
                               ? { objectFit: "cover" }
                               : {
                                   objectFit: "cover",
@@ -2668,19 +2590,34 @@ export default function BetaPage() {
                       />
                     </HoloFrame>
                   </div>
-                  <p
-                    className="mt-3"
-                    style={{ ...SERIF, fontWeight: 500, fontSize: "17px" }}
+                  {/* Katalog künyesi: sadece eser adı + hover'da kayan ok; zincir etiketi yok.
+                      Henüz açılmamış koleksiyonlar küçük bir "Soon" ile işaretlenir. */}
+                  {!isLive ? (
+                    <p className="mt-4" style={{ ...smallCaps, fontSize: 9.5, letterSpacing: "0.22em" }}>
+                      Soon
+                    </p>
+                  ) : null}
+                  <div
+                    className={`${isLive ? "mt-4" : "mt-1.5"} pb-3 flex items-baseline justify-between gap-3`}
+                    style={{ borderBottom: `1px solid ${HAIRLINE}` }}
                   >
-                    {col.name}
-                  </p>
-                  <p className="mt-0.5 text-xs" style={{ color: MUTED }}>
-                    {col.sub}
-                  </p>
+                    <p style={{ ...SERIF, fontWeight: 500, fontSize: "18px", lineHeight: 1.25 }}>
+                      {col.name}
+                    </p>
+                    {isLive ? (
+                      <span
+                        aria-hidden
+                        className="shrink-0 transition-transform duration-500 ease-out group-hover:translate-x-1"
+                        style={{ ...SERIF, fontSize: "16px", color: MUTED }}
+                      >
+                        →
+                      </span>
+                    ) : null}
+                  </div>
                 </>
               );
               return col.href ? (
-                <Link key={col.name} href={col.href} className="block card-zoom">
+                <Link key={col.name} href={col.href} className="group block card-zoom">
                   {card}
                 </Link>
               ) : (

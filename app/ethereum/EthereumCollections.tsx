@@ -1,29 +1,22 @@
 import Link from "next/link";
 import { HoloFrame } from "@/app/components/HoloFrame";
-import { HAIRLINE, MUTED, PLINTH, SERIF, smallCaps } from "@/app/lib/theme";
+import { HAIRLINE, MUTED, PLINTH, SERIF } from "@/app/lib/theme";
 
 // Ethereum koleksiyonları — ana sayfadaki "Explore other collections" kartlarının
 // aynısı. Her sayfa kendisini `current` ile listeden çıkarır.
 const COLLECTIONS = [
   {
-    name: "Nouns",
-    sub: "Ethereum · Nouns DAO",
-    img: "/nouns-eth/noun-0.svg",
-    href: "/ethereum",
+    name: "CryptoPunks",
+    sub: "Ethereum · Larva Labs",
+    img: "/punks/punk-0.svg",
+    href: "/ethereum/punks",
     pixelated: true,
   },
   {
-    name: "Loot",
-    sub: "Ethereum · Adventurer gear",
-    img: "/loot/bag-1.svg",
-    href: "/ethereum/loot",
-    pixelated: false,
-  },
-  {
-    name: "Mutant Ape Yacht Club",
-    sub: "Ethereum · Yuga Labs",
-    img: "/mayc/mutant-1.png",
-    href: "/ethereum/mayc",
+    name: "Pudgy Penguins",
+    sub: "Ethereum · Igloo Inc.",
+    img: "/pudgy/penguin-1.png",
+    href: "/ethereum/pudgy",
     pixelated: false,
   },
   {
@@ -34,11 +27,18 @@ const COLLECTIONS = [
     pixelated: false,
   },
   {
-    name: "Pudgy Penguins",
-    sub: "Ethereum · Igloo Inc.",
-    img: "/pudgy/penguin-1.png",
-    href: "/ethereum/pudgy",
+    name: "Mutant Ape Yacht Club",
+    sub: "Ethereum · Yuga Labs",
+    img: "/mayc/mutant-1.png",
+    href: "/ethereum/mayc",
     pixelated: false,
+  },
+  {
+    name: "Nouns",
+    sub: "Ethereum · Nouns DAO",
+    img: "/nouns-eth/noun-0.svg",
+    href: "/ethereum",
+    pixelated: true,
   },
   {
     name: "Alien Frens",
@@ -47,13 +47,7 @@ const COLLECTIONS = [
     href: "/ethereum/afrens",
     pixelated: false,
   },
-  {
-    name: "CryptoPunks",
-    sub: "Ethereum · Larva Labs",
-    img: "/punks/punk-0.svg",
-    href: "/ethereum/punks",
-    pixelated: true,
-  },
+  // Loot şimdilik listeden kaldırıldı (sayfa /ethereum/loot yerinde duruyor)
 ];
 
 export default function EthereumCollections({ current }: { current: string }) {
@@ -71,49 +65,17 @@ export default function EthereumCollections({ current }: { current: string }) {
       </h2>
       <div className="mt-8 grid grid-cols-2 md:grid-cols-3 gap-5 sm:gap-7">
         {items.map((col) => (
-          <Link key={col.name} href={col.href} className="block card-zoom">
+          <Link key={col.name} href={col.href} className="group block card-zoom">
+            {/* Galeri kaidesi: etiketsiz eser, ince çerçeve, gölge yok */}
             <div
-              className="relative aspect-square overflow-hidden"
+              className="relative aspect-square overflow-hidden transition-colors duration-500"
               style={{
                 backgroundColor: PLINTH,
                 border: `1px solid ${HAIRLINE}`,
-                borderRadius: 16,
-                boxShadow: "0 6px 18px rgba(26, 26, 26, 0.05)",
+                borderRadius: 4,
               }}
             >
-              <HoloFrame
-                className="w-full h-full"
-                overlay={
-                  // Etiketler altta — Loot görselinin metni sol üstte başlıyor
-                  <div className="absolute inset-x-3 bottom-3 flex justify-between">
-                    <span
-                      style={{
-                        ...smallCaps,
-                        color: "#fff",
-                        fontSize: 9,
-                        padding: "4px 9px",
-                        backgroundColor: "rgba(5,12,28,0.42)",
-                        backdropFilter: "blur(6px)",
-                        border: "1px solid rgba(255,255,255,0.22)",
-                      }}
-                    >
-                      Ethereum
-                    </span>
-                    <span
-                      style={{
-                        ...smallCaps,
-                        color: "#fff",
-                        fontSize: 9,
-                        padding: "4px 9px",
-                        backgroundColor: "rgba(30,123,79,0.85)",
-                        backdropFilter: "blur(6px)",
-                      }}
-                    >
-                      Live →
-                    </span>
-                  </div>
-                }
-              >
+              <HoloFrame className="w-full h-full">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={col.img}
@@ -126,15 +88,22 @@ export default function EthereumCollections({ current }: { current: string }) {
                 />
               </HoloFrame>
             </div>
-            <p
-              className="mt-3"
-              style={{ ...SERIF, fontWeight: 500, fontSize: "17px" }}
+            {/* Katalog künyesi: sadece eser adı + hover'da kayan ok; zincir etiketi yok */}
+            <div
+              className="mt-4 pb-3 flex items-baseline justify-between gap-3"
+              style={{ borderBottom: `1px solid ${HAIRLINE}` }}
             >
-              {col.name}
-            </p>
-            <p className="mt-0.5 text-xs" style={{ color: MUTED }}>
-              {col.sub}
-            </p>
+              <p style={{ ...SERIF, fontWeight: 500, fontSize: "18px", lineHeight: 1.25 }}>
+                {col.name}
+              </p>
+              <span
+                aria-hidden
+                className="shrink-0 transition-transform duration-500 ease-out group-hover:translate-x-1"
+                style={{ ...SERIF, fontSize: "16px", color: MUTED }}
+              >
+                →
+              </span>
+            </div>
           </Link>
         ))}
       </div>

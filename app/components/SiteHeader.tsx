@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import {
   DARK,
@@ -38,6 +39,14 @@ const buttonBase = {
 
 /** Sticky site header shared by the home page and every collection page. */
 export default function SiteHeader({ collectionUrl, soundOn, onToggleSound, variant = "light" }: Props) {
+  // Logo bulunulan ağın ana sayfasına döner: Ethereum → /ethereum,
+  // Robinhood → /robinhood (LIVES), diğerleri (Base) → /
+  const pathname = usePathname() ?? "/";
+  const homeHref = pathname.startsWith("/ethereum")
+    ? "/ethereum"
+    : pathname.startsWith("/robinhood")
+      ? "/robinhood"
+      : "/";
   const dark = variant === "dark";
   const ink = dark ? DARK.INK : INK;
   const muted = dark ? DARK.MUTED : MUTED;
@@ -64,7 +73,7 @@ export default function SiteHeader({ collectionUrl, soundOn, onToggleSound, vari
     >
       <div className="max-w-6xl mx-auto px-5 sm:px-8 h-[72px] flex items-center justify-between">
         <Link
-          href="/"
+          href={homeHref}
           style={{ ...SERIF, fontWeight: 500, fontSize: "26px", letterSpacing: "0.02em", color: ink }}
         >
           Flooor
