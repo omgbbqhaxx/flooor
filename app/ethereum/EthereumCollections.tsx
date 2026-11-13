@@ -34,6 +34,13 @@ const COLLECTIONS = [
     pixelated: false,
   },
   {
+    name: "Doodles",
+    sub: "Ethereum · Burnt Toast",
+    img: "/doodles/doodle-1.png",
+    href: "/ethereum/doodles",
+    pixelated: false,
+  },
+  {
     name: "Nouns",
     sub: "Ethereum · Nouns DAO",
     img: "/nouns-eth/noun-0.svg",
