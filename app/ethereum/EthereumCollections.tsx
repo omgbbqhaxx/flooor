@@ -41,6 +41,13 @@ const COLLECTIONS = [
     pixelated: false,
   },
   {
+    name: "Azuki",
+    sub: "Ethereum · Chiru Labs",
+    img: "/azuki/azuki-1.jpg",
+    href: "/ethereum/azuki",
+    pixelated: false,
+  },
+  {
     name: "Doodles",
     sub: "Ethereum · Burnt Toast",
     img: "/doodles/doodle-1.png",
