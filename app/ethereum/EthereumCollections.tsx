@@ -20,6 +20,13 @@ const COLLECTIONS = [
     pixelated: false,
   },
   {
+    name: "Lil Pudgys",
+    sub: "Ethereum · Igloo Inc.",
+    img: "/lilpudgys/lilpudgy-1.png",
+    href: "/ethereum/lilpudgys",
+    pixelated: false,
+  },
+  {
     name: "Bored Ape Yacht Club",
     sub: "Ethereum · Yuga Labs",
     img: "/bayc/ape-1.png",
