@@ -34,6 +34,13 @@ const COLLECTIONS = [
     pixelated: false,
   },
   {
+    name: "Pudgy Penguins",
+    sub: "Ethereum · Igloo Inc.",
+    img: "/pudgy/penguin-1.png",
+    href: "/ethereum/pudgy",
+    pixelated: false,
+  },
+  {
     name: "Alien Frens",
     sub: "Ethereum · Planet Fren",
     img: "/afrens/fren-1.png",
