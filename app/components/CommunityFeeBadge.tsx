@@ -87,3 +87,43 @@ export default function CommunityFeeBadge({
     </span>
   );
 }
+
+// Fee rozetinin iç hapıyla aynı görünüşte tekil bilgi hapı: "LABEL · değer · $".
+// Eser görselinin altında vault'un yanına diğer metrikleri dizmek için.
+export function StatPill({
+  tone = "light",
+  label,
+  value,
+  sub,
+  green = false,
+}: {
+  tone?: "light" | "dark";
+  label: string;
+  value: string;
+  sub?: string | null;
+  green?: boolean;
+}) {
+  const t = TONES[tone];
+  return (
+    <span
+      style={{
+        ...pill,
+        letterSpacing: "0.08em",
+        padding: "4px 12px",
+        color: t.color,
+        backgroundColor: t.backgroundColor,
+        border: t.border,
+      }}
+    >
+      {label}
+      <span style={{ color: green ? t.usdColor : t.amountColor, fontWeight: 600, marginLeft: 6 }}>
+        · {value}
+      </span>
+      {sub && (
+        <span style={{ color: t.usdColor, fontWeight: 600, marginLeft: 6 }}>
+          · {sub}
+        </span>
+      )}
+    </span>
+  );
+}

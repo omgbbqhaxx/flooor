@@ -2,9 +2,10 @@
 
 import { toast } from "sonner";
 import SiteHeader from "@/app/components/SiteHeader";
-import { FAINT, GOLD, GREEN, HAIRLINE, INK, IVORY, MUTED, PLINTH, SANS, SERIF, smallCaps } from "@/app/lib/theme";
+import { FAINT, GOLD, GREEN, HAIRLINE, INK, IVORY, MUTED, PLINTH, RED, SANS, SERIF, smallCaps } from "@/app/lib/theme";
+import { EpochTimeline } from "@/app/components/EpochTimeline";
 import Footer from "@/app/components/Footer";
-import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
+import CommunityFeeBadge, { StatPill } from "@/app/components/CommunityFeeBadge";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
 import { bulkSignOrClaim, supportsAtomicBatch } from "@/app/lib/bulkSignOrClaim";
 import { STOCK, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
@@ -1090,6 +1091,7 @@ export default function WarpletsPage() {
   }, []);
 
   const isSignPhase = phaseInfo?.currentPhase.toLowerCase().includes("sign") ?? false;
+  const isPhaseUrgent = remainingTimeDisplay > 0 && remainingTimeDisplay < 3600;
 
   const handleBidInputChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1764,7 +1766,7 @@ export default function WarpletsPage() {
       style={{ backgroundColor: IVORY, minHeight: "100vh", color: INK }}
     >
       {/* Header */}
-      <SiteHeader collectionUrl="https://opensea.io/collection/vrnouns" soundOn={soundOn} onToggleSound={toggleSound} />
+      <SiteHeader collectionUrl="https://opensea.io/collection/vrnouns" soundOn={soundOn} onToggleSound={toggleSound} dailyTreasury={fmtEth(dailyVault)} />
 
       <main className="max-w-6xl mx-auto px-5 sm:px-8">
         {/* Lot hero */}
@@ -1774,12 +1776,12 @@ export default function WarpletsPage() {
             <div className="flex items-center justify-center">
               {/* Lot plate — matches the "Your Collection" card design below */}
               <article
-                className="w-full max-w-[560px] fade-in-soft"
+                className="w-full max-w-[560px] fade-in-soft rounded-lg overflow-hidden"
                 style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "#F2ECE0" }}
               >
                 {/* Lot line */}
                 <div
-                  className="flex items-center justify-between px-3.5 py-2.5"
+                  className="flex items-center justify-between px-5 py-4"
                   style={{ borderBottom: `1px solid ${HAIRLINE}` }}
                 >
                   <span className="flex items-center gap-1.5">
@@ -1790,7 +1792,7 @@ export default function WarpletsPage() {
                       />
                       <path fill="#fff" d="M9.6 14.9L6.3 11.6l1.1-1.1 2.2 2.2 5-5 1.1 1.1z" />
                     </svg>
-                    <span style={{ ...SERIF, fontWeight: 500, fontSize: 19, color: INK }}>
+                    <span style={{ ...SERIF, fontWeight: 500, fontSize: 26, color: INK }}>
                       Warplets
                     </span>
                   </span>
@@ -1799,56 +1801,30 @@ export default function WarpletsPage() {
                   </span>
                 </div>
 
-                {/* Art plate */}
-                <div
-                  className="p-4"
-                  style={{ backgroundColor: IVORY, borderBottom: `1px solid ${HAIRLINE}` }}
-                >
-                  <HoloFrame
-                    className="w-full"
-                    overlay={
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: 10,
-                          right: 10,
-                          bottom: 10,
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <span
-                          style={{
-                            ...smallCaps,
-                            color: "#fff",
-                            fontSize: 9,
-                            padding: "4px 9px",
-                            backgroundColor: "rgba(5,12,28,0.42)",
-                            backdropFilter: "blur(6px)",
-                            border: "1px solid rgba(255,255,255,0.22)",
-                          }}
-                        >
-                          Market Cap {marketCapDisplay} · {marketCapEthDisplay}
-                        </span>
-                      </div>
-                    }
-                  >
+                {/* Art plate — ana sayfadaki (VRNouns) kartla aynı: kart zemininde,
+                    yuvarlatılmış HoloFrame çerçevesi, market cap görselin altında */}
+                <div className="px-4 py-4">
+                  <HoloFrame className="rounded-lg overflow-hidden">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={WARPLETS_IMG}
                       alt="Warplets"
-                      className="w-full h-auto"
+                      className="block w-full h-auto"
                     />
                   </HoloFrame>
                 </div>
-
+                <p className="px-5 pb-3" style={{ ...smallCaps, fontSize: 9 }}>Market cap {marketCapDisplay} · {marketCapEthDisplay}</p>
                 {/* Community fee band */}
                 <div
-                  className="px-3.5 py-2.5 flex items-center justify-center"
+                  className="px-3.5 py-2.5 flex flex-wrap items-center justify-center gap-2"
                   style={{ borderBottom: `1px solid ${HAIRLINE}` }}
                 >
                   <CommunityFeeBadge amount={`Ξ ${fmtEth(dailyVault)}`} amountUsd={toUsd(dailyVault)} />
+                  {/* Diğer günlük metrikler — fee rozetiyle aynı hap dilinde */}
+                  <StatPill label="Signers" value={dailySigners.toLocaleString()} />
+                  <StatPill label="Per NFT" value={`Ξ ${fmtEth(yieldPerSigner)}`} sub={toUsd(yieldPerSigner)} />
+                  <StatPill label="Projected APR" value={projectedApr > 0 ? `${projectedApr >= 10 ? projectedApr.toFixed(0) : projectedApr.toFixed(1)}%` : "—"} green />
+                  <StatPill label="Total signed" value={tvsEthDisplay || "—"} sub={tvsUsdDisplay} />
                 </div>
 
                 {/* Meta strip */}
@@ -1894,174 +1870,107 @@ export default function WarpletsPage() {
               </div>
             ) : (
               <div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
-                  <div>
+                {/* Current bid — ana sayfadaki (VRNouns) kutulu kartın aynısı */}
+                <section className="min-w-0 rounded-lg p-5 sm:p-7 lg:p-8" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
+                  <div className={`min-w-0 ${hasBid ? "active-bid-aura" : ""}`}>
                     <p style={smallCaps}>Current Bid</p>
-                    <p
-                      className="mt-2 tabular-nums"
-                      style={{
-                        ...SERIF,
-                        fontWeight: 500,
-                        fontSize: "clamp(28px, 3.4vw, 44px)",
-                        lineHeight: 1.1,
-                      }}
-                    >
-                      Ξ {fmtEth(currentBid)}
-                    </p>
-                    <p className="mt-1.5 text-sm" style={{ color: MUTED }}>
-                      {hasBid ? (
-                        <>
-                          {toUsd(currentBid) ? `${toUsd(currentBid)} · ` : ""}
-                          <a
-                            href={`https://basescan.org/address/${activeBidder}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:text-black transition-colors underline underline-offset-4"
-                            style={{ textDecorationColor: HAIRLINE }}
-                          >
-                            {activeBidderName ||
-                              `${activeBidder.slice(0, 6)}…${activeBidder.slice(-4)}`}
-                          </a>
-                        </>
-                      ) : (
-                        "No bids yet — place the first."
-                      )}
-                    </p>
+                    <p className={`mt-2 tabular-nums leading-tight ${hasBid ? "active-bid-amount" : ""}`} style={{ ...SERIF, fontSize: "clamp(30px, 4vw, 52px)", overflowWrap: "anywhere" }}>Ξ {fmtEth(currentBid)}</p>
+                    {hasBid && toUsd(currentBid) && <p className="mt-1 text-xs" style={{ color: MUTED }}>{toUsd(currentBid)}</p>}
+                    {hasBid && <a href={`https://basescan.org/address/${activeBidder}`} target="_blank" rel="noopener noreferrer"
+                      className="text-xs underline underline-offset-4" style={{ color: MUTED }}>
+                      {activeBidderName || `${activeBidder.slice(0, 6)}…${activeBidder.slice(-4)}`}
+                    </a>}
                   </div>
-                  <div>
-                    <p style={smallCaps}>
-                      {isSignPhase ? "Sign Closes In" : "Claim Closes In"}
-                    </p>
-                    <p
-                      className="mt-2 tabular-nums"
-                      style={{
-                        ...SERIF,
-                        fontWeight: 500,
-                        fontSize: "clamp(28px, 3.4vw, 44px)",
-                        lineHeight: 1.1,
-                      }}
-                    >
-                      {formatTimeRemaining(remainingTimeDisplay)}
-                    </p>
-                  </div>
-                </div>
 
-                {/* Bid box */}
-                <div
-                  className={hasBid ? "mt-3 flex items-stretch" : "mt-8 flex items-stretch"}
-                  style={{ border: `1px solid ${bidError ? "#9B1C1C" : INK}` }}
-                >
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    placeholder={
-                      bidError
-                        ? `Minimum Ξ ${minOutbidAmount.toFixed(6)}`
-                        : `Ξ ${minOutbidAmount.toFixed(6)} or more`
-                    }
-                    className="flex-1 px-4 py-3.5 focus:outline-none min-w-0 text-lg tabular-nums"
-                    style={{ ...SANS, color: INK, backgroundColor: "#F2ECE0", border: "none" }}
-                    value={bidInput}
-                    onChange={handleBidInputChange}
-                  />
-                  <button
-                    onClick={handleBid}
-                    disabled={isBidding}
-                    className="px-5 sm:px-10 whitespace-nowrap transition-opacity hover:opacity-80 disabled:hover:opacity-100"
-                    style={{
-                      ...smallCaps,
-                      color: "#fff",
-                      backgroundColor: INK,
-                      opacity: isBidding ? 0.6 : 1,
-                      cursor: isBidding ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    {isBidding ? "Placing…" : "Place Bid"}
-                  </button>
-                </div>
-                <p className="mt-3 text-xs" style={{ color: FAINT }}>
-                  {hasBid ? (
-                    <>
-                      Minimum outbid Ξ{" "}
-                      <button
-                        type="button"
-                        onClick={() => setBidInput(minOutbidAmount.toFixed(6))}
-                        className="underline decoration-dotted underline-offset-2 hover:brightness-110 transition-[filter]"
-                        style={{ color: GOLD, fontWeight: 600 }}
-                      >
-                        {minOutbidAmount.toFixed(6)}
-                      </button>{" "}
-                      — if someone outbids you, your ETH is returned
-                      automatically.
-                    </>
-                  ) : (
-                    <>
-                      Minimum bid Ξ{" "}
-                      <button
-                        type="button"
-                        onClick={() => setBidInput(minOutbidAmount.toFixed(6))}
-                        className="underline decoration-dotted underline-offset-2 hover:brightness-110 transition-[filter]"
-                        style={{ color: GOLD, fontWeight: 600 }}
-                      >
-                        {minOutbidAmount.toFixed(6)}
-                      </button>{" "}
-                      — if someone outbids you, your ETH is returned
-                      automatically. Every sale feeds the vault.
-                    </>
-                  )}
-                </p>
-
-                {/* Signers, TVS, vault, yield */}
-                <div className="mt-10">
-                  {[
-                    { label: "Signers", value: `${dailySigners}`, sub: null, green: false, rainbow: false },
-                    { label: "TVS — Total Value Signed", value: tvsUsdDisplay, sub: tvsEthDisplay, green: false, rainbow: false },
-                    { label: "Daily Vault", value: `Ξ ${fmtEth(dailyVault)}`, sub: toUsd(dailyVault), green: false, rainbow: false },
-                    { label: "Yield per Signer", value: `Ξ ${fmtEth(yieldPerSigner)}`, sub: toUsd(yieldPerSigner), green: true, rainbow: false },
-                    {
-                      label: "Projected APR",
-                      value:
-                        projectedApr > 0
-                          ? `${projectedApr >= 10 ? projectedApr.toFixed(0) : projectedApr.toFixed(1)}%${
-                              toUsd(String(annualYieldEth))
-                                ? ` ~ ${toUsd(String(annualYieldEth))}`
-                                : ""
-                            }`
-                          : "—",
-                      sub: null,
-                      green: false,
-                      rainbow: true,
-                    },
-                  ].map((row) => (
-                    <div
-                      key={row.label}
-                      className="flex items-baseline justify-between py-3.5"
-                      style={{ borderTop: `1px solid ${HAIRLINE}` }}
-                    >
-                      <span style={smallCaps}>{row.label}</span>
-                      <span
-                        className="tabular-nums text-base"
-                        style={{ ...SANS, fontWeight: 500, color: row.green ? GREEN : INK }}
-                      >
-                        {/* Tayf yalnızca değerin kendisine uygulanır; alt bilgi soluk kalır */}
-                        {row.rainbow ? (
-                          <span className="apr-rainbow">{row.value}</span>
-                        ) : (
-                          row.value
-                        )}
-                        {row.sub ? (
-                          <span style={{ color: FAINT, fontWeight: 400 }}> · {row.sub}</span>
-                        ) : null}
+                  {/* Outbid notice */}
+                  {hasBid && (
+                    <div className="mt-8 px-4 py-3 flex items-start gap-3" style={{ backgroundColor: PLINTH, border: `1px solid ${HAIRLINE}` }}>
+                      <span style={{ color: MUTED, fontSize: "13px", lineHeight: 1.5, ...SANS }}>
+                        Current bid is Ξ {fmtEth(currentBid)} — you must bid at
+                        least <strong>Ξ {minOutbidAmount.toFixed(6)}</strong> to
+                        outbid.
                       </span>
                     </div>
-                  ))}
-                  {/* Son satırın (Projected APR) altını kapatan çizgi */}
-                  <div style={{ borderTop: `1px solid ${HAIRLINE}` }} />
-                </div>
+                  )}
 
-                {/* Daily sign — ana sayfadaki butonun aynısı; burada cüzdandaki
-                    her uygun Warplet'i tek onayla (batch) imzalar / claim eder */}
-                <div className="mt-10 pt-8">
+                  {/* Bid box */}
+                  <div
+                    className={hasBid ? "mt-3 flex items-stretch" : "mt-5 flex items-stretch"}
+                    style={{ border: `1px solid ${bidError ? "#9B1C1C" : INK}` }}
+                  >
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder={
+                        bidError
+                          ? `Minimum Ξ ${minOutbidAmount.toFixed(6)}`
+                          : `Ξ ${minOutbidAmount.toFixed(6)} or more`
+                      }
+                      className="flex-1 px-4 py-3.5 focus:outline-none min-w-0 text-lg tabular-nums"
+                      style={{ ...SANS, color: INK, backgroundColor: "#F2ECE0", border: "none" }}
+                      value={bidInput}
+                      onChange={handleBidInputChange}
+                    />
+                    <button
+                      onClick={handleBid}
+                      disabled={isBidding}
+                      className="px-5 sm:px-10 whitespace-nowrap transition-opacity hover:opacity-80 disabled:hover:opacity-100"
+                      style={{
+                        ...smallCaps,
+                        color: "#fff",
+                        backgroundColor: INK,
+                        opacity: isBidding ? 0.6 : 1,
+                        cursor: isBidding ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {isBidding ? "Placing…" : "Place Bid"}
+                    </button>
+                  </div>
+                  <p className="mt-3 text-xs" style={{ color: FAINT }}>
+                    {hasBid ? (
+                      <>
+                        Minimum outbid Ξ{" "}
+                        <button
+                          type="button"
+                          onClick={() => setBidInput(minOutbidAmount.toFixed(6))}
+                          className="underline decoration-dotted underline-offset-2 hover:brightness-110 transition-[filter]"
+                          style={{ color: GOLD, fontWeight: 600 }}
+                        >
+                          {minOutbidAmount.toFixed(6)}
+                        </button>{" "}
+                        — if someone outbids you, your ETH is returned
+                        automatically.
+                      </>
+                    ) : (
+                      <>
+                        Minimum bid Ξ{" "}
+                        <button
+                          type="button"
+                          onClick={() => setBidInput(minOutbidAmount.toFixed(6))}
+                          className="underline decoration-dotted underline-offset-2 hover:brightness-110 transition-[filter]"
+                          style={{ color: GOLD, fontWeight: 600 }}
+                        >
+                          {minOutbidAmount.toFixed(6)}
+                        </button>{" "}
+                        — if someone outbids you, your ETH is returned
+                        automatically. Every sale feeds the vault.
+                      </>
+                    )}
+                  </p>
+                </section>
+
+                {/* Sign & earn — vault metrikleri eser görselinin altındaki haplarda */}
+                <section className="mt-6 min-w-0 rounded-lg p-5 sm:p-7" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
+                  <p style={smallCaps}>{bulkClaimReady ? "Claim your daily share" : "Sign & earn"}</p>
+                  <h2 className="mt-2 mb-5" style={{ ...SERIF, fontWeight: 500, fontSize: "20px", lineHeight: 1.3 }}>{bulkClaimReady ? "Your share is ready." : "Sign your Warplets. Claim daily ETH."}</h2>
+                  {/* Faz geri sayımı + 24 saatlik döngü çizelgesi — ana sayfayla birebir */}
+                  <div className="mb-5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <span style={{ color: MUTED }}>{!phaseInfo ? "Loading phase" : isSignPhase ? "Sign closes in" : "Claim closes in"}</span>
+                      <span className="tabular-nums" style={{ color: isPhaseUrgent ? RED : INK }}>{phaseInfo ? formatTimeRemaining(remainingTimeDisplay) : "Syncing…"}</span>
+                    </div>
+                    <EpochTimeline phase={phaseInfo ? isSignPhase ? "sign" : "claim" : null} remainingSeconds={remainingTimeDisplay} />
+                  </div>
                   <button
                     onClick={() => handleBulkSignOrClaim(false)}
                     disabled={bulkButtonDisabled}
@@ -2105,14 +2014,14 @@ export default function WarpletsPage() {
                       </span>
                     </button>
                   )}
-                  <p className="mt-3 text-xs" style={{ color: FAINT }}>
+                  <p className="mt-3 text-xs leading-relaxed text-center" style={{ color: MUTED }}>
                     {bulkClaimReady
                       ? `Take your share in ETH, or swap it into ${STOCK.symbol} — tokenized ${STOCK.name} stock on Base — in the same transaction via Aerodrome.`
                       : ""}
                     {bulkClaimReady ? " " : ""}Hold Warplets? Daily sign to claim your share of the daily
                     vault — every work in your wallet, one tap. No lockup, no transfer.
                   </p>
-                </div>
+                </section>
               </div>
             )}
           </div>

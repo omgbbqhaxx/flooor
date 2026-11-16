@@ -12,19 +12,18 @@ import {
   MUTED,
   SANS,
   SERIF,
-  smallCapsFor,
 } from "@/app/lib/theme";
 
 type Props = {
-  /** OpenSea (or similar) link shown as "Collection"; omitted on the home page. */
+  /** Artık header'da gösterilmiyor; sayfalar hâlâ geçtiği için tipte kalıyor. */
   collectionUrl?: string;
   soundOn: boolean;
   onToggleSound: () => void;
   variant?: "light" | "dark";
+  /** Günün vault tutarı (ETH, biçimlenmiş) — verilirse logonun yanında
+   *  nouns.wtf'teki Treasury kutusu gibi "Daily Treasury" olarak gösterilir. */
+  dailyTreasury?: string;
 };
-
-const DOCS_URL = "https://vrnouns.gitbook.io/flooor/documentation/documentation-en";
-const DAO_URL = "https://snapshot.org/#/s:vrnouns.eth";
 
 const buttonBase = {
   ...SANS,
@@ -38,7 +37,7 @@ const buttonBase = {
 } as const;
 
 /** Sticky site header shared by the home page and every collection page. */
-export default function SiteHeader({ collectionUrl, soundOn, onToggleSound, variant = "light" }: Props) {
+export default function SiteHeader({ soundOn, onToggleSound, variant = "light", dailyTreasury }: Props) {
   // Logo bulunulan ağın ana sayfasına döner: Ethereum → /ethereum,
   // Robinhood → /robinhood (LIVES), diğerleri (Base) → /
   const pathname = usePathname() ?? "/";
@@ -52,12 +51,6 @@ export default function SiteHeader({ collectionUrl, soundOn, onToggleSound, vari
   const muted = dark ? DARK.MUTED : MUTED;
   const hairline = dark ? DARK.HAIRLINE : HAIRLINE;
   const hover = dark ? "hover:opacity-70" : "hover:text-black";
-  const nav = smallCapsFor(muted);
-  const links = [
-    { label: "Docs", href: DOCS_URL },
-    { label: "DAO", href: DAO_URL },
-    ...(collectionUrl ? [{ label: "Collection", href: collectionUrl }] : []),
-  ];
 
   return (
     <header
@@ -72,26 +65,27 @@ export default function SiteHeader({ collectionUrl, soundOn, onToggleSound, vari
       }}
     >
       <div className="max-w-6xl mx-auto px-5 sm:px-8 h-[72px] flex items-center justify-between">
-        <Link
-          href={homeHref}
-          style={{ ...SERIF, fontWeight: 500, fontSize: "26px", letterSpacing: "0.02em", color: ink }}
-        >
-          Flooor
-        </Link>
-        <nav className="hidden md:flex items-center gap-10">
-          {links.map((link) => (
-            <a
-              key={link.label}
-              href={link.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={nav}
-              className={`${hover} transition-colors`}
+        <div className="flex items-center gap-3 sm:gap-5 min-w-0">
+          <Link
+            href={homeHref}
+            style={{ ...SERIF, fontWeight: 500, fontSize: "26px", letterSpacing: "0.02em", color: ink }}
+          >
+            Flooor
+          </Link>
+          {dailyTreasury !== undefined && (
+            // Mobilde dar alan: etiket üstte, tutar altta (iki satır);
+            // sm ve üstünde nouns.wtf'teki gibi tek satır
+            <div
+              className="flex flex-col sm:flex-row justify-center sm:items-center gap-0.5 sm:gap-2.5 h-9 px-2 sm:px-3 whitespace-nowrap shrink-0"
+              style={{ border: `1px solid ${hairline}`, borderRadius: 2 }}
             >
-              {link.label}
-            </a>
-          ))}
-        </nav>
+              <span className="text-[9px] sm:text-[13px] leading-none" style={{ ...SANS, color: muted }}>Daily Treasury</span>
+              <span className="tabular-nums text-[12px] sm:text-[13px] leading-none" style={{ ...SANS, fontWeight: 600, color: ink }}>
+                Ξ {dailyTreasury}
+              </span>
+            </div>
+          )}
+        </div>
         <div className="flex items-center gap-3">
           <button
             onClick={onToggleSound}

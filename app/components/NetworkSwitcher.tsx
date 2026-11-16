@@ -46,7 +46,7 @@ export default function NetworkSwitcher({
             <span
               aria-hidden
               className="shrink-0"
-              style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: n.dot }}
+              style={{ width: 6, height: 6, backgroundColor: n.dot }}
             />
             <span style={{ ...SANS, fontSize: 13, fontWeight: 600, letterSpacing: "0.01em", color: active ? p.activeText : p.text }}>
               {n.label}
