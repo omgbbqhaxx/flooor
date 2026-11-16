@@ -28,7 +28,7 @@ import Link from "next/link";
 import SiteHeader from "@/app/components/SiteHeader";
 import { FAINT, GOLD, GREEN, HAIRLINE, INK, IVORY, MUTED, PLINTH, RED, SANS, SERIF, smallCaps } from "@/app/lib/theme";
 import Footer from "@/app/components/Footer";
-import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
+import CommunityFeeBadge, { StatPill } from "@/app/components/CommunityFeeBadge";
 import WorkCard from "@/app/components/WorkCard";
 import { EpochTimeline } from "@/app/components/EpochTimeline";
 import { Playfair_Display, Inter } from "next/font/google";
@@ -2023,7 +2023,7 @@ export default function BetaPage() {
       style={{ backgroundColor: "#F2ECE0", color: INK, ...SANS }}
     >
       {/* Header */}
-      <SiteHeader soundOn={soundOn} onToggleSound={toggleSound} />
+      <SiteHeader soundOn={soundOn} onToggleSound={toggleSound} dailyTreasury={fmtEth(dailyVault)} />
 
       {/* Network Gate — full-screen block until on Base */}
       {isWrongNetwork && (
@@ -2099,7 +2099,7 @@ export default function BetaPage() {
 
       <main className="max-w-6xl mx-auto px-5 sm:px-8">
         <NetworkSwitcher current="base" />
-        {/* Bid first on mobile; artwork and bid above vault and sign on desktop. */}
+        {/* Bid first on mobile; artwork left, bid and sign right on desktop. */}
         <div className="grid grid-cols-1 lg:grid-cols-[1.12fr_1fr] gap-6 lg:gap-x-10 pt-7 lg:pt-10 items-start">
               <article
                 className="order-1 lg:order-none lg:col-start-1 lg:row-start-1 w-full min-w-0 fade-in-soft rounded-lg overflow-hidden"
@@ -2144,10 +2144,15 @@ export default function BetaPage() {
                 <p className="px-5 pb-3" style={{ ...smallCaps, fontSize: 9 }}>Market cap {marketCapDisplay} · {marketCapEthDisplay}</p>
                 {/* Community fee band */}
                 <div
-                  className="px-3.5 py-2.5 flex items-center justify-center"
+                  className="px-3.5 py-2.5 flex flex-wrap items-center justify-center gap-2"
                   style={{ borderBottom: `1px solid ${HAIRLINE}` }}
                 >
                   <CommunityFeeBadge amount={`Ξ ${fmtEth(dailyVault)}`} amountUsd={toUsd(dailyVault)} />
+                  {/* Diğer günlük metrikler — fee rozetiyle aynı hap dilinde (warplets ile aynı) */}
+                  <StatPill label="Signers" value={dailySigners.toLocaleString()} />
+                  <StatPill label="Per NFT" value={`Ξ ${fmtEth(yieldPerNFT)}`} sub={toUsd(yieldPerNFT)} />
+                  <StatPill label="Projected APR" value={projectedApr > 0 ? `${projectedApr >= 10 ? projectedApr.toFixed(0) : projectedApr.toFixed(1)}%` : "—"} green />
+                  <StatPill label="Total signed" value={tvsEthDisplay || "—"} sub={tvsUsdDisplay} />
                 </div>
 
                 {/* Meta strip */}
@@ -2180,7 +2185,7 @@ export default function BetaPage() {
                   </a>
                 </div>
               </article>
-          <div className="contents lg:flex lg:flex-col lg:gap-6 lg:col-start-2 lg:row-start-1 lg:row-span-2 min-w-0">
+          <div className="contents lg:flex lg:flex-col lg:gap-6 lg:col-start-2 lg:row-start-1 min-w-0">
             {/* Current bid */}
             <section className="order-2 lg:order-none min-w-0 rounded-lg p-5 sm:p-7 lg:p-8" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
               <div className="min-w-0">
@@ -2304,7 +2309,7 @@ export default function BetaPage() {
           <section className="order-4 lg:order-none min-w-0 rounded-lg p-5 sm:p-7" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
             <div className="w-full">
               <p style={smallCaps}>{isClaimReady ? "Claim your daily share" : "Sign & earn"}</p>
-              <h2 className="mt-3 mb-6" style={{ ...SERIF, fontWeight: 500, fontSize: "clamp(26px, 3vw, 34px)" }}>{isClaimReady ? "Your share is ready." : "Sign your NFTs. Claim daily ETH."}</h2>
+              <h2 className="mt-2 mb-5" style={{ ...SERIF, fontWeight: 500, fontSize: "20px", lineHeight: 1.3 }}>{isClaimReady ? "Your share is ready." : "Sign your NFTs. Claim daily ETH."}</h2>
               <div className="mb-5">
                 <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
                   <span style={{ color: MUTED }}>{!phaseInfo ? "Loading phase" : isSignPhase ? "Sign closes in" : "Claim closes in"}</span>
@@ -2376,22 +2381,6 @@ export default function BetaPage() {
             </div>
           </section>
           </div>
-            <section className="order-3 lg:order-none lg:col-start-1 lg:row-start-2 min-w-0 rounded-lg p-5 sm:p-7" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
-              <p style={smallCaps}>Today’s community vault</p>
-              <p className="mt-3 tabular-nums" style={{ ...SERIF, fontSize: "clamp(42px, 6vw, 64px)", lineHeight: 1.1 }}>Ξ {fmtEth(dailyVault)}</p>
-              <p className="mt-3 text-sm" style={{ color: MUTED }}>{dailySigners.toLocaleString()} signers sharing today’s vault{toUsd(dailyVault) ? ` · ${toUsd(dailyVault)}` : ""}.</p>
-              <div className="grid grid-cols-3 gap-3 mt-6 pt-5" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
-                {[
-                  { label: "Per NFT", value: `Ξ ${fmtEth(yieldPerNFT)}`, sub: toUsd(yieldPerNFT), green: true },
-                  { label: "Projected APR", value: projectedApr > 0 ? `${projectedApr >= 10 ? projectedApr.toFixed(0) : projectedApr.toFixed(1)}%` : "—", sub: toUsd(String(annualYieldEth)), green: true },
-                  { label: "Total signed", value: tvsEthDisplay || "—", sub: tvsUsdDisplay, green: false },
-                ].map((metric) => <div key={metric.label} className="min-w-0">
-                  <p style={{ ...smallCaps, fontSize: 9, letterSpacing: "0.1em" }}>{metric.label}</p>
-                  <p className="mt-2 text-sm sm:text-base tabular-nums break-words" style={{ color: metric.green ? GREEN : INK, fontWeight: 500 }}>{metric.value}</p>
-                  {metric.sub && <p className="mt-1 text-xs" style={{ color: MUTED }}>{metric.sub}</p>}
-                </div>)}
-              </div>
-            </section>
 
         </div>
 

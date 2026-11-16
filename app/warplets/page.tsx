@@ -1763,7 +1763,7 @@ export default function WarpletsPage() {
   return (
     <div
       className={`${playfair.variable} ${inter.variable}`}
-      style={{ backgroundColor: IVORY, minHeight: "100vh", color: INK }}
+      style={{ minHeight: "100vh", color: INK }}
     >
       {/* Header */}
       <SiteHeader collectionUrl="https://opensea.io/collection/vrnouns" soundOn={soundOn} onToggleSound={toggleSound} dailyTreasury={fmtEth(dailyVault)} />

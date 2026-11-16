@@ -7,8 +7,8 @@
 // in app/layout.tsx — keep PAPER in sync there if it ever changes.
 // ============================================================================
 
-/** Page and surface background (was pure white; warm paper is easier on the eyes). */
-export const PAPER = "#F2ECE0";
+/** Page background — nouns.wtf ile aynı sıcak zemin rengi. */
+export const PAPER = "#E1D7D5";
 /** Slightly darker tint for card headers, idle buttons and section bands. */
 export const IVORY = "#EAE2D2";
 export const PLINTH = "#F1EEE8";
@@ -21,7 +21,7 @@ export const GOLD = "#A4863D";
 export const RED = "#9A2D2D";
 export const AMBER = "#A9731E";
 
-/** Translucent header over PAPER, blurred. */
+/** Translucent header, blurred — sayfa zemininden bağımsız, eski açık krem ton. */
 export const HEADER_BG = "rgba(242,236,224,0.92)";
 
 /** Dark variant used by the Robinhood collection. */

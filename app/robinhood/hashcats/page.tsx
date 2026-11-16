@@ -1840,7 +1840,7 @@ export default function HashcatsPage() {
                   {[
                     { label: "Signers", value: `${dailySigners}`, sub: null, green: false, rainbow: false },
                     { label: "TVS — Total Value Signed", value: tvsUsdDisplay, sub: tvsEthDisplay, green: false, rainbow: false },
-                    { label: "Daily Vault", value: `Ξ ${fmtEth(dailyVault)}`, sub: toUsd(dailyVault), green: false, rainbow: false },
+                    { label: "Daily Treasury", value: `Ξ ${fmtEth(dailyVault)}`, sub: toUsd(dailyVault), green: false, rainbow: false },
                     { label: "Yield per Signer", value: `Ξ ${fmtEth(yieldPerSigner)}`, sub: toUsd(yieldPerSigner), green: true, rainbow: false },
                     {
                       label: "Projected APR",

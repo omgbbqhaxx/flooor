@@ -4,13 +4,13 @@
 
 :root {
   /* Keep in sync with PAPER in app/lib/theme.ts */
-  --background: #F2ECE0;
+  --background: #E1D7D5;
   --foreground: #1a1a1a;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #F2ECE0;
+    --background: #E1D7D5;
     --foreground: #1a1a1a;
   }
 }

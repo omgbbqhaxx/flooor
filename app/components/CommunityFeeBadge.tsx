@@ -48,7 +48,7 @@ export default function CommunityFeeBadge({
   // bakiyenin vault'un "içinde" olduğu görsel olarak da okunsun.
   return (
     <span
-      title="5% of every sale goes to the daily vault, shared by everyone who signs that day"
+      title="5% of every sale goes to the daily treasury, shared by everyone who signs that day"
       className="inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1"
       style={{
         ...pill,
@@ -60,10 +60,10 @@ export default function CommunityFeeBadge({
         padding: amount ? "3px 3px 3px 12px" : pill.padding,
       }}
     >
-      <span>{amount ? "5% Community Fee →" : "5% Community Fee → Daily Vault"}</span>
+      <span>{amount ? "5% Community Fee →" : "5% Community Fee → Daily Treasury"}</span>
       {amount && (
         <span
-          title="Sitting in today's vault right now"
+          title="Sitting in today's treasury right now"
           style={{
             ...pill,
             letterSpacing: "0.08em",
@@ -73,7 +73,7 @@ export default function CommunityFeeBadge({
             border: t.border,
           }}
         >
-          Daily Vault
+          Daily Treasury
           <span style={{ color: t.amountColor, fontWeight: 600, marginLeft: 6 }}>
             · {amount}
           </span>
