@@ -10,10 +10,6 @@ const LINKS = {
   baseApp: "https://base.app/app/flooor.fun",
   farcaster: "https://farcaster.xyz/miniapps/pIFtRBsgnWAF/flooorfun",
   x: "https://x.com/flooorfun",
-  docs: "https://vrnouns.gitbook.io/flooor/documentation/documentation-en",
-  governance: "https://snapshot.org/#/s:vrnouns.eth",
-  analytics: "https://dune.com/yasinaktimur/flooor",
-  source: "https://github.com/omgbbqhaxx/flooor",
   widget: "https://flooor.notion.site/iPhone-widget-41b0e53baa7d808f97f7e92c51b3d881",
 } as const;
 
@@ -37,7 +33,7 @@ function SolidButton({ href, bg, children }: { href: string; bg: string; childre
   return (
     <Ext
       href={href}
-      className="inline-flex items-center justify-center gap-2.5 px-6 py-3 transition-opacity hover:opacity-85"
+      className="inline-flex items-center justify-center gap-2.5 px-6 py-3 transition-transform duration-200 ease-out hover:scale-[1.04]"
       style={{ ...smallCaps, color: "#fff", backgroundColor: bg }}
     >
       {children}
@@ -45,12 +41,12 @@ function SolidButton({ href, bg, children }: { href: string; bg: string; childre
   );
 }
 
-// Çerçeveli buton: hairline, kare
+// Çerçeveli buton: hairline, kare. Hover'da renk değişmez, sadece hafifçe büyür
 function LineButton({ href, children, full = false }: { href: string; children: ReactNode; full?: boolean }) {
   return (
     <Ext
       href={href}
-      className={`${full ? "flex w-full" : "inline-flex"} items-center justify-center gap-2 px-5 py-2.5 transition-colors hover:bg-black hover:!text-white`}
+      className={`${full ? "flex w-full" : "inline-flex"} items-center justify-center gap-2 px-5 py-2.5 transition-transform duration-200 ease-out hover:scale-[1.03]`}
       style={{ ...smallCaps, color: INK, border: `1px solid ${INK}` }}
     >
       {children}
@@ -71,64 +67,33 @@ const WalletIcon = () => (
   </svg>
 );
 
-// iPhone ana ekran widget'ı — kart içinde en altta, iki sütunu kaplayan öne çıkan satır
-const PhoneIcon = () => (
-  <svg width="26" height="40" viewBox="0 0 26 40" fill="none" aria-hidden="true">
-    <rect x="1" y="1" width="24" height="38" stroke="currentColor" strokeWidth="1.6" />
-    <rect x="5" y="7" width="16" height="10" fill="currentColor" />
-    <line x1="5" y1="21" x2="21" y2="21" stroke="currentColor" strokeWidth="1.2" />
-    <line x1="5" y1="25" x2="17" y2="25" stroke="currentColor" strokeWidth="1.2" />
-    <line x1="10" y1="34" x2="16" y2="34" stroke="currentColor" strokeWidth="1.6" />
-  </svg>
-);
-
-const RESOURCES = [
-  { mark: "§", label: "Docs", note: "How the market works", href: LINKS.docs },
-  { mark: "Ⅴ", label: "Governance", note: "Vote on Snapshot", href: LINKS.governance },
-  { mark: "%", label: "Analytics", note: "Live data on Dune", href: LINKS.analytics },
-  { mark: "{ }", label: "Source", note: "Open code on GitHub", href: LINKS.source },
-];
 
 export default function ThingsToDo() {
   return (
     <section id="things" className="max-w-6xl mx-auto px-5 sm:px-8 mt-16 sm:mt-20 text-left">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* 1 — Protokol kaynakları, 2×2 */}
+        {/* 1 — iPhone widget ekran görüntüsü. Görselin yuvarlak köşelerinin dışı
+            koyu gri (#2C2C2E); widget'ın köşe yarıçapıyla (~72px / 1092×1146)
+            kırpılıyor ki kart üzerinde koyu leke kalmasın. */}
         <div className="flex flex-col" style={CARD}>
           <div className="px-6 pt-6 pb-5" style={{ borderBottom: `1px solid ${LINE}` }}>
-            <h3 style={TITLE}>Know the protocol</h3>
-            <p className="mt-1.5 text-sm" style={{ ...SANS, color: MUTED }}>Everything behind the market, in the open.</p>
+            <h3 style={TITLE}>iPhone Widget</h3>
+            <p className="mt-1.5 text-sm" style={{ ...SANS, color: MUTED }}>Treasury, live bid and last sales on your iPhone home screen.</p>
           </div>
-          <div className="grid grid-cols-2 flex-1">
-            {RESOURCES.map((r, i) => (
-              <Ext
-                key={r.label}
-                href={r.href}
-                className="group flex flex-col items-center justify-center text-center px-3 py-6"
-                style={{
-                  borderLeft: i % 2 === 1 ? `1px solid ${LINE}` : undefined,
-                  borderTop: i >= 2 ? `1px solid ${LINE}` : undefined,
-                }}
-              >
-                <span style={{ ...SERIF, fontSize: 34, lineHeight: 1, color: INK }}>{r.mark}</span>
-                <span className="mt-4 underline-offset-4 group-hover:underline" style={{ ...smallCaps, color: INK }}>{r.label} →</span>
-                <span className="mt-1 text-[11px]" style={{ ...SANS, color: MUTED }}>{r.note}</span>
-              </Ext>
-            ))}
-          </div>
-          <Ext
-            href={LINKS.widget}
-            className="group flex items-center gap-4 px-6 py-5"
-            style={{ borderTop: `1px solid ${LINE}`, color: INK }}
-          >
-            <PhoneIcon />
-            <span className="min-w-0 flex-1">
-              <span className="flex items-baseline gap-2">
-                <span className="underline-offset-4 group-hover:underline" style={{ ...smallCaps, color: INK }}>iPhone widget →</span>
-                <span style={{ ...smallCaps, fontSize: 9, color: GOLD }}>New</span>
-              </span>
-              <span className="mt-1 block text-[11px]" style={{ ...SANS, color: MUTED }}>Treasury, live bid and last sales on your home screen</span>
-            </span>
+          <Ext href={LINKS.widget} className="group flex-1 flex items-center justify-center p-6">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/iphone-widget.jpg"
+              alt="Flooor iPhone widget showing the daily treasury, signers, current bid and last sales"
+              width={1092}
+              height={1146}
+              className="block w-full max-w-[300px] h-auto transition-transform duration-500 ease-out group-hover:scale-[1.02]"
+              style={{ borderRadius: "6.8% / 6.5%", border: "1px solid rgba(26,26,26,0.12)", boxShadow: "0 10px 28px -14px rgba(26,26,26,0.35)" }}
+            />
+          </Ext>
+          <Ext href={LINKS.widget} className="group flex items-center justify-between gap-3 px-6 py-4" style={{ borderTop: `1px solid ${LINE}` }}>
+            <span className="underline-offset-4 group-hover:underline" style={{ ...smallCaps, color: INK }}>Set up the widget →</span>
+            <span style={{ ...smallCaps, fontSize: 9, color: GOLD }}>New</span>
           </Ext>
         </div>
 
