@@ -26,7 +26,7 @@ import { sdk } from "@farcaster/miniapp-sdk";
 import SiteHeader from "@/app/components/SiteHeader";
 import { FAINT, GOLD, GREEN, HAIRLINE, INK, IVORY, MUTED, PLINTH, RED, SANS, SERIF, smallCaps } from "@/app/lib/theme";
 import Footer from "@/app/components/Footer";
-import CommunityFeeBadge from "@/app/components/CommunityFeeBadge";
+import LotStats from "@/app/components/LotStats";
 import WorkCard from "@/app/components/WorkCard";
 import { EpochTimeline } from "@/app/components/EpochTimeline";
 import { Playfair_Display, Inter } from "next/font/google";
@@ -1948,7 +1948,7 @@ export default function EthereumPage() {
       style={{ backgroundColor: "#F2ECE0", color: INK, ...SANS }}
     >
       {/* Header */}
-      <SiteHeader soundOn={soundOn} onToggleSound={toggleSound} />
+      <SiteHeader soundOn={soundOn} onToggleSound={toggleSound} dailyTreasury={fmtEth(dailyVault)} />
 
       {/* Network Gate — full-screen block until on Ethereum */}
       {isWrongNetwork && (
@@ -2023,10 +2023,10 @@ export default function EthereumPage() {
       )}
 
       <main className="max-w-6xl mx-auto px-5 sm:px-8">
-        {/* Bid first on mobile; artwork and bid above vault and sign on desktop. */}
+        {/* Bid first on mobile; artwork left, bid and sign right on desktop. */}
         <div className="grid grid-cols-1 lg:grid-cols-[1.12fr_1fr] gap-6 lg:gap-x-10 pt-7 lg:pt-10 items-start">
               <article
-                className="order-1 lg:order-none lg:col-start-1 lg:row-start-1 w-full min-w-0 fade-in-soft rounded-lg overflow-hidden"
+                className="order-1 lg:order-none lg:col-start-1 lg:row-start-1 w-full min-w-0 fade-in-soft overflow-hidden"
                 style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "#F2ECE0" }}
               >
                 {/* Lot line */}
@@ -2053,7 +2053,7 @@ export default function EthereumPage() {
 
                 {/* Günün eseri: en son mint edilen Mutant (IPFS görseli) */}
                 <div className="px-4 py-4">
-                  <HoloFrame className="rounded-lg overflow-hidden">
+                  <HoloFrame className="overflow-hidden">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={heroToken?.image ?? "/mayc/mutant-1.png"}
@@ -2066,13 +2066,17 @@ export default function EthereumPage() {
                   </HoloFrame>
                 </div>
                 <p className="px-5 pb-3" style={{ ...smallCaps, fontSize: 9 }}>Market cap {marketCapDisplay} · {marketCapEthDisplay}</p>
-                {/* Community fee band */}
-                <div
-                  className="px-3.5 py-2.5 flex items-center justify-center"
-                  style={{ borderBottom: `1px solid ${HAIRLINE}` }}
-                >
-                  <CommunityFeeBadge amount={`Ξ ${fmtEth(dailyVault)}`} amountUsd={toUsd(dailyVault)} />
-                </div>
+                {/* Günlük metrikler — katalog düzeninde (LotStats) */}
+                <LotStats
+                  treasury={`Ξ ${fmtEth(dailyVault)}`}
+                  treasuryUsd={toUsd(dailyVault)}
+                  metrics={[
+                    { label: "Signers", value: dailySigners.toLocaleString() },
+                    { label: "Per NFT", value: `Ξ ${fmtEth(yieldPerNFT)}`, sub: toUsd(yieldPerNFT) },
+                    { label: "Projected APR", value: projectedApr > 0 ? `${projectedApr >= 10 ? projectedApr.toFixed(0) : projectedApr.toFixed(1)}%` : "—", green: true },
+                    { label: "Total signed", value: tvsEthDisplay || "—", sub: tvsUsdDisplay },
+                  ]}
+                />
 
                 {/* Meta strip */}
                 <div className="px-3.5 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
@@ -2104,9 +2108,9 @@ export default function EthereumPage() {
                   </a>
                 </div>
               </article>
-          <div className="contents lg:flex lg:flex-col lg:gap-6 lg:col-start-2 lg:row-start-1 lg:row-span-2 min-w-0">
+          <div className="contents lg:flex lg:flex-col lg:gap-6 lg:col-start-2 lg:row-start-1 min-w-0">
             {/* Current bid */}
-            <section className="order-2 lg:order-none min-w-0 rounded-lg p-5 sm:p-7 lg:p-8" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
+            <section className="order-2 lg:order-none min-w-0 p-5 sm:p-7 lg:p-8" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
               <div className="min-w-0">
                 <div className={`min-w-0 ${hasBid ? "active-bid-aura" : ""}`}>
                   <p style={smallCaps}>Current Bid</p>
@@ -2225,10 +2229,10 @@ export default function EthereumPage() {
                 )}
               </p>
             </section>
-          <section className="order-4 lg:order-none min-w-0 rounded-lg p-5 sm:p-7" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
+          <section className="order-4 lg:order-none min-w-0 p-5 sm:p-7" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
             <div className="w-full">
               <p style={smallCaps}>{isClaimReady ? "Claim your daily share" : "Sign & earn"}</p>
-              <h2 className="mt-3 mb-6" style={{ ...SERIF, fontWeight: 500, fontSize: "clamp(26px, 3vw, 34px)" }}>{isClaimReady ? "Your share is ready." : "Sign your NFTs. Claim daily ETH."}</h2>
+              <h2 className="mt-2 mb-5" style={{ ...SERIF, fontWeight: 500, fontSize: "20px", lineHeight: 1.3 }}>{isClaimReady ? "Your share is ready." : "Sign your NFTs. Claim daily ETH."}</h2>
               <div className="mb-5">
                 <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
                   <span style={{ color: MUTED }}>{!phaseInfo ? "Loading phase" : isSignPhase ? "Sign closes in" : "Claim closes in"}</span>
@@ -2268,22 +2272,6 @@ export default function EthereumPage() {
             </div>
           </section>
           </div>
-            <section className="order-3 lg:order-none lg:col-start-1 lg:row-start-2 min-w-0 rounded-lg p-5 sm:p-7" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
-              <p style={smallCaps}>Today’s community vault</p>
-              <p className="mt-3 tabular-nums" style={{ ...SERIF, fontSize: "clamp(42px, 6vw, 64px)", lineHeight: 1.1 }}>Ξ {fmtEth(dailyVault)}</p>
-              <p className="mt-3 text-sm" style={{ color: MUTED }}>{dailySigners.toLocaleString()} signers sharing today’s vault{toUsd(dailyVault) ? ` · ${toUsd(dailyVault)}` : ""}.</p>
-              <div className="grid grid-cols-3 gap-3 mt-6 pt-5" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
-                {[
-                  { label: "Per NFT", value: `Ξ ${fmtEth(yieldPerNFT)}`, sub: toUsd(yieldPerNFT), green: true },
-                  { label: "Projected APR", value: projectedApr > 0 ? `${projectedApr >= 10 ? projectedApr.toFixed(0) : projectedApr.toFixed(1)}%` : "—", sub: toUsd(String(annualYieldEth)), green: true },
-                  { label: "Total signed", value: tvsEthDisplay || "—", sub: tvsUsdDisplay, green: false },
-                ].map((metric) => <div key={metric.label} className="min-w-0">
-                  <p style={{ ...smallCaps, fontSize: 9, letterSpacing: "0.1em" }}>{metric.label}</p>
-                  <p className="mt-2 text-sm sm:text-base tabular-nums break-words" style={{ color: metric.green ? GREEN : INK, fontWeight: 500 }}>{metric.value}</p>
-                  {metric.sub && <p className="mt-1 text-xs" style={{ color: MUTED }}>{metric.sub}</p>}
-                </div>)}
-              </div>
-            </section>
 
         </div>
 
@@ -2308,17 +2296,17 @@ export default function EthereumPage() {
               fontSize: "clamp(26px, 3vw, 36px)",
             }}
           >
-            Works in your wallet
+            NFTs in your wallet
           </h2>
           <p className="mt-2 text-sm" style={{ color: MUTED }}>
-            Each work signs and claims on its own — use the button above for all
+            Each NFT signs and claims on its own — use the button above for all
             at once, or a card for just one. Tap More to send or sell.
             {isCheckingApproval ? " Checking approval…" : ""}
           </p>
 
           {!address ? (
             <div
-              className="mt-6 px-5 py-10 text-center rounded-lg"
+              className="mt-6 px-5 py-10 text-center"
               style={{ border: `1px solid ${HAIRLINE}` }}
             >
               <p
@@ -2327,7 +2315,7 @@ export default function EthereumPage() {
               >
                 Your collection starts here.
               </p>
-              <p className="mt-3 text-sm" style={{ color: MUTED }}>Connect your wallet to see your works.</p>
+              <p className="mt-3 text-sm" style={{ color: MUTED }}>Connect your wallet to see your NFTs.</p>
               <button onClick={openConnectModal} className="mt-5 text-xs underline underline-offset-4" style={smallCaps}>Connect wallet →</button>
             </div>
           ) : userNFTs.length > 0 ? (
@@ -2401,7 +2389,7 @@ export default function EthereumPage() {
                 style={{ ...SERIF, fontStyle: "italic", color: MUTED }}
                 className="text-lg"
               >
-                No works in your collection — acquire today&apos;s lot above.
+                No NFTs in your collection — acquire today&apos;s lot above.
               </p>
             </div>
           )}
@@ -2459,7 +2447,7 @@ export default function EthereumPage() {
                 className="mt-3 text-base leading-relaxed"
                 style={{ color: MUTED }}
               >
-                No listings, no negotiation. Place a bid, or sell your work
+                No listings, no negotiation. Place a bid, or sell your NFT
                 instantly at the standing price — settled on-chain.
               </p>
             </div>

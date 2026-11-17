@@ -1287,7 +1287,7 @@ export default function BasedOnchainDinosPage() {
     const candidates = bulkEligible;
 
     if (candidates.length === 0) {
-      toast.info(isSignPhase ? "Every work is already signed." : "Nothing left to claim.");
+      toast.info(isSignPhase ? "Every NFT is already signed." : "Nothing left to claim.");
       return;
     }
 
@@ -1321,7 +1321,7 @@ export default function BasedOnchainDinosPage() {
         toast.warning(
           first && !first.guard.ok
             ? first.guard.message
-            : "None of these works can be processed right now.",
+            : "None of these NFTs can be processed right now.",
           { duration: 6000 },
         );
         return;
@@ -1386,7 +1386,7 @@ export default function BasedOnchainDinosPage() {
       toast.success(
         n === 1
           ? `Based Onchain Dino ${past}${stockNote}!`
-          : `${n} works ${past}${outcome.sequential ? "" : " in one transaction"}${stockNote}!` +
+          : `${n} NFTs ${past}${outcome.sequential ? "" : " in one transaction"}${stockNote}!` +
               (skipped > 0 ? ` (${skipped} skipped)` : "") +
               (atomic || outcome.sequential ? "" : " Your wallet ran them one by one — check each card."),
       );
@@ -2012,7 +2012,7 @@ export default function BasedOnchainDinosPage() {
                       ? `Take your share in ETH, or swap it into ${STOCK.symbol} — tokenized ${STOCK.name} stock on Base — in the same transaction via Aerodrome.`
                       : ""}
                     {bulkClaimReady ? " " : ""}Hold Based Onchain Dinos? Daily sign to claim your share of the daily
-                    vault — every work in your wallet, one tap. No lockup, no transfer.
+                    vault — every NFT in your wallet, one tap. No lockup, no transfer.
                   </p>
                 </section>
               </div>
@@ -2036,7 +2036,7 @@ export default function BasedOnchainDinosPage() {
               className="mt-3"
               style={{ ...SERIF, fontWeight: 500, fontSize: "clamp(26px, 3vw, 36px)" }}
             >
-              Works in your wallet
+              NFTs in your wallet
             </h2>
             <p className="mt-2 text-sm" style={{ color: MUTED }}>
               Sign daily from each card below, or tap More to send or sell.
@@ -2051,7 +2051,7 @@ export default function BasedOnchainDinosPage() {
             ) : userNFTs.length === 0 ? (
               <div className="mt-8 py-14 text-center" style={{ border: `1px solid ${HAIRLINE}` }}>
                 <p style={{ ...SERIF, fontStyle: "italic", color: MUTED }} className="text-lg">
-                  No works in your collection — acquire today&apos;s lot above.
+                  No NFTs in your collection — acquire today&apos;s lot above.
                 </p>
               </div>
             ) : (

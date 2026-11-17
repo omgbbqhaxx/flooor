@@ -1904,7 +1904,7 @@ export default function LivesPage() {
               className="mt-3"
               style={{ ...SERIF, fontWeight: 500, fontSize: "clamp(26px, 3vw, 36px)" }}
             >
-              Works in your wallet
+              NFTs in your wallet
             </h2>
             <p className="mt-2 text-sm" style={{ color: MUTED }}>
               Sign daily from each card below, or tap More to send or sell.
@@ -1919,7 +1919,7 @@ export default function LivesPage() {
             ) : userNFTs.length === 0 ? (
               <div className="mt-8 py-14 text-center" style={{ border: `1px solid ${HAIRLINE}` }}>
                 <p style={{ ...SERIF, fontStyle: "italic", color: MUTED }} className="text-lg">
-                  No works in your collection — acquire today&apos;s lot above.
+                  No NFTs in your collection — acquire today&apos;s lot above.
                 </p>
               </div>
             ) : (

@@ -29,6 +29,7 @@ import SiteHeader from "@/app/components/SiteHeader";
 import { FAINT, GOLD, GREEN, HAIRLINE, INK, IVORY, MUTED, PLINTH, RED, SANS, SERIF, smallCaps } from "@/app/lib/theme";
 import Footer from "@/app/components/Footer";
 import LotStats from "@/app/components/LotStats";
+import ThingsToDo from "@/app/components/ThingsToDo";
 import WorkCard from "@/app/components/WorkCard";
 import { EpochTimeline } from "@/app/components/EpochTimeline";
 import { Playfair_Display, Inter } from "next/font/google";
@@ -2404,10 +2405,10 @@ export default function BetaPage() {
               fontSize: "clamp(26px, 3vw, 36px)",
             }}
           >
-            Works in your wallet
+            NFTs in your wallet
           </h2>
           <p className="mt-2 text-sm" style={{ color: MUTED }}>
-            Each work signs and claims on its own — use the button above for all
+            Each NFT signs and claims on its own — use the button above for all
             at once, or a card for just one. Tap More to send or sell.
             {isCheckingApproval ? " Checking approval…" : ""}
           </p>
@@ -2423,7 +2424,7 @@ export default function BetaPage() {
               >
                 Your collection starts here.
               </p>
-              <p className="mt-3 text-sm" style={{ color: MUTED }}>Connect your wallet to see your works.</p>
+              <p className="mt-3 text-sm" style={{ color: MUTED }}>Connect your wallet to see your NFTs.</p>
               <button onClick={openConnectModal} className="mt-5 text-xs underline underline-offset-4" style={smallCaps}>Connect wallet →</button>
             </div>
           ) : userNFTs.length > 0 ? (
@@ -2497,7 +2498,7 @@ export default function BetaPage() {
                 style={{ ...SERIF, fontStyle: "italic", color: MUTED }}
                 className="text-lg"
               >
-                No works in your collection — acquire today&apos;s lot above.
+                No NFTs in your collection — acquire today&apos;s lot above.
               </p>
             </div>
           )}
@@ -2666,7 +2667,7 @@ export default function BetaPage() {
                 className="mt-3 text-base leading-relaxed"
                 style={{ color: MUTED }}
               >
-                No listings, no negotiation. Place a bid, or sell your work
+                No listings, no negotiation. Place a bid, or sell your NFT
                 instantly at the standing price — settled on-chain.
               </p>
             </div>
@@ -2745,6 +2746,7 @@ export default function BetaPage() {
             All NFT holders win together.
           </p>
         </div>
+        <ThingsToDo />
       </div>
 
       {/* Torn-paper edge: ivory band -> white page/footer */}
