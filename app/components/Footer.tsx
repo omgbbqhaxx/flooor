@@ -159,7 +159,7 @@ export default function Footer({
               X / Twitter
             </a>
             <a
-              href="https://t.me/richkidsofun"
+              href="https://t.me/+-utsFlsY2xtkODFk"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-black transition-colors"

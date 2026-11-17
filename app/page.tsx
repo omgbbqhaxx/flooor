@@ -2825,7 +2825,7 @@ export default function BetaPage() {
             <div className="mt-8 flex gap-4">
               <button
                 onClick={() => setPendingSendTokenId(null)}
-                className="flex-1 py-3.5 transition-colors hover:bg-black hover:text-white"
+                className="flex-1 py-3.5 transition-colors hover:bg-black hover:!text-white"
                 style={{
                   ...smallCaps,
                   color: INK,

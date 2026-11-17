@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
-import { HAIRLINE, INK, MUTED, SANS, SERIF, smallCaps } from "@/app/lib/theme";
+import { INK, PAPER, MUTED, SANS, SERIF, smallCaps } from "@/app/lib/theme";
 
 // "All NFT holders win together." bandının altındaki bağlantı vitrini.
 // Galeri kataloğu düzeni: köşeli kartlar, ince çizgiler, serif başlıklar.
 // Linkleri değiştirmek için sadece aşağıdaki LINKS nesnesini düzenle.
 const LINKS = {
-  wallet: "https://www.coinbase.com/wallet/downloads",
-  telegram: "https://t.me/richkidsofun",
+  wallet: "https://wallet.coinbase.com/invite/flooorfunprotocolfee/X57CH6Y2",
+  telegram: "https://t.me/+-utsFlsY2xtkODFk",
   baseApp: "https://base.app/app/flooor.fun",
   farcaster: "https://farcaster.xyz/miniapps/pIFtRBsgnWAF/flooorfun",
   x: "https://x.com/flooorfun",
@@ -16,7 +16,11 @@ const LINKS = {
   source: "https://github.com/omgbbqhaxx/flooor",
 } as const;
 
-const CARD = { border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.35)" } as const;
+// degods.com "Things to do" ölçüleri, bizim paletimize çevrildi: bant IVORY,
+// kart ondan bir ton açık (PAPER), dış çerçeve banttan bir ton koyu,
+// kart içi ayraçlar %10 siyah. Gölge ve köşe yuvarlatma yok.
+const LINE = "rgba(26,26,26,0.1)";
+const CARD = { border: "1px solid #CFC5B2", backgroundColor: PAPER } as const;
 const TITLE = { ...SERIF, fontWeight: 500, fontSize: 22, lineHeight: 1.25, color: INK } as const;
 
 function Ext({ href, children, className = "", style }: { href: string; children: ReactNode; className?: string; style?: React.CSSProperties }) {
@@ -45,7 +49,7 @@ function LineButton({ href, children, full = false }: { href: string; children: 
   return (
     <Ext
       href={href}
-      className={`${full ? "flex w-full" : "inline-flex"} items-center justify-center gap-2 px-5 py-2.5 transition-colors hover:bg-black hover:text-white`}
+      className={`${full ? "flex w-full" : "inline-flex"} items-center justify-center gap-2 px-5 py-2.5 transition-colors hover:bg-black hover:!text-white`}
       style={{ ...smallCaps, color: INK, border: `1px solid ${INK}` }}
     >
       {children}
@@ -79,7 +83,7 @@ export default function ThingsToDo() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* 1 — Protokol kaynakları, 2×2 */}
         <div className="flex flex-col" style={CARD}>
-          <div className="px-6 pt-6 pb-5" style={{ borderBottom: `1px solid ${HAIRLINE}` }}>
+          <div className="px-6 pt-6 pb-5" style={{ borderBottom: `1px solid ${LINE}` }}>
             <h3 style={TITLE}>Know the protocol</h3>
             <p className="mt-1.5 text-sm" style={{ ...SANS, color: MUTED }}>Everything behind the market, in the open.</p>
           </div>
@@ -88,10 +92,10 @@ export default function ThingsToDo() {
               <Ext
                 key={r.label}
                 href={r.href}
-                className="group flex flex-col items-center justify-center text-center px-3 py-7 transition-colors hover:bg-white/50"
+                className="group flex flex-col items-center justify-center text-center px-3 py-7"
                 style={{
-                  borderLeft: i % 2 === 1 ? `1px solid ${HAIRLINE}` : undefined,
-                  borderTop: i >= 2 ? `1px solid ${HAIRLINE}` : undefined,
+                  borderLeft: i % 2 === 1 ? `1px solid ${LINE}` : undefined,
+                  borderTop: i >= 2 ? `1px solid ${LINE}` : undefined,
                 }}
               >
                 <span style={{ ...SERIF, fontSize: 34, lineHeight: 1, color: INK }}>{r.mark}</span>
@@ -104,14 +108,14 @@ export default function ThingsToDo() {
 
         {/* 2 — Telegram + cüzdan, alt alta */}
         <div className="flex flex-col gap-5">
-          <div className="flex-1 p-6 flex flex-col" style={{ ...CARD, backgroundColor: "rgba(41,159,213,0.07)" }}>
+          <div className="flex-1 p-6 flex flex-col" style={CARD}>
             <h3 style={TITLE}>Join the Telegram</h3>
             <p className="mt-2 text-sm" style={{ ...SANS, color: MUTED }}>Meet other holders, ask anything, hear about new collections first.</p>
             <div className="mt-auto pt-6">
               <SolidButton href={LINKS.telegram} bg="#229ED9"><TelegramIcon /> Join Telegram</SolidButton>
             </div>
           </div>
-          <div className="flex-1 p-6 flex flex-col" style={{ ...CARD, backgroundColor: "rgba(0,82,255,0.06)" }}>
+          <div className="flex-1 p-6 flex flex-col" style={CARD}>
             <h3 style={TITLE}>Get Coinbase Wallet</h3>
             <p className="mt-2 text-sm" style={{ ...SANS, color: MUTED }}>The simplest way onto Base — sign daily and claim in a single tap.</p>
             <div className="mt-auto pt-6">
@@ -131,9 +135,10 @@ export default function ThingsToDo() {
               <LineButton href={LINKS.x} full>Follow on X →</LineButton>
             </div>
           </div>
-          <div className="mt-auto flex justify-center px-6 pt-2">
+          {/* Zeminsiz VRNoun: gövdesi kartın alt çizgisine oturur, kare zemin yaması yok */}
+          <div className="mt-auto flex justify-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/vrnounz.svg" alt="VRNoun" width={220} height={220} className="block w-[200px] h-auto" style={{ imageRendering: "pixelated" }} />
+            <img src="/vrnoun-cutout.svg" alt="VRNoun" width={260} height={260} className="block w-[240px] h-auto" style={{ imageRendering: "pixelated" }} />
           </div>
         </div>
       </div>
