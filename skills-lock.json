@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "skills": {
+    "agentic-gateway": {
+      "source": "alchemyplatform/skills",
+      "sourceType": "github",
+      "skillPath": "skills/agentic-gateway/SKILL.md",
+      "computedHash": "ba73b928171ee1536d296de438987047e6e9af51b8d1a01f9abfe5a1ff94a08b"
+    },
+    "alchemy-api": {
+      "source": "alchemyplatform/skills",
+      "sourceType": "github",
+      "skillPath": "skills/alchemy-api/SKILL.md",
+      "computedHash": "e24bf884071456eedfda5ff7c578cbcbadf817226bdf46ca72bfbd342c0e4475"
+    },
+    "alchemy-cli": {
+      "source": "alchemyplatform/skills",
+      "sourceType": "github",
+      "skillPath": "skills/alchemy-cli/SKILL.md",
+      "computedHash": "083c8ec2519b4f08b34debd256d16d8227750ef1a5f721e7ea82b7a7d31ced45"
+    },
+    "alchemy-mcp": {
+      "source": "alchemyplatform/skills",
+      "sourceType": "github",
+      "skillPath": "skills/alchemy-mcp/SKILL.md",
+      "computedHash": "2003fcfac633ae94ec660b644a8741bee5591bc1151cf4cd2618925c41339712"
+    },
+    "allium": {
+      "source": "alchemyplatform/skills",
+      "sourceType": "github",
+      "skillPath": "skills/ecosystem/allium/SKILL.md",
+      "computedHash": "9e6620d60c463f7de46e47a241c9d7b6100d2b76afd635aa35c16946b2dd9c2f"
+    },
+    "opensea": {
+      "source": "alchemyplatform/skills",
+      "sourceType": "github",
+      "skillPath": "skills/ecosystem/opensea/SKILL.md",
+      "computedHash": "44e503f60847825ffa413b7ffe5b7a72936d3cf10d0297e04a8c2624190db98c"
+    }
+  }
+}

@@ -4,13 +4,13 @@
 
 :root {
   /* Keep in sync with PAPER in app/lib/theme.ts */
-  --background: #E1D7D5;
+  --background: #F2ECE0;
   --foreground: #1a1a1a;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #E1D7D5;
+    --background: #F2ECE0;
     --foreground: #1a1a1a;
   }
 }
@@ -68,7 +68,7 @@ body {
   display: inline-block;
   width: 6px;
   height: 6px;
-  border-radius: 50%;
+  /* Köşeli tasarım: ağ seçicideki noktalar gibi kare */
   background: #1e7b4f;
   animation: live-pulse 2.4s ease-in-out infinite;
   vertical-align: 2px;

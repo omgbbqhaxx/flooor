@@ -5,7 +5,7 @@ import SiteHeader from "@/app/components/SiteHeader";
 import { FAINT, GOLD, GREEN, HAIRLINE, INK, IVORY, MUTED, PLINTH, RED, SANS, SERIF, smallCaps } from "@/app/lib/theme";
 import { EpochTimeline } from "@/app/components/EpochTimeline";
 import Footer from "@/app/components/Footer";
-import CommunityFeeBadge, { StatPill } from "@/app/components/CommunityFeeBadge";
+import LotStats from "@/app/components/LotStats";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
 import { bulkSignOrClaim, supportsAtomicBatch } from "@/app/lib/bulkSignOrClaim";
 import { STOCK, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
@@ -1968,7 +1968,7 @@ export default function LoopersPage() {
             <div className="flex items-center justify-center">
               {/* Lot plate — matches the "Your Collection" card design below */}
               <article
-                className="w-full max-w-[560px] fade-in-soft rounded-lg overflow-hidden"
+                className="w-full max-w-[560px] fade-in-soft overflow-hidden"
                 style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "#F2ECE0" }}
               >
                 {/* Lot line */}
@@ -1996,7 +1996,7 @@ export default function LoopersPage() {
                 {/* Art plate — ana sayfadaki (VRNouns) kartla aynı: kart zemininde,
                     yuvarlatılmış HoloFrame çerçevesi, market cap görselin altında */}
                 <div className="px-4 py-4">
-                  <HoloFrame className="rounded-lg overflow-hidden">
+                  <HoloFrame className="overflow-hidden">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={LOOPERS_IMG}
@@ -2006,18 +2006,17 @@ export default function LoopersPage() {
                   </HoloFrame>
                 </div>
                 <p className="px-5 pb-3" style={{ ...smallCaps, fontSize: 9 }}>Market cap {marketCapDisplay} · {marketCapEthDisplay}</p>
-                {/* Community fee band */}
-                <div
-                  className="px-3.5 py-2.5 flex flex-wrap items-center justify-center gap-2"
-                  style={{ borderBottom: `1px solid ${HAIRLINE}` }}
-                >
-                  <CommunityFeeBadge amount={`Ξ ${fmtEth(dailyVault)}`} amountUsd={toUsd(dailyVault)} />
-                  {/* Diğer günlük metrikler — fee rozetiyle aynı hap dilinde */}
-                  <StatPill label="Signers" value={dailySigners.toLocaleString()} />
-                  <StatPill label="Per NFT" value={`Ξ ${fmtEth(yieldPerSigner)}`} sub={toUsd(yieldPerSigner)} />
-                  <StatPill label="Projected APR" value={projectedApr > 0 ? `${projectedApr >= 10 ? projectedApr.toFixed(0) : projectedApr.toFixed(1)}%` : "—"} green />
-                  <StatPill label="Total signed" value={tvsEthDisplay || "—"} sub={tvsUsdDisplay} />
-                </div>
+                {/* Günlük metrikler — katalog düzeninde (LotStats) */}
+                <LotStats
+                  treasury={`Ξ ${fmtEth(dailyVault)}`}
+                  treasuryUsd={toUsd(dailyVault)}
+                  metrics={[
+                    { label: "Signers", value: dailySigners.toLocaleString() },
+                    { label: "Per NFT", value: `Ξ ${fmtEth(yieldPerSigner)}`, sub: toUsd(yieldPerSigner) },
+                    { label: "Projected APR", value: projectedApr > 0 ? `${projectedApr >= 10 ? projectedApr.toFixed(0) : projectedApr.toFixed(1)}%` : "—", green: true },
+                    { label: "Total signed", value: tvsEthDisplay || "—", sub: tvsUsdDisplay },
+                  ]}
+                />
 
                 {/* Meta strip */}
                 <div className="px-3.5 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
@@ -2063,7 +2062,7 @@ export default function LoopersPage() {
             ) : (
               <div>
                 {/* Current bid — ana sayfadaki (VRNouns) kutulu kartın aynısı */}
-                <section className="min-w-0 rounded-lg p-5 sm:p-7 lg:p-8" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
+                <section className="min-w-0 p-5 sm:p-7 lg:p-8" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
                   {/* Mint açıkken bid yerine mint fiyatı ve butonları; mint bitince bid geri gelir */}
                   {mintInfo?.active ? (
                   <>
@@ -2213,7 +2212,7 @@ export default function LoopersPage() {
                 </section>
 
                 {/* Sign & earn — vault metrikleri eser görselinin altındaki haplarda */}
-                <section className="mt-6 min-w-0 rounded-lg p-5 sm:p-7" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
+                <section className="mt-6 min-w-0 p-5 sm:p-7" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
                   <p style={smallCaps}>{bulkClaimReady ? "Claim your daily share" : "Sign & earn"}</p>
                   <h2 className="mt-2 mb-5" style={{ ...SERIF, fontWeight: 500, fontSize: "20px", lineHeight: 1.3 }}>{bulkClaimReady ? "Your share is ready." : "Sign your NFTs. Claim daily ETH."}</h2>
                   {/* Faz geri sayımı + 24 saatlik döngü çizelgesi — ana sayfayla birebir */}

@@ -38,10 +38,10 @@ export function EpochTimeline({ phase, remainingSeconds }: {
         {phase && <>
           <span className="absolute -top-5 text-[9px] font-semibold tracking-widest uppercase"
             style={{ color: INK, left: `${Math.min(96, Math.max(4, position))}%`, transform: "translateX(-50%)" }}>Now</span>
-          <span className="absolute top-1/2 z-10 h-3.5 w-3.5 rounded-full"
+          <span className="absolute top-1/2 z-10 h-3.5 w-3.5"
             style={{ left: `${position}%`, transform: "translate(-50%, -50%)", backgroundColor: INK, border: "2px solid #F2ECE0" }} />
         </>}
-        <div className="grid grid-cols-[2fr_1fr] gap-1 overflow-hidden rounded-full h-2.5" style={{ backgroundColor: HAIRLINE }}>
+        <div className="grid grid-cols-[2fr_1fr] gap-1 overflow-hidden h-2.5" style={{ backgroundColor: HAIRLINE }}>
           <div style={{ backgroundColor: GREEN, opacity: signOpen ? 1 : 0.3 }} />
           <div style={{ backgroundColor: GOLD, opacity: claimOpen ? 1 : 0.3 }} />
         </div>

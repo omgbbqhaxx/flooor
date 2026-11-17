@@ -28,7 +28,7 @@ import Link from "next/link";
 import SiteHeader from "@/app/components/SiteHeader";
 import { FAINT, GOLD, GREEN, HAIRLINE, INK, IVORY, MUTED, PLINTH, RED, SANS, SERIF, smallCaps } from "@/app/lib/theme";
 import Footer from "@/app/components/Footer";
-import CommunityFeeBadge, { StatPill } from "@/app/components/CommunityFeeBadge";
+import LotStats from "@/app/components/LotStats";
 import WorkCard from "@/app/components/WorkCard";
 import { EpochTimeline } from "@/app/components/EpochTimeline";
 import { Playfair_Display, Inter } from "next/font/google";
@@ -2102,7 +2102,7 @@ export default function BetaPage() {
         {/* Bid first on mobile; artwork left, bid and sign right on desktop. */}
         <div className="grid grid-cols-1 lg:grid-cols-[1.12fr_1fr] gap-6 lg:gap-x-10 pt-7 lg:pt-10 items-start">
               <article
-                className="order-1 lg:order-none lg:col-start-1 lg:row-start-1 w-full min-w-0 fade-in-soft rounded-lg overflow-hidden"
+                className="order-1 lg:order-none lg:col-start-1 lg:row-start-1 w-full min-w-0 fade-in-soft overflow-hidden"
                 style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "#F2ECE0" }}
               >
                 {/* Lot line */}
@@ -2129,7 +2129,7 @@ export default function BetaPage() {
 
                 {/* Günün eseri: en son mint edilen VRNoun (zincir üstü SVG) — diğer koleksiyon sayfalarıyla aynı */}
                 <div className="px-4 py-4">
-                  <HoloFrame className="rounded-lg overflow-hidden">
+                  <HoloFrame className="overflow-hidden">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={heroToken?.image ?? "/vrnounz.svg"}
@@ -2142,18 +2142,17 @@ export default function BetaPage() {
                   </HoloFrame>
                 </div>
                 <p className="px-5 pb-3" style={{ ...smallCaps, fontSize: 9 }}>Market cap {marketCapDisplay} · {marketCapEthDisplay}</p>
-                {/* Community fee band */}
-                <div
-                  className="px-3.5 py-2.5 flex flex-wrap items-center justify-center gap-2"
-                  style={{ borderBottom: `1px solid ${HAIRLINE}` }}
-                >
-                  <CommunityFeeBadge amount={`Ξ ${fmtEth(dailyVault)}`} amountUsd={toUsd(dailyVault)} />
-                  {/* Diğer günlük metrikler — fee rozetiyle aynı hap dilinde (warplets ile aynı) */}
-                  <StatPill label="Signers" value={dailySigners.toLocaleString()} />
-                  <StatPill label="Per NFT" value={`Ξ ${fmtEth(yieldPerNFT)}`} sub={toUsd(yieldPerNFT)} />
-                  <StatPill label="Projected APR" value={projectedApr > 0 ? `${projectedApr >= 10 ? projectedApr.toFixed(0) : projectedApr.toFixed(1)}%` : "—"} green />
-                  <StatPill label="Total signed" value={tvsEthDisplay || "—"} sub={tvsUsdDisplay} />
-                </div>
+                {/* Günlük metrikler — katalog düzeninde (LotStats) */}
+                <LotStats
+                  treasury={`Ξ ${fmtEth(dailyVault)}`}
+                  treasuryUsd={toUsd(dailyVault)}
+                  metrics={[
+                    { label: "Signers", value: dailySigners.toLocaleString() },
+                    { label: "Per NFT", value: `Ξ ${fmtEth(yieldPerNFT)}`, sub: toUsd(yieldPerNFT) },
+                    { label: "Projected APR", value: projectedApr > 0 ? `${projectedApr >= 10 ? projectedApr.toFixed(0) : projectedApr.toFixed(1)}%` : "—", green: true },
+                    { label: "Total signed", value: tvsEthDisplay || "—", sub: tvsUsdDisplay },
+                  ]}
+                />
 
                 {/* Meta strip */}
                 <div className="px-3.5 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
@@ -2187,7 +2186,7 @@ export default function BetaPage() {
               </article>
           <div className="contents lg:flex lg:flex-col lg:gap-6 lg:col-start-2 lg:row-start-1 min-w-0">
             {/* Current bid */}
-            <section className="order-2 lg:order-none min-w-0 rounded-lg p-5 sm:p-7 lg:p-8" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
+            <section className="order-2 lg:order-none min-w-0 p-5 sm:p-7 lg:p-8" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
               <div className="min-w-0">
                 <div className={`min-w-0 ${hasBid ? "active-bid-aura" : ""}`}>
                   <p style={smallCaps}>Current Bid</p>
@@ -2306,7 +2305,7 @@ export default function BetaPage() {
                 )}
               </p>
             </section>
-          <section className="order-4 lg:order-none min-w-0 rounded-lg p-5 sm:p-7" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
+          <section className="order-4 lg:order-none min-w-0 p-5 sm:p-7" style={{ border: `1px solid ${HAIRLINE}`, backgroundColor: "rgba(255,255,255,0.22)" }}>
             <div className="w-full">
               <p style={smallCaps}>{isClaimReady ? "Claim your daily share" : "Sign & earn"}</p>
               <h2 className="mt-2 mb-5" style={{ ...SERIF, fontWeight: 500, fontSize: "20px", lineHeight: 1.3 }}>{isClaimReady ? "Your share is ready." : "Sign your NFTs. Claim daily ETH."}</h2>
@@ -2415,7 +2414,7 @@ export default function BetaPage() {
 
           {!address ? (
             <div
-              className="mt-6 px-5 py-10 text-center rounded-lg"
+              className="mt-6 px-5 py-10 text-center"
               style={{ border: `1px solid ${HAIRLINE}` }}
             >
               <p

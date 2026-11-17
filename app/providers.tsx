@@ -59,13 +59,15 @@ const robinhoodTransport = http(
   "https://robinhood-mainnet.g.alchemy.com/v2/R11AN4bze2Uyhg3V6KZ7m",
 );
 
-// Ethereum mainnet — sadece /ethereum (Nouns market). Alchemy app'inde
-// ETH_MAINNET kapalı, o yüzden public RPC'ler. chains[0] Base kalmalı:
+// Ethereum mainnet — /ethereum sayfaları. Alchemy app'inde ETH_MAINNET
+// 2026-11-17'de açıldı; Alchemy önde (alchemy_getAssetTransfers ile hızlı
+// sahiplik taraması), public RPC'ler yedek. chains[0] Base kalmalı:
 // chainId verilmeyen çağrılar oraya düşüyor.
 const mainnetTransport = fallback([
+  http("https://eth-mainnet.g.alchemy.com/v2/R11AN4bze2Uyhg3V6KZ7m"),
   http("https://ethereum-rpc.publicnode.com"),
-  http("https://eth.llamarpc.com"),
-  http("https://cloudflare-eth.com"),
+  // llamarpc (525) ve cloudflare-eth (Internal error) 2026-11-17'de çalışmıyordu.
+  http("https://eth.drpc.org"),
 ]);
 
 // 1️⃣ Project ID

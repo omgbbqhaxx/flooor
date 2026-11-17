@@ -34,8 +34,25 @@ const oldschoolGrotesk = localFont({
   display: "swap",
   preload: true,
 });
+import { Playfair_Display, Inter } from "next/font/google";
 import { Providers } from "./providers";
 import { PAPER } from "@/app/lib/theme";
+
+// Galeri fontları kökte tanımlı: sayfalar da aynı fontu kendi içinde
+// tanımlayınca Next tanımları birleştirip CSS'ini başka sayfanın chunk'ına
+// koyabiliyor; o zaman --font-serif/--font-sans boş kalıp logo ve başlıklar
+// yedek fonta düşüyordu. Kökteki tanım her sayfada yüklenir.
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  style: ["normal", "italic"],
+  variable: "--font-serif",
+});
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-sans",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://flooor.fun"),
@@ -105,7 +122,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={oldschoolGrotesk.variable}
+      className={`${oldschoolGrotesk.variable} ${playfair.variable} ${inter.variable}`}
       style={{ backgroundColor: PAPER }}
     >
       <head>
