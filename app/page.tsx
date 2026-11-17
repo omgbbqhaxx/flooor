@@ -2536,12 +2536,9 @@ export default function BetaPage() {
                 img: "/basednouns.png",
                 href: "/based-nouns",
               },
-              {
-                name: "Based Onchain Dinos",
-                sub: "Base · Onchain",
-                img: "/onchdin.svg",
-                href: "/based-onchain-dinos",
-              },
+              // Based Onchain Dinos şimdilik listeden çıkarıldı (2026-11-18);
+              // /based-onchain-dinos sayfası yerinde, geri almak için kartı ekle:
+              // { name: "Based Onchain Dinos", sub: "Base · Onchain", img: "/onchdin.svg", href: "/based-onchain-dinos" },
               {
                 name: "Base Day One",
                 sub: "Base",

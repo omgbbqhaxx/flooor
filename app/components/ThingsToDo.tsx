@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { INK, PAPER, MUTED, SANS, SERIF, smallCaps } from "@/app/lib/theme";
+import { GOLD, INK, PAPER, MUTED, SANS, SERIF, smallCaps } from "@/app/lib/theme";
 
 // "All NFT holders win together." bandının altındaki bağlantı vitrini.
 // Galeri kataloğu düzeni: köşeli kartlar, ince çizgiler, serif başlıklar.
@@ -14,6 +14,7 @@ const LINKS = {
   governance: "https://snapshot.org/#/s:vrnouns.eth",
   analytics: "https://dune.com/yasinaktimur/flooor",
   source: "https://github.com/omgbbqhaxx/flooor",
+  widget: "https://flooor.notion.site/iPhone-widget-41b0e53baa7d808f97f7e92c51b3d881",
 } as const;
 
 // degods.com "Things to do" ölçüleri, bizim paletimize çevrildi: bant IVORY,
@@ -70,6 +71,17 @@ const WalletIcon = () => (
   </svg>
 );
 
+// iPhone ana ekran widget'ı — kart içinde en altta, iki sütunu kaplayan öne çıkan satır
+const PhoneIcon = () => (
+  <svg width="26" height="40" viewBox="0 0 26 40" fill="none" aria-hidden="true">
+    <rect x="1" y="1" width="24" height="38" stroke="currentColor" strokeWidth="1.6" />
+    <rect x="5" y="7" width="16" height="10" fill="currentColor" />
+    <line x1="5" y1="21" x2="21" y2="21" stroke="currentColor" strokeWidth="1.2" />
+    <line x1="5" y1="25" x2="17" y2="25" stroke="currentColor" strokeWidth="1.2" />
+    <line x1="10" y1="34" x2="16" y2="34" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+
 const RESOURCES = [
   { mark: "§", label: "Docs", note: "How the market works", href: LINKS.docs },
   { mark: "Ⅴ", label: "Governance", note: "Vote on Snapshot", href: LINKS.governance },
@@ -92,7 +104,7 @@ export default function ThingsToDo() {
               <Ext
                 key={r.label}
                 href={r.href}
-                className="group flex flex-col items-center justify-center text-center px-3 py-7"
+                className="group flex flex-col items-center justify-center text-center px-3 py-6"
                 style={{
                   borderLeft: i % 2 === 1 ? `1px solid ${LINE}` : undefined,
                   borderTop: i >= 2 ? `1px solid ${LINE}` : undefined,
@@ -104,22 +116,36 @@ export default function ThingsToDo() {
               </Ext>
             ))}
           </div>
+          <Ext
+            href={LINKS.widget}
+            className="group flex items-center gap-4 px-6 py-5"
+            style={{ borderTop: `1px solid ${LINE}`, color: INK }}
+          >
+            <PhoneIcon />
+            <span className="min-w-0 flex-1">
+              <span className="flex items-baseline gap-2">
+                <span className="underline-offset-4 group-hover:underline" style={{ ...smallCaps, color: INK }}>iPhone widget →</span>
+                <span style={{ ...smallCaps, fontSize: 9, color: GOLD }}>New</span>
+              </span>
+              <span className="mt-1 block text-[11px]" style={{ ...SANS, color: MUTED }}>Treasury, live bid and last sales on your home screen</span>
+            </span>
+          </Ext>
         </div>
 
         {/* 2 — Telegram + cüzdan, alt alta */}
         <div className="flex flex-col gap-5">
-          <div className="flex-1 p-6 flex flex-col" style={CARD}>
+          <div className="flex-1 p-6 flex flex-col" style={{ ...CARD, backgroundColor: "#E5F0E4" }}>
             <h3 style={TITLE}>Join the Telegram</h3>
             <p className="mt-2 text-sm" style={{ ...SANS, color: MUTED }}>Meet other holders, ask anything, hear about new collections first.</p>
             <div className="mt-auto pt-6">
-              <SolidButton href={LINKS.telegram} bg="#229ED9"><TelegramIcon /> Join Telegram</SolidButton>
+              <SolidButton href={LINKS.telegram} bg={INK}><TelegramIcon /> Join Telegram</SolidButton>
             </div>
           </div>
-          <div className="flex-1 p-6 flex flex-col" style={CARD}>
+          <div className="flex-1 p-6 flex flex-col" style={{ ...CARD, backgroundColor: "#DBDDF0" }}>
             <h3 style={TITLE}>Get Coinbase Wallet</h3>
             <p className="mt-2 text-sm" style={{ ...SANS, color: MUTED }}>The simplest way onto Base — sign daily and claim in a single tap.</p>
             <div className="mt-auto pt-6">
-              <SolidButton href={LINKS.wallet} bg="#0052FF"><WalletIcon /> Download wallet</SolidButton>
+              <SolidButton href={LINKS.wallet} bg="#8A6CFF"><WalletIcon /> Download wallet</SolidButton>
             </div>
           </div>
         </div>
