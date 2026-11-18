@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { STOCK } from "@/app/lib/claimAsStock";
 import { GOLD, INK, PAPER, MUTED, SANS, SERIF, smallCaps } from "@/app/lib/theme";
 
 // "All NFT holders win together." bandının altındaki bağlantı vitrini.
@@ -7,9 +8,7 @@ import { GOLD, INK, PAPER, MUTED, SANS, SERIF, smallCaps } from "@/app/lib/theme
 const LINKS = {
   wallet: "https://wallet.coinbase.com/invite/flooorfunprotocolfee/X57CH6Y2",
   telegram: "https://t.me/+-utsFlsY2xtkODFk",
-  baseApp: "https://base.app/app/flooor.fun",
-  farcaster: "https://farcaster.xyz/miniapps/pIFtRBsgnWAF/flooorfun",
-  x: "https://x.com/flooorfun",
+  baseMarkets: "https://www.base.org/markets/stocks",
   widget: "https://flooor.notion.site/iPhone-widget-41b0e53baa7d808f97f7e92c51b3d881",
 } as const;
 
@@ -29,12 +28,12 @@ function Ext({ href, children, className = "", style }: { href: string; children
 }
 
 // Dolgu buton: renkli, kare
-function SolidButton({ href, bg, children }: { href: string; bg: string; children: ReactNode }) {
+function SolidButton({ href, bg, color = "#fff", glow, children }: { href: string; bg: string; color?: string; glow?: string; children: ReactNode }) {
   return (
     <Ext
       href={href}
       className="inline-flex items-center justify-center gap-2.5 px-6 py-3 transition-transform duration-200 ease-out hover:scale-[1.04]"
-      style={{ ...smallCaps, color: "#fff", backgroundColor: bg }}
+      style={{ ...smallCaps, color, background: bg, boxShadow: glow }}
     >
       {children}
     </Ext>
@@ -106,30 +105,70 @@ export default function ThingsToDo() {
               <SolidButton href={LINKS.telegram} bg={INK}><TelegramIcon /> Join Telegram</SolidButton>
             </div>
           </div>
-          <div className="flex-1 p-6 flex flex-col" style={{ ...CARD, backgroundColor: "#DBDDF0" }}>
-            <h3 style={TITLE}>Get Coinbase Wallet</h3>
-            <p className="mt-2 text-sm" style={{ ...SANS, color: MUTED }}>The simplest way onto Base — sign daily and claim in a single tap.</p>
-            <div className="mt-auto pt-6">
-              <SolidButton href={LINKS.wallet} bg="#8A6CFF"><WalletIcon /> Download wallet</SolidButton>
+          {/* Coinbase Wallet kampanya görselinin havası, CSS ile: koyu lacivert gece,
+              alt kenardan doğan mavi-camgöbeği gezegen yayı. Görselin kendi yazısı
+              kartın metniyle çakışacağı için resim yerine gradyan. */}
+          <div
+            className="relative flex-1 p-6 flex flex-col overflow-hidden"
+            style={{ border: "1px solid #1F2A3D", backgroundColor: "#0F1726", color: "#fff" }}
+          >
+            <div
+              aria-hidden
+              className="pointer-events-none absolute left-1/2 -translate-x-1/2"
+              style={{
+                top: "74%",
+                width: "210%",
+                aspectRatio: "1",
+                borderRadius: "50%",
+                background: "radial-gradient(circle closest-side, #0A1E6E 0%, #0B35B8 74%, #0E7FE6 89%, #16D4F5 96%, #7CF7D0 100%)",
+                boxShadow: "0 0 6px 1px rgba(124,247,208,0.9), 0 0 34px 8px rgba(22,212,245,0.42)",
+                filter: "blur(1.5px)",
+              }}
+            />
+            <h3 className="relative" style={{ ...TITLE, color: "#fff" }}>
+              Get <span style={{ color: "#16D4F5" }}>Coinbase Wallet</span>
+            </h3>
+            <p className="relative mt-2 text-sm" style={{ ...SANS, color: "#fff" }}>The simplest way onto Base — sign daily and claim in a single tap.</p>
+            <div className="relative mt-5 pb-10">
+              <SolidButton
+                href={LINKS.wallet}
+                // Coinbase logosundaki mavi → camgöbeği geçiş, altında yumuşak parıltı
+                bg="linear-gradient(90deg, #0052FF 0%, #1A7CFF 45%, #16D4F5 100%)"
+                glow="0 8px 22px -8px rgba(22,212,245,0.75), inset 0 1px 0 rgba(255,255,255,0.25)"
+              ><WalletIcon /> Download wallet</SolidButton>
             </div>
           </div>
         </div>
 
-        {/* 3 — Uygulamalarda Flooor, uzun kart + eser */}
-        <div className="flex flex-col overflow-hidden" style={CARD}>
-          <div className="p-6">
-            <h3 style={TITLE}>Flooor in your pocket</h3>
-            <p className="mt-2 text-sm" style={{ ...SANS, color: MUTED }}>Open the market as a mini app, and follow along for daily drops.</p>
-            <div className="mt-5 flex flex-col gap-2.5">
-              <LineButton href={LINKS.baseApp} full>Open in Base App →</LineButton>
-              <LineButton href={LINKS.farcaster} full>Open on Farcaster →</LineButton>
-              <LineButton href={LINKS.x} full>Follow on X →</LineButton>
+        {/* 3 — Tokenized stock: günlük payı SPCXc (tokenized SpaceX) olarak alma.
+            Kart zemini promo görselinin kendi gradyanı (üst #F2EEE8 → alt #ECE5DA),
+            böylece görsel kartın içine kenarsız oturur. */}
+        <div
+          className="flex flex-col overflow-hidden"
+          style={{ ...CARD, background: "linear-gradient(180deg, #F2EEE8 0%, #ECE5DA 100%)" }}
+        >
+          <div className="p-6 pb-0">
+            <div className="flex items-baseline justify-between gap-3">
+              <h3 style={TITLE}>Claim as stock</h3>
+              <span style={{ ...smallCaps, fontSize: 9, color: GOLD }}>Tokenized</span>
+            </div>
+            <p className="mt-2 text-sm" style={{ ...SANS, color: MUTED }}>
+              Take your daily share as {STOCK.symbol} — tokenized {STOCK.name} stock on Base, swapped in the same
+              transaction via Aerodrome. One tap, no extra step.
+            </p>
+            <div className="mt-5">
+              <LineButton href={LINKS.baseMarkets} full>View Base Markets →</LineButton>
             </div>
           </div>
-          {/* Zeminsiz VRNoun: gövdesi kartın alt çizgisine oturur, kare zemin yaması yok */}
           <div className="mt-auto flex justify-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/vrnoun-cutout.svg" alt="VRNoun" width={260} height={260} className="block w-[240px] h-auto" style={{ imageRendering: "pixelated" }} />
+            <img
+              src="/spcxc-promo.png"
+              alt={`${STOCK.symbol} — tokenized ${STOCK.name} stock, available on Flooor`}
+              width={1254}
+              height={1254}
+              className="block w-full max-w-[300px] h-auto"
+            />
           </div>
         </div>
       </div>
