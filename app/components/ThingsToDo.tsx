@@ -10,6 +10,8 @@ const LINKS = {
   telegram: "https://t.me/+-utsFlsY2xtkODFk",
   baseMarkets: "https://www.base.org/markets/stocks",
   widget: "https://flooor.notion.site/iPhone-widget-41b0e53baa7d808f97f7e92c51b3d881",
+  defillama: "https://defillama.com/protocols/nft-marketplace",
+  antc: "https://basescan.org/token/0xb20000000000000000000016e38fd364d271ba28",
 } as const;
 
 // degods.com "Things to do" ölçüleri, bizim paletimize çevrildi: bant IVORY,
@@ -140,9 +142,7 @@ export default function ThingsToDo() {
           </div>
         </div>
 
-        {/* 3 — Tokenized stock: günlük payı SPCXc (tokenized SpaceX) olarak alma.
-            Kart zemini promo görselinin kendi gradyanı (üst #F2EEE8 → alt #ECE5DA),
-            böylece görsel kartın içine kenarsız oturur. */}
+        {/* 3 — Tokenized stock: günlük payı STOCK (şu an ANTc, tokenized Anthropic) olarak alma. */}
         <div
           className="flex flex-col overflow-hidden"
           style={{ ...CARD, background: "linear-gradient(180deg, #F2EEE8 0%, #ECE5DA 100%)" }}
@@ -160,15 +160,48 @@ export default function ThingsToDo() {
               <LineButton href={LINKS.baseMarkets} full>View Base Markets →</LineButton>
             </div>
           </div>
-          <div className="mt-auto flex justify-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/spcxc-promo.png"
-              alt={`${STOCK.symbol} — tokenized ${STOCK.name} stock, available on Flooor`}
-              width={1254}
-              height={1254}
-              className="block w-full max-w-[300px] h-auto"
-            />
+          {/* Görsel yerine katalog etiketi: hisse sembolü serif, altında cashtag.
+              Token değişince kendiliğinden güncellenir. */}
+          <div className="mt-auto px-6 pt-8 pb-6">
+            <div className="flex flex-col items-center justify-center py-10" style={{ borderTop: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE}` }}>
+              <span style={{ ...smallCaps, fontSize: 9, color: MUTED }}>Lot · Tokenized equity</span>
+              <span className="mt-3" style={{ ...SERIF, fontWeight: 500, fontSize: 56, lineHeight: 1, color: INK }}>{STOCK.symbol}</span>
+              <span className="mt-3" style={{ ...SERIF, fontStyle: "italic", fontSize: 17, color: INK }}>{STOCK.name}</span>
+              <span className="mt-2" style={{ ...smallCaps, fontSize: 10, color: GOLD }}>{STOCK.cashtag} · on Base</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Alt sıra: iki yatay duyuru kartı */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
+        {/* 4 — DefiLlama sıralaması: NFT Marketplace kategorisinde 10., hedef 1. */}
+        <div className="p-6 flex flex-col" style={{ ...CARD, backgroundColor: "#EFE6CC", borderColor: "#D9C99B" }}>
+          <div className="flex items-baseline justify-between gap-3">
+            <h3 style={TITLE}>#10 on DefiLlama</h3>
+            <span style={{ ...smallCaps, fontSize: 9, color: GOLD }}>NFT Marketplaces</span>
+          </div>
+          <p className="mt-2 text-sm" style={{ ...SANS, color: MUTED }}>
+            Flooor is now ranked 10th among NFT marketplaces on DefiLlama. Every sign, bid and sale moves us up —
+            the goal is #1, with royalties going back to the community.
+          </p>
+          <div className="mt-auto pt-6">
+            <LineButton href={LINKS.defillama}>See the ranking →</LineButton>
+          </div>
+        </div>
+
+        {/* 5 — Anthropic (ANTc) canlı: NFT sahipleri günlük payı ANTc olarak claim eder */}
+        <div className="p-6 flex flex-col" style={{ ...CARD, backgroundColor: "#F5E6D8", borderColor: "#E0C4AA" }}>
+          <div className="flex items-baseline justify-between gap-3">
+            <h3 style={TITLE}>Anthropic is live</h3>
+            <span style={{ ...smallCaps, fontSize: 9, color: "#A9532A" }}>{STOCK.cashtag} · Live now</span>
+          </div>
+          <p className="mt-2 text-sm" style={{ ...SANS, color: MUTED }}>
+            {STOCK.symbol}, tokenized {STOCK.name} stock, is now on Base. NFT holders can claim their daily vault
+            share as {STOCK.symbol} — swapped in the same transaction, one tap.
+          </p>
+          <div className="mt-auto pt-6">
+            <SolidButton href={LINKS.antc} bg="#A9532A">View {STOCK.symbol} on Base →</SolidButton>
           </div>
         </div>
       </div>

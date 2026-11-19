@@ -8,7 +8,7 @@ import Footer from "@/app/components/Footer";
 import LotStats from "@/app/components/LotStats";
 import { guardSignOrClaim } from "@/app/lib/signGuard";
 import { bulkSignOrClaim, supportsAtomicBatch } from "@/app/lib/bulkSignOrClaim";
-import { STOCK, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
+import { STOCK, buildStockSwapCall, exactClaimShare, formatStock, quoteStock, stockXMention } from "@/app/lib/claimAsStock";
 import { awaitTx } from "@/app/lib/awaitTx";
 import { batchApproveAndSell } from "@/app/lib/approveAndSell";
 import WorkCard from "@/app/components/WorkCard";
@@ -1693,7 +1693,7 @@ export default function LoopersPage() {
         platform === "farcaster"
           ? "@farcaster /flooor"
           : "@flooorfun @base @CoinbaseWallet";
-      const text = `${sharePrompt.text}\n\n${mentions}`;
+      const text = `${sharePrompt.text}\n\n${mentions}${stockXMention(platform, sharePrompt.text)}`;
       const url = "https://flooor.fun/loopers";
       setSharePrompt(null);
       if (platform === "farcaster") {

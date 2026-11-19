@@ -1,41 +1,56 @@
-// Claim'i ETH yerine SPCXc (Coinbase'in Base'deki tokenize SpaceX hissesi)
+// Claim'i ETH yerine ANTc (Coinbase'in Base'deki tokenize Anthropic hissesi)
 // olarak alma yolu. Önceki kampanyalar AMZNc, SPCXc, AAPLc, AMDc, TSLAc idi
 // (AMDc havuzu boşalınca swap revert etti); token adresi/sembolü/havuzu tek yerde.
 //
 // Kontrat claim'de ETH'i cüzdana yollar; biz aynı wallet_sendCalls paketinin
 // sonuna bir swap call'ı ekliyoruz. Paket atomik cüzdanda tek işlemde koşar:
-// claim'ler ETH'i getirir, son call o ETH'i SPCXc'ye çevirir.
+// claim'ler ETH'i getirir, son call o ETH'i ANTc'ye çevirir.
 //
 // Base app'in kendi swap'ı CDP Trade API'ye (0x) gidiyor (sunucu anahtarı
 // ister, statik siteye konmaz). Onun yerine doğrudan zincirdeki havuzları
-// kullanıyoruz. SPCXc'nin en derin havuzu Aerodrome Slipstream'de (Uniswap V3
-// %1 havuzu sığ); CLFactory 0xf8f2…61Ef. Router/quoter o factory'ye bağlı
-// olanlar olmalı, Aerodrome'un eski Slipstream router'ları bu havuzları görmez.
-// ETH → USDC (tickSpacing 50, derin) → SPCXc (tickSpacing 10).
+// kullanıyoruz. ANTc'nin en derin havuzu Aerodrome Slipstream'in YENİ
+// CLFactory'sinde (0x9CB2…7a76; USDC/ANTc ts10 0x599C…ED15, ~557k$ likidite).
+// SPCXc'nin durduğu eski factory (0xf8f2…61Ef) ve onun router/quoter'ı bu
+// havuzu görmez. Router o factory'ye bağlı olan (factory() = 0x9CB2…).
+// ETH → USDC (tickSpacing 50, ~1.35M$) → ANTc (tickSpacing 10).
+// 2026-11-19 simülasyon: 0.5 ETH → 9.17 ANTc, kayma ~%0.2.
 import { simulateContract, readContract } from "wagmi/actions";
 import type { Config } from "wagmi";
 import { encodeFunctionData, encodePacked, parseAbi, type Abi, type Address, type Hex } from "viem";
 
-export const STOCK: { address: Address; symbol: string; name: string; decimals: number; cashtag: string; tickSpacing: number } = {
-  address: "0xb2000000000000000000007b9fcbd005511acbd5",
-  symbol: "SPCXc",
-  // Metinlerde "tokenized SpaceX stock"
-  name: "SpaceX",
+export const STOCK: {
+  address: Address;
+  symbol: string;
+  name: string;
+  decimals: number;
+  cashtag: string;
+  xHandle: string;
+  tickSpacing: number;
+} = {
+  address: "0xb20000000000000000000016e38fd364d271ba28",
+  symbol: "ANTc",
+  // Metinlerde "tokenized Anthropic stock"
+  name: "Anthropic",
   decimals: 8,
-  // X paylaşımında hisse etiketi
-  cashtag: "$SPCX",
-  // USDC/SPCXc likit havuzu tickSpacing 10 olan (0x0bf5…8c0E, ~12.6k USDC +
-  // ~900 SPCXc; 0.5 ETH'de ~%1.6 kayma).
-  // Token değişince bunu zincirde kontrol et.
+  // Paylaşım metninde hep $ANT yazılır
+  cashtag: "$ANT",
+  // X paylaşımında stock claim'inde ek olarak etiketlenir (Farcaster'da değil)
+  xHandle: "@AnthropicAI",
   tickSpacing: 10,
 };
 
 const WETH: Address = "0x4200000000000000000000000000000000000006";
 const USDC: Address = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-// WETH/USDC tickSpacing 50 havuzu bu factory'nin en derini
+// Yeni factory'nin WETH/USDC tickSpacing 50 havuzu (0x4A7a…366c) en derini
 const WETH_USDC_TICK_SPACING = 50;
-const SWAP_ROUTER: Address = "0x698Cb2b6dd822994581fEa6eA4Fc755d1363A92F";
-const QUOTER_V2: Address = "0x514c8B5f54112481E28028F1166Bd78501089259";
+// Yeni CLFactory'ye (0x9CB2…7a76) bağlı Slipstream SwapRouter
+const SWAP_ROUTER: Address = "0x9Ee35Bf1bd69a03c6F0393582030fCe8Bb93D418";
+// Quote için router'ın swap'ını eth_call ile simüle ediyoruz (bu factory'nin
+// quoter'ı yok elimizde). Simülasyonun "from"u bol ETH'li bir adres olmalı —
+// kullanıcının ETH'i claim'den sonra geleceği için onun cüzdanı yetmeyebilir.
+// WETH kontratı her zaman yüklü ETH tutar; sadece okuma, işlem atılmaz.
+const QUOTE_FROM: Address = WETH;
+const QUOTE_SINK: Address = "0x000000000000000000000000000000000000dEaD";
 
 // Kaymaya tolerans — havuz ücreti quote'un içinde, bu sadece quote ile
 // gerçekleşme arasındaki fiyat hareketi için.
@@ -50,10 +65,6 @@ const PATH: Hex = encodePacked(
   [WETH, WETH_USDC_TICK_SPACING, USDC, STOCK.tickSpacing, STOCK.address],
 );
 
-const QUOTER_ABI = parseAbi([
-  "function quoteExactInput(bytes path, uint256 amountIn) returns (uint256 amountOut, uint160[] sqrtPriceX96AfterList, uint32[] initializedTicksCrossedList, uint256 gasEstimate)",
-]);
-
 const ROUTER_ABI = parseAbi([
   "struct ExactInputParams { bytes path; address recipient; uint256 deadline; uint256 amountIn; uint256 amountOutMinimum; }",
   "function exactInput(ExactInputParams params) payable returns (uint256 amountOut)",
@@ -61,7 +72,7 @@ const ROUTER_ABI = parseAbi([
 
 export type StockCall = { to: Address; data: Hex; value: bigint };
 
-// Bu kadar ETH kaç SPCXc eder? (8 decimals)
+// Bu kadar ETH kaç ANTc eder? (8 decimals)
 export const quoteStock = async (opts: {
   config: Config;
   chainId: number;
@@ -69,13 +80,21 @@ export const quoteStock = async (opts: {
 }): Promise<bigint> => {
   const { config, chainId, amountInWei } = opts;
   const { result } = await simulateContract(config, {
-    address: QUOTER_V2,
-    abi: QUOTER_ABI,
-    functionName: "quoteExactInput",
-    args: [PATH, amountInWei],
+    account: QUOTE_FROM,
+    address: SWAP_ROUTER,
+    abi: ROUTER_ABI,
+    functionName: "exactInput",
+    value: amountInWei,
+    args: [{
+      path: PATH,
+      recipient: QUOTE_SINK,
+      deadline: BigInt(Math.floor(Date.now() / 1000) + DEADLINE_SECONDS),
+      amountIn: amountInWei,
+      amountOutMinimum: BigInt(0),
+    }],
     chainId,
   });
-  return result[0];
+  return result;
 };
 
 export const formatStock = (units: bigint): string => {
@@ -130,3 +149,9 @@ export const exactClaimShare = async (opts: {
   const pool = snap > BigInt(0) ? snap : accrued;
   return pool / count;
 };
+
+// X paylaşımında stock claim'i ise hissenin şirketini de etiketle
+// (@AnthropicAI). Stock metni her zaman cashtag'i ($ANT) içerir; ETH claim
+// metni içermez. Farcaster'da X handle'ı başka birini etiketleyebilir → eklenmez.
+export const stockXMention = (platform: "x" | "farcaster", text: string): string =>
+  platform === "x" && text.includes(STOCK.cashtag) ? ` ${STOCK.xHandle}` : "";

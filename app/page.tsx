@@ -117,7 +117,7 @@ import { guardSignOrClaim } from "@/app/lib/signGuard";
 import { awaitTx } from "@/app/lib/awaitTx";
 import { bulkSignOrClaim } from "@/app/lib/bulkSignOrClaim";
 import { batchApproveAndSell } from "@/app/lib/approveAndSell";
-import { STOCK, buildStockSwapCall, exactClaimShare, formatStock, quoteStock } from "@/app/lib/claimAsStock";
+import { STOCK, buildStockSwapCall, exactClaimShare, formatStock, quoteStock, stockXMention } from "@/app/lib/claimAsStock";
 
 // v2 (token bazlı çoklu imza) — 2026-10-04. /genesis bilerek v1 0xF6B2…58fF'te kalıyor.
 const CONTRACT_ADDR = "0xD53292182A342953f446CD4D10Dc177776044306" as const;
@@ -1932,7 +1932,7 @@ export default function BetaPage() {
         platform === "farcaster"
           ? "@farcaster /flooor"
           : "@flooorfun @base @CoinbaseWallet";
-      const text = `${sharePrompt.text}\n\n${mentions}`;
+      const text = `${sharePrompt.text}\n\n${mentions}${stockXMention(platform, sharePrompt.text)}`;
       const url = "https://flooor.fun";
       setSharePrompt(null);
       if (platform === "farcaster") {
